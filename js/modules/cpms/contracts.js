@@ -10,8 +10,8 @@
  * 2. Giải ngân & Thanh toán: CHỈ cộng các dòng giao dịch thực tế (is_header !== true), tuyệt đối không cộng dòng Header tổng hợp.
  */
 
-import { db } from '../../core/db.js?v=4.1';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=4.1';
+import { db } from '../../core/db.js?v=5.0';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.0';
 
 export class ContractsManager {
   constructor() {
@@ -145,6 +145,45 @@ export class ContractsManager {
 
   async loadData() {
     this.projects = await db.getAll('projects');
+    const allContracts = await db.getAll('contracts');
+
+    // Tự động chuẩn hóa Tên và Địa điểm dự án nếu bị lưu nhầm tên file hoặc thiếu địa điểm từ các phiên bản trước
+    let updatedAnyProject = false;
+    for (const prj of this.projects) {
+      const isPlaceholder = !prj.location || !String(prj.location).trim() ||
+        prj.location === '—' ||
+        prj.name === prj.source_filename?.replace(/\.[^/.]+$/, '') ||
+        /^PRJ_\d+/.test(prj.name) ||
+        /CHC1_\d+_\d+/.test(prj.name);
+
+      if (isPlaceholder) {
+        const prjContracts = allContracts.filter((c) => c.project_id === prj.id);
+        const hasCHC1 = prjContracts.some((c) =>
+          (c.contract_no && c.contract_no.includes('CHC1')) ||
+          (c.id && c.id.includes('CHC1')) ||
+          (c.scope_of_work && c.scope_of_work.toLowerCase().includes('tổng thầu'))
+        );
+
+        if (hasCHC1) {
+          prj.code = prj.code && !prj.code.startsWith('PRJ_') ? prj.code : 'CHC1';
+          prj.name = 'Dự án Nhà ở Chung cư Cao tầng Westlake Residential';
+          prj.location = 'Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội';
+          if (!prj.client || prj.client === 'Chủ đầu tư') {
+            prj.client = 'Công ty Cổ phần Xây dựng và Kỹ thuật Việt Nam';
+          }
+          if (!prj.contractor) {
+            prj.contractor = 'Công ty Cổ phần Đầu tư Xây dựng và Kỹ thuật VNCN E&C';
+          }
+          await db.put('projects', prj);
+          updatedAnyProject = true;
+        }
+      }
+    }
+
+    if (updatedAnyProject) {
+      this.projects = await db.getAll('projects');
+    }
+
     this.updateProjectSelectorUI();
 
     if (!this.currentProjectId) {
@@ -154,7 +193,6 @@ export class ContractsManager {
       return;
     }
 
-    const allContracts = await db.getAll('contracts');
     const allPayments = await db.getAll('payments');
     const allDocs = await db.getAll('documents');
 
