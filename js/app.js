@@ -237,6 +237,39 @@ class App {
       });
     });
 
+    // Mobile Navigation Drawer (Mở / Đóng Menu trên màn hình dọc)
+    const mobileDrawer = document.getElementById('mobile-menu-drawer');
+    const openMenuBtn = document.getElementById('btn-mobile-menu');
+    const closeMenuBtn = document.getElementById('btn-close-mobile-menu');
+
+    openMenuBtn?.addEventListener('click', () => {
+      mobileDrawer?.classList.remove('hidden');
+    });
+
+    closeMenuBtn?.addEventListener('click', () => {
+      mobileDrawer?.classList.add('hidden');
+    });
+
+    mobileDrawer?.addEventListener('click', (e) => {
+      if (e.target === mobileDrawer) {
+        mobileDrawer.classList.add('hidden');
+      }
+    });
+
+    // Click chuyển phân hệ từ Drawer Menu
+    document.querySelectorAll('.mobile-nav-item').forEach((item) => {
+      item.addEventListener('click', () => {
+        const targetView = item.getAttribute('data-view');
+        this.switchView(targetView);
+        mobileDrawer?.classList.add('hidden');
+      });
+    });
+
+    document.getElementById('btn-mobile-drawer-logout')?.addEventListener('click', () => {
+      mobileDrawer?.classList.add('hidden');
+      this.handleLogout();
+    });
+
     // Sự kiện nút đăng nhập / thoát ở Header
     document.getElementById('btn-header-login')?.addEventListener('click', () => {
       try {
@@ -281,12 +314,20 @@ class App {
   switchView(viewName) {
     this.currentView = viewName;
 
-    // Cập nhật active pill trên Header
+    // Cập nhật active pill trên Header & Drawer
     document.querySelectorAll('.nav-pill').forEach((pill) => {
       if (pill.getAttribute('data-view') === viewName) {
         pill.classList.add('active');
       } else {
         pill.classList.remove('active');
+      }
+    });
+
+    document.querySelectorAll('.mobile-nav-item').forEach((item) => {
+      if (item.getAttribute('data-view') === viewName) {
+        item.classList.add('active');
+      } else {
+        item.classList.remove('active');
       }
     });
 
@@ -645,6 +686,9 @@ class App {
     const headerUserName = document.getElementById('header-user-name');
     const testSyncBtn = document.getElementById('btn-test-sync');
 
+    const mobileDrawerAuthIcon = document.getElementById('mobile-drawer-auth-icon');
+    const mobileDrawerAuthText = document.getElementById('mobile-drawer-auth-text');
+
     if (user) {
       // Khi đã vào phiên làm việc: ẨN nút Đăng nhập, CHỈ HIỆN nhãn (Local hoặc email) + nút Thoát
       headerLoginBtn?.classList.add('hidden');
@@ -654,12 +698,18 @@ class App {
         // Chế độ Cục bộ: Hiển thị nhãn Local
         if (headerUserAvatarIcon) headerUserAvatarIcon.className = 'fa-solid fa-laptop-file';
         if (headerUserName) headerUserName.textContent = 'Local';
+        if (mobileDrawerAuthIcon) mobileDrawerAuthIcon.className = 'fa-solid fa-laptop-file';
+        if (mobileDrawerAuthText) mobileDrawerAuthText.textContent = 'Local';
         if (testSyncBtn) testSyncBtn.disabled = true;
       } else {
         // Đã kết nối Google Drive: Hiển thị email
         if (headerUserAvatarIcon) headerUserAvatarIcon.className = 'fa-brands fa-google';
         if (headerUserName) {
           headerUserName.textContent = user.email || user.name || 'Drive';
+        }
+        if (mobileDrawerAuthIcon) mobileDrawerAuthIcon.className = 'fa-brands fa-google';
+        if (mobileDrawerAuthText) {
+          mobileDrawerAuthText.textContent = user.email || user.name || 'Drive';
         }
         if (testSyncBtn) testSyncBtn.disabled = false;
       }

@@ -863,17 +863,24 @@
     gap: 8px 10px;
   }
 
-  /* Sub-nav tabs bên trong Quản lý Dự án (Tổng quan | Hợp đồng | Giải ngân) */
+  /* Sub-nav tabs bên trong Quản lý Dự án (Tổng quan | Hợp đồng | Giải ngân) - Cố định khi Scrolling */
 .cpms-subnav-tabs {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
+  position: sticky;
+  top: 54px;
+  z-index: 80;
   overflow-x: auto;
   white-space: nowrap;
   scrollbar-width: none;
-  background: transparent;
-  padding: 2px 0;
 }
 
 .cpms-subnav-tabs::-webkit-scrollbar {
@@ -883,43 +890,64 @@
 .cpms-subtab-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 14px;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 18px;
   border-radius: var(--radius-sm);
-  font-size: 0.825rem;
+  font-size: 0.85rem;
   font-weight: 600;
   font-family: inherit;
   color: var(--text-muted);
-  background: #ffffff;
-  border: 1px solid var(--border-color);
+  background: transparent;
+  border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  user-select: none;
 }
 
 .cpms-subtab-btn i {
-  font-size: 0.85rem;
-  color: inherit;
+  font-size: 0.9rem;
+  color: #64748b;
   flex-shrink: 0;
+  transition: color 0.15s ease;
 }
 
 .cpms-subtab-btn:hover {
   color: var(--primary);
   background: var(--bg-card-subtle);
-  border-color: #bfdbfe;
+}
+
+.cpms-subtab-btn:hover i {
+  color: var(--primary);
 }
 
 .cpms-subtab-btn.active {
-  color: var(--primary-text);
-  background: var(--primary-subtle);
-  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
   font-weight: 700;
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.1);
 }
 
 .cpms-subtab-btn.active i {
-  color: var(--primary);
+  color: #2563eb;
+}
+
+@media (max-width: 640px) {
+  .cpms-subnav-tabs {
+    padding: 4px;
+    gap: 4px;
+    top: 50px;
+    border-radius: var(--radius-sm);
+  }
+  .cpms-subtab-btn {
+    flex: 1 1 0;
+    padding: 8px 6px;
+    font-size: 0.8rem;
+    gap: 5px;
+  }
 }
 
 /* Header User Status & Logout */

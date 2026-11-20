@@ -71,6 +71,12 @@
         <span class="brand-name">M<span>AIO</span></span>
       </a>
 
+      <!-- Nút mở Menu Mobile (hiện trên màn hình hẹp/dọc) -->
+      <button id="btn-mobile-menu" class="btn-mobile-menu" aria-label="Mở danh mục phân hệ" title="Danh mục phân hệ">
+        <i class="fa-solid fa-bars"></i>
+        <span>Menu</span>
+      </button>
+
       <!-- Navigation Modules: Quản lý dự án, Quản lý văn phòng, Quản lý chi tiêu, Hồ sơ cá nhân, Cài đặt -->
       <nav class="header-nav" aria-label="Điều hướng phân hệ">
         <button class="nav-pill active" data-view="cpms"><i class="fa-solid fa-file-contract"></i> Quản lý dự án</button>
@@ -101,6 +107,58 @@
         </div>
       </div>
     </header>
+
+    <!-- Mobile Drawer Menu: Danh mục phân hệ đầy đủ khi ở màn hình dọc -->
+    <div id="mobile-menu-drawer" class="mobile-drawer-overlay hidden">
+      <div class="mobile-drawer-content">
+        <div class="mobile-drawer-header">
+          <div class="brand" style="font-size: 1.15rem;">
+            <span class="brand-mark" style="width: 30px; height: 30px; font-size: 0.9rem;"><i class="fa-solid fa-cubes"></i></span>
+            <span class="brand-name">M<span>AIO</span></span>
+          </div>
+          <button id="btn-close-mobile-menu" class="btn-close-drawer" aria-label="Đóng menu">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <div class="mobile-drawer-body">
+          <div class="mobile-drawer-section-title">PHÂN HỆ HỆ THỐNG</div>
+          <button class="mobile-nav-item active" data-view="cpms">
+            <i class="fa-solid fa-file-contract"></i>
+            <span>Quản lý dự án</span>
+          </button>
+          <button class="mobile-nav-item" data-view="office">
+            <i class="fa-solid fa-laptop-file"></i>
+            <span>Quản lý văn phòng</span>
+          </button>
+          <button class="mobile-nav-item" data-view="finance">
+            <i class="fa-solid fa-wallet"></i>
+            <span>Quản lý chi tiêu</span>
+          </button>
+
+          <div class="mobile-drawer-section-title" style="margin-top: 18px;">TÀI KHOẢN & HỆ THỐNG</div>
+          <button class="mobile-nav-item" data-view="profile">
+            <i class="fa-solid fa-user-circle"></i>
+            <span>Hồ sơ cá nhân</span>
+          </button>
+          <button class="mobile-nav-item" data-view="settings">
+            <i class="fa-solid fa-gear"></i>
+            <span>Cài đặt hệ thống</span>
+          </button>
+        </div>
+
+        <div class="mobile-drawer-footer">
+          <div class="mobile-drawer-auth-badge">
+            <i id="mobile-drawer-auth-icon" class="fa-solid fa-laptop-file"></i>
+            <span id="mobile-drawer-auth-text">Local</span>
+          </div>
+          <button id="btn-mobile-drawer-logout" class="button button-outline button-sm btn-logout" style="color: var(--danger); border-color: #fca5a5;">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>Thoát</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Main Content -->
     <main class="main-content">
