@@ -299,6 +299,75 @@ export class ContractsManager {
     return `ĐN-${s}`;
   }
 
+  formatNumberWithDots(val) {
+    if (val === undefined || val === null || val === '') return '0';
+    if (typeof val === 'number') {
+      return new Intl.NumberFormat('vi-VN').format(Math.round(val));
+    }
+    const cleanDigits = String(val).replace(/\D/g, '');
+    if (!cleanDigits) return '0';
+    try {
+      return new Intl.NumberFormat('vi-VN').format(BigInt(cleanDigits));
+    } catch (e) {
+      return cleanDigits;
+    }
+  }
+
+  parseNumberFromDots(val) {
+    if (!val && val !== 0) return 0;
+    const cleanStr = String(val).replace(/\./g, '').replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
+    const num = parseFloat(cleanStr);
+    return isNaN(num) ? 0 : num;
+  }
+
+  setupCurrencyInputListeners(container = document) {
+    container.querySelectorAll('.currency-input').forEach((input) => {
+      input.type = 'text';
+      input.setAttribute('inputmode', 'numeric');
+
+      if (input.value !== undefined && input.value !== '') {
+        input.value = this.formatNumberWithDots(input.value);
+      }
+
+      input.addEventListener('input', () => {
+        const cursorPosition = input.selectionStart || 0;
+        const originalLength = input.value.length;
+        const rawDigits = input.value.replace(/\D/g, '');
+
+        if (!rawDigits) {
+          input.value = '';
+          return;
+        }
+
+        let formatted = '';
+        try {
+          formatted = new Intl.NumberFormat('vi-VN').format(BigInt(rawDigits));
+        } catch (e) {
+          formatted = rawDigits;
+        }
+        input.value = formatted;
+
+        const newLength = formatted.length;
+        const newCursorPosition = Math.max(0, cursorPosition + (newLength - originalLength));
+        try {
+          input.setSelectionRange(newCursorPosition, newCursorPosition);
+        } catch (err) {}
+      });
+
+      input.addEventListener('blur', () => {
+        if (!input.value.trim()) {
+          input.value = '0';
+        } else {
+          input.value = this.formatNumberWithDots(input.value);
+        }
+      });
+
+      input.addEventListener('focus', () => {
+        input.select();
+      });
+    });
+  }
+
   getDrivePathForContract(contract) {
     const curPrjId = this.currentProjectId || 'CHC1';
     const isMain = !contract.parent_id;
@@ -768,7 +837,7 @@ export class ContractsManager {
             <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
               <div class="form-group">
                 <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Giá trị hợp đồng (VNĐ)</label>
-                <input type="number" class="form-control" name="contract_val" value="${sourceContract.contract_val || 0}">
+                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="${this.formatNumberWithDots(sourceContract.contract_val || 0)}">
               </div>
               <div class="form-group">
                 <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Ngày ký</label>
@@ -800,6 +869,8 @@ export class ContractsManager {
       </div>
     `;
 
+    this.setupCurrencyInputListeners(modal);
+
     const closeModal = () => modal.remove();
     modal.querySelector('#btn-close-clone-ctr').onclick = closeModal;
     modal.querySelector('#btn-cancel-clone-ctr').onclick = closeModal;
@@ -810,7 +881,7 @@ export class ContractsManager {
       const newId = fd.get('new_contract_id').trim();
       const newNo = fd.get('new_contract_no').trim();
       const newScope = fd.get('new_scope').trim();
-      const val = parseFloat(fd.get('contract_val') || 0);
+      const val = this.parseNumberFromDots(fd.get('contract_val'));
       const sDate = fd.get('signing_date');
       const copyAppendix = fd.get('copy_appendix') === 'on';
 
@@ -1933,7 +2004,7 @@ export class ContractsManager {
             <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label">Giá trị ký kết (VNĐ)</label>
-                <input type="number" class="form-control" name="contract_val" value="${editContract?.contract_val || 0}" required>
+                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="${this.formatNumberWithDots(editContract?.contract_val || 0)}" required>
               </div>
               <div class="form-group">
                 <label class="form-label">Ngày ký</label>
@@ -1951,6 +2022,7 @@ export class ContractsManager {
     `;
 
     document.body.appendChild(modal);
+    this.setupCurrencyInputListeners(modal);
 
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
@@ -1980,7 +2052,7 @@ export class ContractsManager {
         scope_of_work: formData.get('scope_of_work'),
         company_a: formData.get('company_a'),
         company_b: formData.get('company_b'),
-        contract_val: parseFloat(formData.get('contract_val') || 0),
+        contract_val: this.parseNumberFromDots(formData.get('contract_val')),
         signing_date: formData.get('signing_date'),
         status: editContract?.status || 'Active',
       };
@@ -2030,7 +2102,7 @@ export class ContractsManager {
             <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label">Giá trị ký kết (VNĐ)</label>
-                <input type="number" class="form-control" name="contract_val" value="0" required>
+                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="0" required>
               </div>
               <div class="form-group">
                 <label class="form-label">Ngày ký</label>
@@ -2048,6 +2120,8 @@ export class ContractsManager {
     `;
 
     document.body.appendChild(modal);
+    this.setupCurrencyInputListeners(modal);
+
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
 
@@ -2063,7 +2137,7 @@ export class ContractsManager {
         contract_no: formData.get('contract_no'),
         contract_type: isLevel1 ? 'Appendix' : 'Sub-Package',
         scope_of_work: formData.get('scope_of_work'),
-        contract_val: parseFloat(formData.get('contract_val') || 0),
+        contract_val: this.parseNumberFromDots(formData.get('contract_val')),
         signing_date: formData.get('signing_date'),
         company_a: parentContract.company_a,
         company_b: parentContract.company_b,
@@ -2216,15 +2290,15 @@ export class ContractsManager {
             <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
-                <input type="number" class="form-control" id="pay-accepted" name="accepted_vol" value="0">
+                <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-accepted" name="accepted_vol" value="0">
               </div>
               <div class="form-group">
                 <label class="form-label">Bên B Đề nghị thanh toán (VNĐ)</label>
-                <input type="number" class="form-control" id="pay-requested" name="request_amount" value="0" required>
+                <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-requested" name="request_amount" value="0" required>
               </div>
               <div class="form-group">
                 <label class="form-label">Bên A Thực tế đã thanh toán (VNĐ)</label>
-                <input type="number" class="form-control" id="pay-paid" name="paid_amount" value="0" required>
+                <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-paid" name="paid_amount" value="0" required>
               </div>
               <div class="form-group">
                 <label class="form-label">Số Hóa đơn VAT / Tham chiếu</label>
@@ -2247,14 +2321,16 @@ export class ContractsManager {
     `;
 
     document.body.appendChild(modal);
+    this.setupCurrencyInputListeners(modal);
+
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
 
     modal.querySelector('#form-payment').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
-      const reqAmt = parseFloat(formData.get('request_amount') || 0);
-      const paidAmt = parseFloat(formData.get('paid_amount') || 0);
+      const reqAmt = this.parseNumberFromDots(formData.get('request_amount'));
+      const paidAmt = this.parseNumberFromDots(formData.get('paid_amount'));
 
       const paymentData = {
         id: ledgerId,
@@ -2266,7 +2342,7 @@ export class ContractsManager {
         item_index: nextIdx,
         item_name: formData.get('item_name'),
         payment_date: formData.get('payment_date'),
-        accepted_vol: parseFloat(formData.get('accepted_vol') || 0),
+        accepted_vol: this.parseNumberFromDots(formData.get('accepted_vol')),
         request_amount: reqAmt,
         paid_amount: paidAmt,
         remaining: reqAmt - paidAmt,
@@ -2317,15 +2393,15 @@ export class ContractsManager {
             <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
-                <input type="number" class="form-control" id="edit-pay-accepted" name="accepted_vol" value="${payment.accepted_vol || 0}">
+                <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-accepted" name="accepted_vol" value="${this.formatNumberWithDots(payment.accepted_vol || 0)}">
               </div>
               <div class="form-group">
                 <label class="form-label">Bên B Đề nghị thanh toán (VNĐ)</label>
-                <input type="number" class="form-control" id="edit-pay-requested" name="request_amount" value="${payment.request_amount || 0}" required>
+                <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-requested" name="request_amount" value="${this.formatNumberWithDots(payment.request_amount || 0)}" required>
               </div>
               <div class="form-group">
                 <label class="form-label">Bên A Thực tế đã thanh toán (VNĐ)</label>
-                <input type="number" class="form-control" id="edit-pay-paid" name="paid_amount" value="${payment.paid_amount || 0}" required>
+                <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-paid" name="paid_amount" value="${this.formatNumberWithDots(payment.paid_amount || 0)}" required>
               </div>
               <div class="form-group">
                 <label class="form-label">Số Hóa đơn VAT / Tham chiếu</label>
@@ -2350,19 +2426,21 @@ export class ContractsManager {
     `;
 
     document.body.appendChild(modal);
+    this.setupCurrencyInputListeners(modal);
+
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
 
     modal.querySelector('#form-edit-payment').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
-      const reqAmt = parseFloat(formData.get('request_amount') || 0);
-      const paidAmt = parseFloat(formData.get('paid_amount') || 0);
+      const reqAmt = this.parseNumberFromDots(formData.get('request_amount'));
+      const paidAmt = this.parseNumberFromDots(formData.get('paid_amount'));
 
       payment.payment_no = formData.get('payment_no');
       payment.payment_date = formData.get('payment_date');
       payment.item_name = formData.get('item_name');
-      payment.accepted_vol = parseFloat(formData.get('accepted_vol') || 0);
+      payment.accepted_vol = this.parseNumberFromDots(formData.get('accepted_vol'));
       payment.request_amount = reqAmt;
       payment.paid_amount = paidAmt;
       payment.remaining = reqAmt - paidAmt;
