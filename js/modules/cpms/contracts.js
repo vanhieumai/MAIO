@@ -1290,7 +1290,7 @@ export class ContractsManager {
             <!-- Card Hợp đồng gốc -->
             <div class="contract-card-main" data-open-detail="${c.id}">
               <div class="contract-header">
-                <div>
+                <div class="contract-header-left">
                   <div class="contract-no">
                     <i class="fa-solid fa-file-signature"></i>
                     <span>${c.contract_no || c.id}</span>
@@ -1300,16 +1300,17 @@ export class ContractsManager {
                   </div>
                   <div class="contract-title">${c.scope_of_work || 'Hợp đồng thực hiện dự án'}</div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <button class="button button-outline btn-clone-contract-action" data-clone-cid="${c.id}" style="font-size: 0.75rem; padding: 4px 8px; height: 28px;" title="Sao chép Hợp đồng này">
-                    <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép HĐ
+
+                <div class="contract-header-right">
+                  <button class="button button-outline btn-clone-contract-action" data-clone-cid="${c.id}" title="Sao chép Hợp đồng này">
+                    <i class="fa-solid fa-copy" style="color: #6366f1;"></i>
                   </button>
-                  <div style="text-align: right;">
-                    <span style="font-size: 0.725rem; color: var(--text-muted); text-transform: uppercase;">Giá trị Hợp đồng gốc</span>
-                    <div style="font-size: 1.15rem; font-weight: 800; color: var(--primary);">
+                  <div class="contract-val-block">
+                    <span class="contract-val-label">Giá trị Hợp đồng gốc</span>
+                    <div class="contract-val-amount">
                       ${this.formatCurrency(stats.totalSigned)}
                     </div>
-                    ${directChildren.length > 0 ? `<div style="font-size: 0.725rem; color: var(--text-muted); font-weight: 500;">(Đã giao ${directChildren.length} PL: ${this.formatCurrency(stats.appendixSum)})</div>` : ''}
+                    ${directChildren.length > 0 ? `<div class="contract-val-sub">(Đã giao ${directChildren.length} PL: ${this.formatCurrency(stats.appendixSum)})</div>` : ''}
                   </div>
                 </div>
               </div>
@@ -1515,8 +1516,8 @@ export class ContractsManager {
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">${contract.scope_of_work || ''}</p>
           </div>
           <div style="display: flex; gap: 8px;">
-            <button id="btn-clone-current-contract" class="button button-outline" style="font-size: 0.8rem; padding: 6px 12px;" title="Sao chép hợp đồng này">
-              <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép
+            <button id="btn-clone-current-contract" class="button button-outline" style="font-size: 0.85rem; padding: 6px 10px;" title="Sao chép hợp đồng này">
+              <i class="fa-solid fa-copy" style="color: #6366f1;"></i>
             </button>
             <button id="btn-edit-contract-info" class="button button-outline" style="font-size: 0.8rem; padding: 6px 12px;">
               <i class="fa-solid fa-pen-to-square"></i> Sửa thông tin
