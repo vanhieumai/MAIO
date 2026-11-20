@@ -287,6 +287,42 @@ export class ContractsManager {
     return '';
   }
 
+  getDrivePathForContract(contract) {
+    const curPrjId = this.currentProjectId || 'CHC1';
+    const isMain = !contract.parent_id;
+    const parent = !isMain ? this.contracts.find((c) => c.id === contract.parent_id) : null;
+    const cleanNo = (no) => String(no || '').replace(/[\/\\?%*:|"<>]/g, '_');
+
+    const groupFolder = contract.group === 'A' ? '01_Nhom_A_ChuDauTu' : '02_Nhom_B_ThauPhu_NCC';
+
+    if (contract.group === 'A') {
+      if (isMain) {
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cleanNo(contract.contract_no)} / HopDong_Goc /`;
+      } else {
+        const parentNo = parent ? cleanNo(parent.contract_no) : cleanNo(contract.parent_id);
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${parentNo} / PhuLuc_${cleanNo(contract.contract_no)} /`;
+      }
+    } else {
+      // Nhóm B: Phân theo 8 nhóm (Construction, Procurement, Consultancy, Design, Equipment, Service, Maintenance, Rental)
+      const validCategories = [
+        'Construction', 'Procurement', 'Consultancy', 'Design',
+        'Equipment', 'Service', 'Maintenance', 'Rental'
+      ];
+      let cat = contract.category || 'Construction';
+      const matched = validCategories.find((c) => c.toLowerCase() === cat.toLowerCase());
+      cat = matched || 'Construction';
+
+      if (isMain) {
+        const partnerName = cleanNo(contract.company_b || 'NCC');
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${cleanNo(contract.contract_no)}_${partnerName} / HopDong_Goc /`;
+      } else {
+        const rootMain = parent && parent.parent_id ? this.contracts.find((c) => c.id === parent.parent_id) || parent : parent;
+        const parentNo = rootMain ? cleanNo(rootMain.contract_no) : cleanNo(contract.parent_id);
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${parentNo} / PhuLuc_${cleanNo(contract.contract_no)} /`;
+      }
+    }
+  }
+
   renderProjectInfo() {
     const infoContainer = document.getElementById('project-info-bar');
     if (!infoContainer) return;
@@ -1229,7 +1265,7 @@ export class ContractsManager {
                 <i class="fa-brands fa-google-drive" style="color: #2563eb; font-size: 1.25rem;"></i>
                 <strong style="margin-left: 8px;">Thư mục Lưu trữ trên Drive / Máy tính:</strong>
                 <div style="font-family: monospace; font-size: 0.825rem; color: var(--text-muted); margin-top: 4px;">
-                  📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_CHC1 / ${contract.id}_${contract.contract_no.replace(/[\/\\?%*:|"<>]/g, '_')} /
+                  ${this.getDrivePathForContract(contract)}
                 </div>
               </div>
               <button id="btn-open-drive-folder" class="button button-primary" style="font-size: 0.8rem;">
@@ -1473,7 +1509,8 @@ export class ContractsManager {
 
     // Mở Drive Folder
     document.getElementById('btn-open-drive-folder')?.addEventListener('click', () => {
-      alert(`Đang mở thư mục Google Drive: MAIO_Data/01_QuanLy_DuAn/DuAn_CHC1/${contract.id}/`);
+      const drivePath = this.getDrivePathForContract(contract);
+      alert(`Đường dẫn thư mục Google Drive:\n\n${drivePath}\n\n(Tự động đồng bộ với Google Drive Cloud & Máy tính)`);
     });
 
     // Sao chép Hợp đồng

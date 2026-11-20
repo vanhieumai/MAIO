@@ -69,3 +69,48 @@ window.MAIO_GDRIVE_CONFIG = {
 ```
 
 Sau khi điền, bạn chỉ cần mở `index.html` trên trình duyệt và bấm **Kết nối Google Drive** để hoàn tất!
+
+---
+
+## 4. Cấu trúc Cây Thư Mục Chuẩn Hóa trên Google Drive
+
+MAIO tự động thiết lập và quản trị cây thư mục theo mô hình 3 trụ cột (Quản lý Dự án CPMS, Văn phòng Moffice, Sổ quỹ Chi tiêu) với cấu trúc phân nhóm chuyên sâu:
+
+```text
+📁 MAIO_Data/
+├── 📁 01_QuanLy_DuAn/
+│   └── 📁 DuAn_{MaDA}/                          # Thư mục riêng cho từng Dự án (VD: DuAn_CHC1)
+│       ├── 📁 01_Nhom_A_ChuDauTu/               # Hợp đồng với Chủ đầu tư / Tổng thầu
+│       │   └── 📁 {SoHieuHD}/                   # Thư mục cho từng hợp đồng A
+│       │       ├── 📁 HopDong_Goc/              # Chứa các file scan hợp đồng gốc, biên bản đàm phán (nhiều file)
+│       │       ├── 📁 PhuLuc_01/                # Thư mục riêng cho Phụ lục số 01 (file scan & tài liệu)
+│       │       ├── 📁 PhuLuc_02/                # Thư mục riêng cho Phụ lục số 02
+│       │       └── 📁 HoSo_NghiemThu_ThanhToan/ # Các đợt IPC, nghiệm thu, thanh toán
+│       │
+│       └── 📁 02_Nhom_B_ThauPhu_NCC/            # Hợp đồng Nhà thầu phụ & Nhà cung cấp
+│           │                                    # Phân loại thành 8 nhóm chuyên biệt:
+│           ├── 📁 Construction/                 # Thi công xây lắp (cọc, hầm, kết cấu thân, hoàn thiện)
+│           ├── 📁 Procurement/                  # Mua sắm vật tư (thép, xi măng, nhôm kính...)
+│           ├── 📁 Consultancy/                  # Tư vấn, giám sát, thẩm tra, kiểm định
+│           ├── 📁 Design/                       # Thiết kế kiến trúc, kết cấu, MEP
+│           ├── 📁 Equipment/                    # Thiết bị cơ điện, thang máy, trạm điện
+│           ├── 📁 Service/                      # Dịch vụ kỹ thuật, trắc đạc, bảo vệ, vệ sinh
+│           ├── 📁 Maintenance/                  # Bảo dưỡng, bảo trì kỹ thuật định kỳ
+│           └── 📁 Rental/                       # Thuê máy móc, cẩu tháp, giàn giáo, cốp pha
+│               │
+│               └── 📁 {SoHieuHD}_{TenDoiTac}/   # Thư mục cụ thể của hợp đồng B
+│                   ├── 📁 HopDong_Goc/          # Chứa các file scan hợp đồng chính (nhiều file scan)
+│                   ├── 📁 PhuLuc_01/            # Thư mục riêng phụ lục 01 (file scan & dự toán phụ lục)
+│                   ├── 📁 PhuLuc_02/            # Thư mục riêng phụ lục 02
+│                   └── 📁 ThanhToan_NghiemThu/  # Hồ sơ thanh quyết toán đợt
+│
+├── 📁 02_QuanLy_VanPhong/                       # Quản lý văn phòng & Hành chính
+│   ├── 📁 01_TaiSan_TrangThietBi/               # Danh mục tài sản, biên bản bàn giao thiết bị
+│   ├── 📁 02_HoSo_HanhChinh_CapPhat/            # Biên bản cấp phát, luân chuyển văn phòng phẩm
+│   └── 📁 03_HopDong_Thue_VanPhong/             # Hợp đồng thuê mặt bằng văn phòng, dịch vụ
+│
+└── 📁 03_QuanLy_ChiTieu/                        # Quản lý dòng tiền & Thu chi
+    ├── 📁 01_PhieuChi_ChungTu/                  # Phiếu chi, hóa đơn đỏ VAT, chứng từ chuyển khoản
+    ├── 📁 02_PhieuThu/                          # Phiếu thu tiền mặt, chứng từ báo có ngân hàng
+    └── 📁 03_BaoCao_SoQuy/                      # Báo cáo quỹ, sao kê ngân hàng hàng tháng
+```
