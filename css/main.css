@@ -510,10 +510,9 @@ body {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
   margin: 0;
+  word-break: break-word;
 }
 
 .top-project-meta {

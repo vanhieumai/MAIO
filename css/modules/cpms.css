@@ -35,10 +35,9 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 8px 14px;
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: space-between !important;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
   box-shadow: var(--shadow-sm);
   margin-bottom: 12px;
@@ -94,10 +93,9 @@
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-main);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
   margin: 0;
+  word-break: break-word;
 }
 
 .top-project-meta {
@@ -711,6 +709,7 @@
 }
 
 /* Mobile Tối ưu */
+/* Tối ưu toàn diện cho màn hình dọc (Mobile / Tablet Portrait) */
 @media (max-width: 768px) {
   .modal-overlay {
     padding: 8px;
@@ -725,11 +724,111 @@
   .form-grid-2 {
     grid-template-columns: 1fr;
   }
+
+  .top-header-banner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    padding: 10px 12px !important;
+  }
+  .top-project-basic {
+    width: 100%;
+  }
+  .top-project-info {
+    width: 100%;
+  }
+  .cloud-banner-compact {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .project-info-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .project-info-meta {
+    gap: 8px 12px;
+  }
+  .proj-meta-divider {
+    display: none;
+  }
+  .project-info-bar > div:last-child {
+    margin-left: 0 !important;
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 6px;
+  }
 }
 
 @media (max-width: 640px) {
-  .contract-header {
+  /* Tabs Nhóm A / Nhóm B hiển thị 50-50 không bị tràn thanh cuộn */
+  .tab-nav {
+    display: flex;
+    gap: 4px;
+    overflow-x: visible;
+    white-space: normal;
+  }
+  .group-tab-btn {
+    flex: 1 1 0;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 6px;
+    font-size: 0.8rem;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  /* Bộ lọc & Tìm kiếm xếp chồng trên mobile */
+  .filter-row {
+    flex-direction: column;
+    align-items: stretch;
     gap: 8px;
+    padding: 8px 10px;
+  }
+  .filter-category-wrap {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #contract-category-filter {
+    flex: 1;
+    width: 100% !important;
+  }
+
+  /* Thẻ hợp đồng trên màn hình dọc */
+  .contract-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .contract-header-left {
+    width: 100%;
+  }
+  .contract-no {
+    font-size: 0.875rem;
+    gap: 6px;
+  }
+  .contract-title {
+    font-size: 0.825rem;
+    line-height: 1.4;
+    margin-top: 4px;
+  }
+  .contract-header-right {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 10px;
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+    margin-left: 0;
   }
   .btn-clone-contract-action {
     width: 26px;
@@ -737,16 +836,53 @@
     min-width: 26px;
     font-size: 0.75rem;
   }
-  .contract-no {
-    font-size: 0.875rem;
-  }
-  .contract-title {
-    font-size: 0.8rem;
+  .contract-val-block {
+    align-items: flex-end;
+    text-align: right;
   }
   .contract-val-label {
     font-size: 0.65rem;
   }
+  .contract-val-amount {
+    font-size: 1rem;
+    line-height: 1.2;
+  }
   .contract-val-sub {
     font-size: 0.675rem;
+  }
+  .contract-meta {
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.775rem;
+    margin-top: 4px;
+  }
+  .contract-stats {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 10px;
+  }
+
+  /* Toolbar dự án trên mobile */
+  .cpms-toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .cpms-toolbar-left {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .cpms-toolbar-left select,
+  #project-selector {
+    width: 100% !important;
+  }
+  .cpms-toolbar-right {
+    width: 100%;
+    margin-left: 0;
+  }
+  .cpms-toolbar-right .button {
+    width: 100%;
+    justify-content: center;
   }
 }
