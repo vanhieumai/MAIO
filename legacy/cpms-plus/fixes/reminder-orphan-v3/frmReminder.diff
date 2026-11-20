@@ -1,0 +1,55 @@
+--- v2/frmReminder
++++ v3/frmReminder
+@@ -32,8 +32,6 @@
+ Private mContractPreview As MSForms.TextBox
+ Private mAssignDocID As String
+ Private mAssignOldCID As String
+-Private mRefreshLeft As Single
+-Private mGoToLeft As Single
+ Private mListWorkbook As Workbook
+ Private mGroupArr()  As String
+ Private mIsHiding    As Boolean
+@@ -1080,8 +1078,6 @@
+ 
+ ' Delete only a selected document whose internal ContractID no longer exists.
+ Private Sub CreateOrphanDeleteButton()
+-    mRefreshLeft = btnRefreshRiminder.Left
+-    mGoToLeft = btnGoTo.Left
+     Set mDeleteOrphan = Me.Controls.Add("Forms.CommandButton.1", "btnDeleteOrphan", True)
+     Set mAssignContract = Me.Controls.Add("Forms.CommandButton.1", "btnAssignContract", True)
+     mDeleteOrphan.Caption = "Delete orphan"
+@@ -1111,9 +1107,13 @@
+     MatchReminderButton mDeleteOrphan
+     MatchReminderButton mAssignContract
+     mDeleteOrphan.Top = btnRefreshRiminder.Top
+-    mAssignContract.Top = btnRefreshRiminder.Top
+-    mDeleteOrphan.Left = 12
+-    mAssignContract.Left = mDeleteOrphan.Left + mDeleteOrphan.Width + 8
++    mAssignContract.Top = btnGoTo.Top
++    ' Keep Refresh and Go to at their designer positions.
++    Dim gap As Single
++    gap = btnGoTo.Left - (btnRefreshRiminder.Left + btnRefreshRiminder.Width)
++    If gap < 8 Then gap = 8
++    mDeleteOrphan.Left = btnRefreshRiminder.Left - gap - mDeleteOrphan.Width
++    mAssignContract.Left = btnGoTo.Left + btnGoTo.Width + gap
+ End Sub
+ 
+ Private Function ReminderContractExists(ByVal wb As Workbook, ByVal contractID As String) As Boolean
+@@ -1159,8 +1159,6 @@
+     Dim docID As String, contractID As String, exists As Boolean
+     CloseContractPicker
+     btnGoTo.Enabled = False
+-    btnRefreshRiminder.Left = mRefreshLeft
+-    btnGoTo.Left = mGoToLeft
+     If Not mDeleteOrphan Is Nothing Then mDeleteOrphan.Visible = False
+     If Not mAssignContract Is Nothing Then mAssignContract.Visible = False
+     On Error GoTo Done
+@@ -1173,8 +1171,6 @@
+         mAssignContract.Visible = True
+         mDeleteOrphan.Enabled = Not wb.ReadOnly And Not ws.ProtectContents
+         mAssignContract.Enabled = mDeleteOrphan.Enabled
+-        btnRefreshRiminder.Left = mAssignContract.Left + mAssignContract.Width + 8
+-        btnGoTo.Left = btnRefreshRiminder.Left + btnRefreshRiminder.Width + 8
+     End If
+ Done:
+ End Sub

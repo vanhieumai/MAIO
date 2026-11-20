@@ -1,0 +1,367 @@
+--- v1/frmReminder
++++ v2/frmReminder
+@@ -24,6 +24,16 @@
+ Option Explicit
+ 
+ Private WithEvents mDeleteOrphan As MSForms.CommandButton
++Private WithEvents mAssignContract As MSForms.CommandButton
++Private WithEvents mContractChoice As MSForms.ComboBox
++Private WithEvents mConfirmAssign As MSForms.CommandButton
++Private WithEvents mCancelAssign As MSForms.CommandButton
++Private mAssignPanel As MSForms.Frame
++Private mContractPreview As MSForms.TextBox
++Private mAssignDocID As String
++Private mAssignOldCID As String
++Private mRefreshLeft As Single
++Private mGoToLeft As Single
+ Private mListWorkbook As Workbook
+ Private mGroupArr()  As String
+ Private mIsHiding    As Boolean
+@@ -82,6 +92,7 @@
+ 
+     LoadPendingList
+     ApplyTheme Me
++    StyleOrphanButtons
+ 
+     ' Chon vao o tim kiem ngay khi mo form (giong txtKeyword)
+     On Error Resume Next
+@@ -201,8 +212,10 @@
+ '================================================================
+ Public Sub LoadPendingList()
+ 
++    CloseContractPicker
+     Set mListWorkbook = Nothing
+-    If Not mDeleteOrphan Is Nothing Then mDeleteOrphan.Enabled = False
++    If Not mDeleteOrphan Is Nothing Then mDeleteOrphan.Visible = False
++    If Not mAssignContract Is Nothing Then mAssignContract.Visible = False
+ 
+     lstPending.Clear
+     ClearDetailPanel
+@@ -1051,6 +1064,12 @@
+     Set mHomePage = Nothing
+     Set mListWorkbook = Nothing
+     Set mDeleteOrphan = Nothing
++    Set mAssignContract = Nothing
++    Set mContractChoice = Nothing
++    Set mConfirmAssign = Nothing
++    Set mCancelAssign = Nothing
++    Set mContractPreview = Nothing
++    Set mAssignPanel = Nothing
+     On Error GoTo 0
+ End Sub
+ 
+@@ -1061,16 +1080,40 @@
+ 
+ ' Delete only a selected document whose internal ContractID no longer exists.
+ Private Sub CreateOrphanDeleteButton()
++    mRefreshLeft = btnRefreshRiminder.Left
++    mGoToLeft = btnGoTo.Left
+     Set mDeleteOrphan = Me.Controls.Add("Forms.CommandButton.1", "btnDeleteOrphan", True)
+-    With mDeleteOrphan
+-        .Caption = "Delete orphan"
+-        .Left = 12
+-        .Top = btnGoTo.Top
+-        .Width = 110
+-        .Height = btnGoTo.Height
+-        .Enabled = False
+-        .ControlTipText = "Delete the selected document only if its ContractID no longer exists."
++    Set mAssignContract = Me.Controls.Add("Forms.CommandButton.1", "btnAssignContract", True)
++    mDeleteOrphan.Caption = "Delete orphan"
++    mAssignContract.Caption = "Assign contract"
++    mDeleteOrphan.Visible = False
++    mAssignContract.Visible = False
++    StyleOrphanButtons
++End Sub
++
++Private Sub MatchReminderButton(ByVal target As MSForms.CommandButton)
++    With target
++        .Width = btnRefreshRiminder.Width
++        .Height = btnRefreshRiminder.Height
++        .Font.Name = btnRefreshRiminder.Font.Name
++        .Font.Size = btnRefreshRiminder.Font.Size
++        .Font.Bold = btnRefreshRiminder.Font.Bold
++        .Font.Italic = btnRefreshRiminder.Font.Italic
++        .Font.Underline = btnRefreshRiminder.Font.Underline
++        .ForeColor = btnRefreshRiminder.ForeColor
++        .BackColor = btnRefreshRiminder.BackColor
++        .TakeFocusOnClick = True
+     End With
++End Sub
++
++Private Sub StyleOrphanButtons()
++    If mDeleteOrphan Is Nothing Then Exit Sub
++    MatchReminderButton mDeleteOrphan
++    MatchReminderButton mAssignContract
++    mDeleteOrphan.Top = btnRefreshRiminder.Top
++    mAssignContract.Top = btnRefreshRiminder.Top
++    mDeleteOrphan.Left = 12
++    mAssignContract.Left = mDeleteOrphan.Left + mDeleteOrphan.Width + 8
+ End Sub
+ 
+ Private Function ReminderContractExists(ByVal wb As Workbook, ByVal contractID As String) As Boolean
+@@ -1114,14 +1157,24 @@
+ Private Sub UpdateReminderActions()
+     Dim wb As Workbook, ws As Worksheet, rowNo As Long
+     Dim docID As String, contractID As String, exists As Boolean
++    CloseContractPicker
+     btnGoTo.Enabled = False
+-    If Not mDeleteOrphan Is Nothing Then mDeleteOrphan.Enabled = False
++    btnRefreshRiminder.Left = mRefreshLeft
++    btnGoTo.Left = mGoToLeft
++    If Not mDeleteOrphan Is Nothing Then mDeleteOrphan.Visible = False
++    If Not mAssignContract Is Nothing Then mAssignContract.Visible = False
+     On Error GoTo Done
+     If Not ResolveReminderSelection(wb, ws, rowNo, docID, contractID) Then Exit Sub
+     exists = ReminderContractExists(wb, contractID)
+     btnGoTo.Enabled = exists
+-    If Not mDeleteOrphan Is Nothing Then
+-        mDeleteOrphan.Enabled = Not exists And Not wb.ReadOnly And Not ws.ProtectContents
++    If Not exists And Not mDeleteOrphan Is Nothing Then
++        StyleOrphanButtons
++        mDeleteOrphan.Visible = True
++        mAssignContract.Visible = True
++        mDeleteOrphan.Enabled = Not wb.ReadOnly And Not ws.ProtectContents
++        mAssignContract.Enabled = mDeleteOrphan.Enabled
++        btnRefreshRiminder.Left = mAssignContract.Left + mAssignContract.Width + 8
++        btnGoTo.Left = btnRefreshRiminder.Left + btnRefreshRiminder.Width + 8
+     End If
+ Done:
+ End Sub
+@@ -1132,7 +1185,7 @@
+     On Error GoTo Unavailable
+     If Not ResolveReminderSelection(wb, ws, rowNo, docID, contractID) Then GoTo Unavailable
+     If Not ReminderContractExists(wb, contractID) Then
+-        MsgBox "This document has no existing contract. Use Delete orphan to remove it.", vbInformation, "Reminders"
++        MsgBox "This document has no existing contract. Use Assign contract to repair it, or Delete orphan to remove it.", vbInformation, "Reminders"
+         UpdateReminderActions
+         Exit Function
+     End If
+@@ -1213,3 +1266,228 @@
+         MsgBox "The document was not deleted: " & errorText, vbExclamation, "Reminders"
+     End If
+ End Sub
++
++Private Sub CloseContractPicker()
++    If Not mAssignPanel Is Nothing Then mAssignPanel.Visible = False
++    mAssignDocID = ""
++    mAssignOldCID = ""
++End Sub
++
++Private Sub CreateContractPicker()
++    If Not mAssignPanel Is Nothing Then Exit Sub
++    Set mAssignPanel = Me.Controls.Add("Forms.Frame.1", "fraAssignContract", True)
++    With mAssignPanel
++        .Caption = "Assign document to an existing contract / appendix"
++        .Left = fraDetail.Left
++        .Top = fraDetail.Top
++        .Width = fraDetail.Width
++        .Height = fraDetail.Height
++        .BackColor = fraDetail.BackColor
++        .Font.Name = btnRefreshRiminder.Font.Name
++        .Font.Size = btnRefreshRiminder.Font.Size
++        .Visible = False
++    End With
++    Set mContractChoice = mAssignPanel.Controls.Add("Forms.ComboBox.1", "cboAssignContract", True)
++    With mContractChoice
++        .Left = 8
++        .Top = 18
++        .Width = mAssignPanel.Width - 20
++        .Height = 20
++        .Style = fmStyleDropDownList
++        .ColumnCount = 2
++        .BoundColumn = 1
++        .TextColumn = 2
++        .ColumnWidths = "0 pt;400 pt"
++        .ListRows = 14
++        .Font.Name = btnRefreshRiminder.Font.Name
++        .Font.Size = btnRefreshRiminder.Font.Size
++    End With
++    Set mContractPreview = mAssignPanel.Controls.Add("Forms.TextBox.1", "txtAssignPreview", True)
++    With mContractPreview
++        .Left = 8
++        .Top = 44
++        .Width = mAssignPanel.Width - 20
++        .Height = mAssignPanel.Height - btnRefreshRiminder.Height - 66
++        .MultiLine = True
++        .WordWrap = True
++        .ScrollBars = fmScrollBarsVertical
++        .Locked = True
++        .TabStop = False
++        .BackColor = vbWhite
++        .ForeColor = vbBlack
++        .Font.Name = btnRefreshRiminder.Font.Name
++        .Font.Size = btnRefreshRiminder.Font.Size
++    End With
++    Set mConfirmAssign = mAssignPanel.Controls.Add("Forms.CommandButton.1", "btnConfirmAssign", True)
++    Set mCancelAssign = mAssignPanel.Controls.Add("Forms.CommandButton.1", "btnCancelAssign", True)
++    MatchReminderButton mConfirmAssign
++    MatchReminderButton mCancelAssign
++    mConfirmAssign.Caption = "Confirm assign"
++    mCancelAssign.Caption = "Cancel"
++    mConfirmAssign.Left = 8
++    mCancelAssign.Left = mConfirmAssign.Left + mConfirmAssign.Width + 8
++    mConfirmAssign.Top = mContractPreview.Top + mContractPreview.Height + 6
++    mCancelAssign.Top = mConfirmAssign.Top
++End Sub
++
++' Unique, real contract only: exclude group separator records.
++Private Function AssignmentContractRow(ByVal wb As Workbook, ByVal newID As String) As Long
++    Dim ws As Worksheet, r As Long, found As Long, hits As Long, key As String
++    If Len(Trim$(newID)) = 0 Then Exit Function
++    If UCase$(Left$(Trim$(newID), 6)) = "GROUP-" Then Exit Function
++    Set ws = wb.Worksheets("CONTRACT_DB")
++    For r = 2 To ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
++        key = Trim$(CStr(ws.Cells(r, "A").Value2))
++        If StrComp(key, newID, vbTextCompare) = 0 Then
++            found = r
++            hits = hits + 1
++        End If
++    Next r
++    If hits = 1 Then AssignmentContractRow = found
++End Function
++
++Private Function AssignmentContractInfo(ByVal wb As Workbook, ByVal r As Long) As String
++    With wb.Worksheets("CONTRACT_DB")
++        AssignmentContractInfo = "ContractID: " & CStr(.Cells(r, "A").Value2) & vbCrLf & _
++            "Sequence: " & CStr(.Cells(r, "X").Value2) & vbCrLf & _
++            "Contract / appendix: " & CStr(.Cells(r, "B").Value2) & vbCrLf & _
++            "Type: " & CStr(.Cells(r, "C").Value2) & vbCrLf & _
++            "Party B: " & CStr(.Cells(r, "H").Value2) & vbCrLf & _
++            "Scope: " & CStr(.Cells(r, "K").Value2) & vbCrLf & _
++            "Status: " & CStr(.Cells(r, "F").Value2)
++    End With
++End Function
++
++Private Sub mAssignContract_Click()
++    Dim wb As Workbook, ws As Worksheet, contracts As Worksheet, rowNo As Long
++    Dim docID As String, oldID As String, newID As String, r As Long, n As Long
++    On Error GoTo Failed
++    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Changed
++    If ReminderContractExists(wb, oldID) Then GoTo Changed
++    If wb.ReadOnly Or ws.ProtectContents Then GoTo Changed
++    CreateContractPicker
++    mAssignDocID = docID
++    mAssignOldCID = oldID
++    mContractChoice.Clear
++    mConfirmAssign.Enabled = False
++    Set contracts = wb.Worksheets("CONTRACT_DB")
++    For r = 2 To contracts.Cells(contracts.Rows.Count, "A").End(xlUp).Row
++        newID = Trim$(CStr(contracts.Cells(r, "A").Value2))
++        If AssignmentContractRow(wb, newID) = r Then
++            mContractChoice.AddItem newID
++            n = mContractChoice.ListCount - 1
++            mContractChoice.List(n, 1) = CStr(contracts.Cells(r, "X").Value2) & " | " & _
++                CStr(contracts.Cells(r, "B").Value2) & " | " & CStr(contracts.Cells(r, "H").Value2)
++        End If
++    Next r
++    mContractPreview.Text = "DocumentID: " & docID & vbCrLf & "Old ContractID: " & oldID & vbCrLf & vbCrLf & _
++        "Select the new contract above and review its information before confirming."
++    mAssignPanel.Visible = True
++    mAssignPanel.ZOrder 0
++    mContractChoice.SetFocus
++    Exit Sub
++Changed:
++    MsgBox "The document or project has changed, or the data file cannot be edited. Refresh and try again.", vbExclamation, "Reminders"
++    UpdateReminderActions
++    Exit Sub
++Failed:
++    MsgBox "Cannot open contract selection: " & Err.Description, vbExclamation, "Reminders"
++    CloseContractPicker
++End Sub
++
++Private Sub mContractChoice_Change()
++    Dim wb As Workbook, ws As Worksheet, rowNo As Long, r As Long
++    Dim docID As String, oldID As String, newID As String
++    On Error GoTo Failed
++    mConfirmAssign.Enabled = False
++    If mContractChoice.ListIndex < 0 Then Exit Sub
++    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Failed
++    If docID <> mAssignDocID Or oldID <> mAssignOldCID Then GoTo Failed
++    newID = CStr(mContractChoice.List(mContractChoice.ListIndex, 0))
++    r = AssignmentContractRow(wb, newID)
++    If r = 0 Then GoTo Failed
++    mContractPreview.Text = "DocumentID: " & docID & vbCrLf & "Old ContractID: " & oldID & vbCrLf & vbCrLf & AssignmentContractInfo(wb, r)
++    mConfirmAssign.Enabled = True
++    Exit Sub
++Failed:
++    If Not mContractPreview Is Nothing Then mContractPreview.Text = "Selection is no longer valid. Cancel and refresh."
++End Sub
++
++Private Sub mCancelAssign_Click()
++    CloseContractPicker
++End Sub
++
++Private Sub mConfirmAssign_Click()
++    Dim wb As Workbook, ws As Worksheet, confirmedWB As Workbook
++    Dim rowNo As Long, r As Long, docID As String, oldID As String, newID As String
++    Dim info As String, docNo As String, changed As Boolean, saved As Boolean, errorText As String
++    On Error GoTo Failed
++    If mContractChoice.ListIndex < 0 Then Exit Sub
++    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Stale
++    If docID <> mAssignDocID Or oldID <> mAssignOldCID Then GoTo Stale
++    If ReminderContractExists(wb, oldID) Then GoTo Stale
++    If wb.ReadOnly Or ws.ProtectContents Then GoTo Stale
++    newID = CStr(mContractChoice.List(mContractChoice.ListIndex, 0))
++    r = AssignmentContractRow(wb, newID)
++    If r = 0 Then GoTo Stale
++    info = AssignmentContractInfo(wb, r)
++    docNo = CStr(ws.Cells(rowNo, "D").Value2)
++    Set confirmedWB = wb
++    If MsgBox("Assign this document to the following contract?" & vbCrLf & _
++        "DocumentID: " & docID & vbCrLf & "Document: " & docNo & vbCrLf & _
++        "Old ContractID: " & oldID & vbCrLf & vbCrLf & info & vbCrLf & vbCrLf & _
++        "Only the contract link changes. Saving also saves other pending changes in this data file.", _
++        vbYesNo + vbQuestion + vbDefaultButton2, "Confirm contract assignment") <> vbYes Then Exit Sub
++    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Stale
++    If Not (wb Is confirmedWB) Then GoTo Stale
++    If docID <> mAssignDocID Or oldID <> mAssignOldCID Then GoTo Stale
++    If CStr(ws.Cells(rowNo, "D").Value2) <> docNo Then GoTo Stale
++    If ReminderContractExists(wb, oldID) Then GoTo Stale
++    If wb.ReadOnly Or ws.ProtectContents Then GoTo Stale
++    r = AssignmentContractRow(wb, newID)
++    If r = 0 Then GoTo Stale
++    If AssignmentContractInfo(wb, r) <> info Then GoTo Stale
++    ws.Cells(rowNo, "B").Value2 = newID
++    changed = True
++    gDocLoaded = False
++    wb.Save
++    If Not wb.Saved Then Err.Raise vbObjectError + 2102, "frmReminder", "The data workbook was not saved."
++    saved = True
++    CloseContractPicker
++    BuildGlobalContractCache
++    BuildDocTrackerCache
++    LoadPendingList
++    ' Keep the repaired document selected if it still passes the current filters.
++    For r = 0 To lstPending.ListCount - 1
++        If CStr(lstPending.List(r, 7)) = docID Then
++            lstPending.ListIndex = r
++            lstPending_Click
++            Exit For
++        End If
++    Next r
++    MsgBox "Contract assigned and data file saved.", vbInformation, "Reminders"
++    Exit Sub
++Stale:
++    MsgBox "The document, contract or project has changed, or cannot be edited. Refresh and select again.", vbExclamation, "Reminders"
++    UpdateReminderActions
++    Exit Sub
++Failed:
++    errorText = Err.Description
++    On Error Resume Next
++    CloseContractPicker
++    If changed Then
++        gDocLoaded = False
++        BuildGlobalContractCache
++        BuildDocTrackerCache
++        LoadPendingList
++    End If
++    UpdateReminderActions
++    On Error GoTo 0
++    If saved Then
++        MsgBox "Assignment was saved, but refreshing failed: " & errorText, vbExclamation, "Reminders"
++    ElseIf changed Then
++        MsgBox "ContractID changed in memory but saving failed. Keep the data workbook open and resolve the save error: " & errorText, vbCritical, "Reminders"
++    Else
++        MsgBox "ContractID was not changed: " & errorText, vbExclamation, "Reminders"
++    End If
++End Sub

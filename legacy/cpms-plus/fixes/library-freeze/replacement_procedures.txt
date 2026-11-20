@@ -1,0 +1,55 @@
+﻿Private Sub LoadContractDetail(ByVal contractID As String, _
+                               Optional ByVal refreshActiveTab As Boolean = True)
+    gCurrentContractID = contractID
+    LoadSummaryBox ""
+
+    Dim r As Long
+    If gDictContract Is Nothing Then Exit Sub
+    If Not gDictContract.Exists(contractID) Then Exit Sub
+    r = gDictContract(contractID)
+
+    ClearInfoDetail
+    DrawInfoDetail r
+    LoadSummaryBox contractID
+
+    ' A payment-row click must not rebuild its own ListBox.
+    If Not refreshActiveTab Then Exit Sub
+
+    ' Actual page order: Information, Document, Library, Payment,
+    ' Progress, Export. MultiPage indexes start at zero.
+    Select Case tabMain.Value
+        Case 2
+            LoadLibraryPage
+        Case 3
+            LoadPaymentTab contractID
+        Case 5
+            UpdateExportPreview
+    End Select
+End Sub
+
+Public Sub SelectContract(ByVal contractID As String, _
+                          Optional ByVal refreshActiveTab As Boolean = True)
+    contractID = Trim$(contractID)
+    If contractID = "" Or contractID = "0" Then Exit Sub
+    If lstResult.ListCount = 0 Then Exit Sub
+
+    Dim previousSuppress As Boolean
+    previousSuppress = suppressListClick
+    On Error GoTo SelectFailed
+
+    Dim i As Long
+    For i = 0 To lstResult.ListCount - 1
+        If CStr(lstResult.List(i, 0)) = contractID Then
+            suppressListClick = True
+            lstResult.ListIndex = i
+            suppressListClick = previousSuppress
+            LoadContractDetail contractID, refreshActiveTab
+            Exit Sub
+        End If
+    Next i
+    Exit Sub
+
+SelectFailed:
+    suppressListClick = previousSuppress
+    MsgBox "SelectContract: " & Err.Description, vbExclamation, "CPMS"
+End Sub

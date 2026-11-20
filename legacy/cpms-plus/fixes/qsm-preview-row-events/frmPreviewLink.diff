@@ -1,0 +1,67 @@
+--- 
++++ 
+@@ -7,6 +7,7 @@
+ Private mLoading As Boolean
+ Private mLinking As Boolean
+ Private mLayoutBusy As Boolean
++Private mRefreshing As Boolean
+ 
+ Private Sub UserForm_Initialize()
+     mLoading = True
+@@ -80,7 +81,7 @@
+     RefreshPreview
+ End Sub
+ 
+-Private Function Bounds(ByRef firstRow As Long, ByRef lastRow As Long) As Boolean
++Private Function Bounds(ByRef firstRow As Long, ByRef lastRow As Long, Optional ByVal showMessage As Boolean = True) As Boolean
+     On Error GoTo Invalid
+     Dim a As Double, b As Double
+     If mPlan Is Nothing Then Exit Function
+@@ -94,21 +95,26 @@
+ Invalid:
+     mLink.Enabled = False
+     lbPreview.Clear
+-    MsgBox "Enter whole target row numbers: 1 <= first row <= last row <= last target data row.", vbExclamation, "Preview"
++    If showMessage Then MsgBox "Enter whole target row numbers: 1 <= first row <= last row <= last target data row.", vbExclamation, "Preview"
+ End Function
+ 
+-Private Sub RefreshPreview()
+-    If mLoading Or mLinking Or mPlan Is Nothing Then Exit Sub
++Private Sub RefreshPreview(Optional ByVal showBoundsMessage As Boolean = True)
++    If mLoading Or mLinking Or mRefreshing Then Exit Sub
++    If mPlan Is Nothing Then Exit Sub
+     Dim firstRow As Long, lastRow As Long
+     On Error GoTo Failed
+-    mLink.Enabled = False
+-    If Not Bounds(firstRow, lastRow) Then Exit Sub
++    mRefreshing = True
++    mLink.Enabled = False
++    If Not Bounds(firstRow, lastRow, showBoundsMessage) Then GoTo Finished
+     mPlan.FillPreview lbPreview, firstRow, lastRow
+-    ' Even a range with no matching keys has the same clearing semantics as outer Link Data.
+     mLink.Enabled = True
++Finished:
++    mRefreshing = False
+     Exit Sub
+ Failed:
+     lbPreview.Clear
++    mLink.Enabled = False
++    mRefreshing = False
+     MsgBox "Cannot preview: " & Err.Description, vbExclamation, "Preview"
+ End Sub
+ 
+@@ -119,10 +125,12 @@
+     RefreshPreview
+ End Sub
+ Private Sub mFrom_Change()
+-    If Not mLoading Then mLink.Enabled = False
++    ' Validate silently while typing; do not leave the old preview visible.
++    RefreshPreview False
+ End Sub
+ Private Sub mTo_Change()
+-    If Not mLoading Then mLink.Enabled = False
++    ' Validate silently while typing; do not leave the old preview visible.
++    RefreshPreview False
+ End Sub
+ 
+ Private Sub mLink_Click()

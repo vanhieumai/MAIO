@@ -1,0 +1,52 @@
+--- 
++++ 
+@@ -10,6 +10,18 @@
+ Private Sub UserForm_Initialize()
+     mLoading = True
+     ApplyTheme Me
++    ' Hide an old designer Close button if present; no named-control dependency.
++    Dim ctl As MSForms.Control
++    For Each ctl In Me.Controls
++        If TypeName(ctl) = "CommandButton" Then
++            Select Case LCase$(ctl.Name)
++                Case "cmdclose", "btnclose"
++                    ctl.Visible = False
++                Case Else
++                    If LCase$(Trim$(Replace(ctl.Caption, "&", ""))) = "close" Then ctl.Visible = False
++            End Select
++        End If
++    Next ctl
+     If Me.Width < 650 Then Me.Width = 650
+     If Me.Height < 340 Then Me.Height = 400
+     Set mInfo = Me.Controls.Add("Forms.Label.1", "lblLinkContext", True)
+@@ -31,14 +43,15 @@
+     label.Left = 12: label.Top = 70: label.Width = Me.InsideWidth - 24
+     lbPreview.Left = 12: lbPreview.Top = 88
+     lbPreview.Width = Me.InsideWidth - 24: lbPreview.Height = Me.InsideHeight - 136
+-    cmdClose.Left = 12: cmdClose.Top = Me.InsideHeight - 38
+     Set mLink = Me.Controls.Add("Forms.CommandButton.1", "btnPreviewLinkData", True)
+     With mLink
+         .Caption = "Link Data"
+-        .Left = cmdClose.Left + cmdClose.Width + 12: .Top = cmdClose.Top
+-        .Width = cmdClose.Width: .Height = cmdClose.Height
+-        .Font.Name = cmdClose.Font.Name: .Font.Size = cmdClose.Font.Size
+-        .ForeColor = cmdClose.ForeColor: .BackColor = cmdClose.BackColor
++        .Width = 110: .Height = 28
++        .Left = (Me.InsideWidth - .Width) / 2
++        .Top = Me.InsideHeight - 38
++        .Font.Name = Me.Font.Name: .Font.Size = Me.Font.Size
++        .ForeColor = Me.ForeColor
++        .BackColor = &H8000000F
+         .Enabled = False
+     End With
+     mLoading = False
+@@ -139,9 +152,6 @@
+ Failed:
+     MsgBox Err.Description, vbInformation, "Preview"
+ End Sub
+-Private Sub cmdClose_Click()
+-    If Not mLinking Then Unload Me
+-End Sub
+ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+     If mLinking Then Cancel = True: Exit Sub
+     Set mPlan = Nothing

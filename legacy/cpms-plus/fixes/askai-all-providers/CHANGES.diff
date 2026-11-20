@@ -1,0 +1,410 @@
+--- previous frmAskAI
++++ all providers frmAskAI
+@@ -232,7 +232,13 @@
+         lblKeyValue.Caption = MaskKey(GetApiKey())
+     End If
+     mFree.Visible = (provider = "OPENROUTER")
+-    mRefresh.Enabled = (provider = "GROQ" Or provider = "OPENROUTER")
++    mRefresh.Enabled = (provider <> "UNKNOWN")
++    mRefresh.Caption = "Refresh Models"
++    If provider = "AZURE" Then mRefresh.Caption = "Deployments..."
++    If provider = "GITHUB" Then
++        mRefresh.Caption = "Service info"
++        lblProviderName.Caption = "GITHUB MODELS (retired)"
++    End If
+     Set mVision = CreateObject("Scripting.Dictionary")
+     savedModel = LoadSelectedModel()
+     cboModel.Clear
+@@ -248,7 +254,7 @@
+     Else
+         models = GetProviderModels(provider)
+         For i = LBound(models) To UBound(models)
+-            cboModel.AddItem models(i)
++            If models(i) <> "" Then cboModel.AddItem models(i)
+         Next i
+     End If
+     SelectModel savedModel
+@@ -648,7 +654,7 @@
+ ' DETECT PROVIDER FROM KEY FORMAT
+ ' ============================================================
+ Public Function DetectProvider(apiKey As String) As String
+-    If IsHexKey32(apiKey) And GetAzureEndpoint() <> "" Then
++    If IsHexKey32(apiKey) Then
+         DetectProvider = "AZURE"
+     ElseIf Left(apiKey, 4) = "csk-" Then
+         DetectProvider = "CEREBRAS"
+@@ -667,7 +673,7 @@
+     ElseIf Left(apiKey, 3) = "sk-" Then
+         DetectProvider = "OPENAI"
+     Else
+-        DetectProvider = "GROQ"
++        DetectProvider = "UNKNOWN"
+     End If
+ End Function
+ 
+@@ -691,21 +697,21 @@
+         Case "GROQ"
+             models = Split("openai/gpt-oss-20b|openai/gpt-oss-120b|qwen/qwen3.8-27b|llama-3.3-70b-versatile|llama-3.1-8b-instant", "|")
+         Case "NVIDIA"
+-            models = Split("meta/llama-4-scout-17b-16e-instruct|meta/llama-4-maverick-17b-128e-instruct|meta/llama-3.3-70b-instruct|meta/llama-3.1-8b-instruct|deepseek-ai/deepseek-r1|google/gemma-3-27b-it|qwen/qwq-32b", "|")
++            models = Split("nvidia/nemotron-3.5-lightning-30b-a3b|nvidia/nemotron-3-super-120b-a12b|deepseek-ai/deepseek-v4-flash|deepseek-ai/deepseek-v4-pro|openai/gpt-oss-120b", "|")
+         Case "OPENROUTER"
+             models = Split("openrouter/free", "|")
+         Case "GEMINI"
+-            models = Split("gemini-2.5-flash|gemini-2.5-pro|gemini-2.0-flash|gemini-2.0-flash-lite|gemini-1.5-flash|gemini-1.5-pro", "|")
++            models = Split("gemini-3.5-flash-lite|gemini-3.8-flash|gemini-3.1-pro-preview", "|")
+         Case "OPENAI"
+-            models = Split("gpt-4.1-mini|gpt-4.1|gpt-4.1-nano|gpt-4o|gpt-4o-mini|o4-mini|o3-mini", "|")
++            models = Split("gpt-6-luna|gpt-6.1-sol|gpt-6-astra|gpt-4.1-mini|gpt-4.1", "|")
+         Case "AZURE"
+-            models = Split("gpt-4.1|gpt-4o|gpt-4o-mini|gpt-4-turbo|gpt-35-turbo", "|")
++            models = Split(GetAppSetting("azure_deployments_v3"), "|")
+         Case "CEREBRAS"
+-            models = Split("llama-4-scout-17b-16e-instruct|llama3.3-70b|llama3.1-70b|qwen-3-32b|llama3.1-8b", "|")
++            models = Split("gpt-oss-120b|qwen-3.8-27b", "|")
+         Case "GITHUB"
+-            models = Split("gpt-4.1|gpt-4.1-mini|gpt-4o|o3-mini|Meta-Llama-3.3-70B-Instruct|Llama-4-Scout|DeepSeek-R1|Phi-4", "|")
++            models = Split("", "|")
+         Case Else
+-            models = Split("llama-4-scout-17b-16e-instruct", "|")
++            models = Split("", "|")
+     End Select
+     GetProviderModels = models
+ End Function
+@@ -781,9 +787,11 @@
+     End If
+ 
+     Select Case provider
++        Case "GITHUB"
++            Err.Raise 5, "AskAI", GitHubRetirementMessage()
+         Case "GEMINI"
+             AskAIWithImage = CallGeminiVision(Prompt, apiKey, model, imgBase64, imgMime)
+-        Case "GROQ", "NVIDIA", "OPENROUTER", "OPENAI", "AZURE", "CEREBRAS", "GITHUB"
++        Case "GROQ", "NVIDIA", "OPENROUTER", "OPENAI", "AZURE", "CEREBRAS"
+             Dim URL As String
+             Select Case provider
+                 Case "GROQ":       URL = "https://api.groq.com/openai/v1/chat/completions"
+@@ -791,8 +799,8 @@
+                 Case "OPENROUTER": URL = "https://openrouter.ai/api/v1/chat/completions"
+                 Case "OPENAI":     URL = "https://api.openai.com/v1/chat/completions"
+                 Case "CEREBRAS":   URL = "https://api.cerebras.ai/v1/chat/completions"
+-                Case "GITHUB":     URL = "https://models.inference.ai.azure.com/chat/completions"
+-                Case "AZURE":      URL = GetAzureEndpoint()
++
++                Case "AZURE":      URL = AzureChatEndpoint(model)
+             End Select
+             AskAIWithImage = CallOpenAICompatVision(Prompt, apiKey, URL, model, imgBase64, imgMime)
+         Case Else
+@@ -835,64 +843,8 @@
+             Exit Function
+         End If
+     End If
+-    Select Case provider
+-        Case "GEMINI"
+-            ModelSupportsVision = True
+-
+-        Case "OPENAI"
+-            Select Case model
+-                Case "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "o4-mini"
+-                    ModelSupportsVision = True
+-                Case Else
+-                    ModelSupportsVision = False
+-            End Select
+-
+-        Case "AZURE"
+-            Select Case model
+-                Case "gpt-4.1", "gpt-4o", "gpt-4o-mini", "gpt-4-turbo"
+-                    ModelSupportsVision = True
+-                Case Else
+-                    ModelSupportsVision = False
+-            End Select
+-
+-        Case "GROQ"
+-            Select Case model
+-                Case "qwen/qwen3.8-27b"
+-                    ModelSupportsVision = True
+-                Case Else
+-                    ModelSupportsVision = False
+-            End Select
+-
+-        Case "NVIDIA"
+-            Select Case model
+-                Case "meta/llama-4-scout-17b-16e-instruct", "meta/llama-4-maverick-17b-128e-instruct"
+-                    ModelSupportsVision = True
+-                Case Else
+-                    ModelSupportsVision = False
+-            End Select
+-
+-        Case "OPENROUTER"
+-            Select Case model
+-                Case "openrouter/free"
+-                    ModelSupportsVision = True
+-                Case Else
+-                    ModelSupportsVision = False
+-            End Select
+-
+-        Case "GITHUB"
+-            Select Case model
+-                Case "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "Llama-4-Scout"
+-                    ModelSupportsVision = True
+-                Case Else
+-                    ModelSupportsVision = False
+-            End Select
+-
+-        Case Else
+-            ' CEREBRAS: no vision support
+-            ModelSupportsVision = False
+-    End Select
+-End Function
+-
++    ModelSupportsVision = KnownModelVision(provider, model)
++End Function
+ ' ============================================================
+ ' HELPER: CHECK IF CURRENT MODEL SUPPORTS VISION
+ ' ============================================================
+@@ -1046,7 +998,7 @@
+         .Caption = "Refresh Models"
+         .Left = 12: .Top = y: .Width = 100: .Height = 24
+         .Font.Name = cboModel.Font.Name: .Font.Size = cboModel.Font.Size
+-        .ControlTipText = "Fetch the current Groq/OpenRouter model catalog."
++        .ControlTipText = "Refresh this provider. Azure: configure deployments; GitHub: service status."
+     End With
+     Set mFree = Me.Controls.Add("Forms.CheckBox.1", "chkAskAIFreeOnly", True)
+     With mFree
+@@ -1069,7 +1021,7 @@
+ End Sub
+ 
+ Private Function ModelCacheKey(ByVal provider As String) As String
+-    ModelCacheKey = "model_catalog_v2_" & provider
++    ModelCacheKey = "model_catalog_v3_" & provider
+     If provider = "OPENROUTER" Then
+         If CBool(mFree.Value) Then ModelCacheKey = ModelCacheKey & "_free"
+     End If
+@@ -1225,6 +1177,10 @@
+         MsgBox "Click the key field to enter an API key.", vbInformation
+         Exit Sub
+     End If
++    If DetectProvider(GetApiKey()) = "GITHUB" Then
++        MsgBox GitHubRetirementMessage(), vbInformation
++        Exit Sub
++    End If
+     If cboModel.ListIndex < 0 Then
+         MsgBox "Select a model first.", vbInformation
+         Exit Sub
+@@ -1284,23 +1240,34 @@
+     Select Case provider
+         Case "GROQ": URL = "https://api.groq.com/openai/v1/models"
+         Case "OPENROUTER": URL = "https://openrouter.ai/api/v1/models"
++        Case "OPENAI": URL = "https://api.openai.com/v1/models"
++        Case "GEMINI": URL = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000"
++        Case "NVIDIA": URL = "https://integrate.api.nvidia.com/v1/models"
++        Case "CEREBRAS": URL = "https://api.cerebras.ai/v1/models"
++        Case "AZURE"
++            ConfigureAzureModels
++            Exit Sub
++        Case "GITHUB"
++            MsgBox GitHubRetirementMessage(), vbInformation
++            Exit Sub
+         Case Else
+-            MsgBox "Catalog refresh currently supports Groq and OpenRouter.", vbInformation
++            MsgBox "Unknown API key format. Select a supported provider key.", vbExclamation
+             Exit Sub
+     End Select
+     On Error GoTo Failed
+     savedModel = CStr(cboModel.Value)
+     SetRequestBusy True
+-    raw = RequestJson("GET", URL, GetApiKey(), "", 30)
+-    detail = ApiErrorMessage(raw)
+-    If detail <> "" Then Err.Raise 5, "AskAI", detail
+-    Set doc = AIJsonParse(raw)
+-    Set entries = AIJsonChild(doc, "data")
++    Dim allEntries As Collection
++    Set allEntries = FetchModelEntries(provider, URL)
+     Set newModels = CreateObject("Scripting.Dictionary")
+     Set newVision = CreateObject("Scripting.Dictionary")
+-    For i = 1 To AIJsonCount(entries)
+-        Set entry = AIJsonChild(entries, i)
++    For i = 1 To allEntries.Count
++        Set entry = allEntries(i)
+         modelId = AIJsonText(AIJsonChild(entry, "id"))
++        If provider = "GEMINI" Then
++            modelId = AIJsonText(AIJsonChild(entry, "name"))
++            If Left$(modelId, 7) = "models/" Then modelId = Mid$(modelId, 8)
++        End If
+         include = (modelId <> "")
+         vision = False
+         If provider = "OPENROUTER" Then
+@@ -1317,9 +1284,12 @@
+                 If requestPrice <> "" Then include = include And IsFreePrice(requestPrice)
+             End If
+         Else
+-            include = include And GroqChatModel(modelId)
++            include = include And CatalogChatModel(provider, modelId)
++            If provider = "GEMINI" Then
++                include = include And AIJsonHasText(AIJsonChild(entry, "supportedGenerationMethods"), "generateContent")
++            End If
+             If AIJsonText(AIJsonChild(entry, "active")) = "false" Then include = False
+-            vision = (modelId = "qwen/qwen3.8-27b")
++            vision = KnownModelVision(provider, modelId)
+         End If
+         If include Then
+             If Not newModels.Exists(modelId) Then newModels.Add modelId, modelId
+@@ -1354,3 +1324,158 @@
+     End If
+ End Sub
+ 
++
++
++Private Function GitHubRetirementMessage() As String
++    GitHubRetirementMessage = "GitHub Models retired on 30 July 2026. Its inference API and catalog are no longer available." & _
++        vbCrLf & "Your saved key and notes are retained. Choose another provider key to chat." & _
++        vbCrLf & "GitHub Copilot is a separate service." & vbCrLf & "https://docs.github.com/en/github-models"
++End Function
++
++Private Function CatalogChatModel(ByVal provider As String, ByVal modelId As String) As Boolean
++    Dim modelLower As String, excluded As Variant, word As Variant
++    modelLower = LCase$(modelId)
++    excluded = Array("embedding", "embed", "rerank", "reward", "guard", "safety", "whisper", _
++        "audio", "tts", "transcribe", "realtime", "live", "image", "moderation", "dall-e", _
++        "deep-research", "codex", "instruct-0914", "gpt-3.5-turbo-instruct")
++    For Each word In excluded
++        If InStr(1, modelLower, CStr(word), vbBinaryCompare) > 0 Then Exit Function
++    Next word
++    Select Case provider
++        Case "GROQ": CatalogChatModel = GroqChatModel(modelId)
++        Case "OPENAI"
++            If InStr(modelLower, "-pro") > 0 Then Exit Function
++            CatalogChatModel = (Left$(modelLower, 4) = "gpt-" Or modelLower = "chat-latest" Or _
++                Left$(modelLower, 3) = "o3-" Or modelLower = "o3" Or Left$(modelLower, 3) = "o4-")
++        Case "GEMINI"
++            CatalogChatModel = (Left$(modelLower, 7) = "gemini-" Or Left$(modelLower, 6) = "gemma-")
++        Case "NVIDIA"
++            CatalogChatModel = (InStr(modelLower, "nemotron") > 0 Or InStr(modelLower, "deepseek") > 0 Or _
++                InStr(modelLower, "llama") > 0 Or InStr(modelLower, "qwen") > 0 Or _
++                InStr(modelLower, "glm") > 0 Or InStr(modelLower, "gpt-oss") > 0 Or _
++                InStr(modelLower, "kimi") > 0 Or InStr(modelLower, "minimax") > 0 Or InStr(modelLower, "mistral") > 0)
++        Case "CEREBRAS"
++            CatalogChatModel = (InStr(modelLower, "gpt-oss") > 0 Or InStr(modelLower, "qwen") > 0 Or _
++                InStr(modelLower, "llama") > 0 Or InStr(modelLower, "glm") > 0)
++    End Select
++End Function
++
++Private Function KnownModelVision(ByVal provider As String, ByVal modelId As String) As Boolean
++    Select Case provider
++        Case "OPENAI"
++            KnownModelVision = (Left$(modelId, 6) = "gpt-6-" Or Left$(modelId, 8) = "gpt-6.1-" Or _
++                Left$(modelId, 7) = "gpt-4.1" Or Left$(modelId, 6) = "gpt-4o")
++        Case "GEMINI"
++            KnownModelVision = (Left$(modelId, 7) = "gemini-" And CatalogChatModel(provider, modelId))
++        Case "GROQ": KnownModelVision = (modelId = "qwen/qwen3.8-27b")
++        Case "OPENROUTER": KnownModelVision = (modelId = "openrouter/free")
++        ' Unknown model capabilities stay text-only; do not infer vision from a deployment name.
++    End Select
++End Function
++
++Private Function FetchModelEntries(ByVal provider As String, ByVal URL As String) As Collection
++    Dim result As New Collection, raw As String, doc As Object, entries As Object, entry As Object
++    Dim pageToken As String, seen As Object, pageNumber As Long, i As Long, detail As String
++    Set seen = CreateObject("Scripting.Dictionary")
++    Do
++        If mCancelled Then Err.Raise 5, "AskAI", "Request cancelled."
++        raw = RequestJson("GET", URL, GetApiKey(), "", 30)
++        detail = ApiErrorMessage(raw)
++        If detail <> "" Then Err.Raise 5, "AskAI", detail
++        Set doc = AIJsonParse(raw)
++        If provider = "GEMINI" Then
++            Set entries = AIJsonChild(doc, "models")
++        Else
++            Set entries = AIJsonChild(doc, "data")
++        End If
++        For i = 1 To AIJsonCount(entries)
++            Set entry = AIJsonChild(entries, i)
++            result.Add entry
++        Next i
++        pageToken = ""
++        If provider = "GEMINI" Then pageToken = AIJsonText(AIJsonChild(doc, "nextPageToken"))
++        If pageToken = "" Then Exit Do
++        pageNumber = pageNumber + 1
++        If pageNumber > 50 Or seen.Exists(pageToken) Then Err.Raise 5, "AskAI", "Invalid model catalog pagination."
++        seen.Add pageToken, True
++        URL = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&pageToken=" & _
++            Application.WorksheetFunction.EncodeURL(pageToken)
++    Loop
++    Set FetchModelEntries = result
++End Function
++
++Private Function ValidDeploymentName(ByVal deployment As String) As Boolean
++    Dim i As Long, ch As String
++    If Len(deployment) = 0 Or Len(deployment) > 128 Then Exit Function
++    For i = 1 To Len(deployment)
++        ch = Mid$(deployment, i, 1)
++        If InStr(1, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.", ch, vbBinaryCompare) = 0 Then Exit Function
++    Next i
++    ValidDeploymentName = True
++End Function
++
++Private Function NormalizeAzureChatEndpoint(ByVal endpoint As String, ByVal deployment As String) As String
++    Dim pos As Long, pathEnd As Long
++    endpoint = Trim$(endpoint)
++    If Left$(LCase$(endpoint), 8) <> "https://" Then Err.Raise 5, "AskAI", "Enter an HTTPS Azure endpoint."
++    If InStr(endpoint, "@") > 0 Or InStr(endpoint, "#") > 0 Then Err.Raise 5, "AskAI", "Invalid Azure endpoint."
++    If Not ValidDeploymentName(deployment) Then Err.Raise 5, "AskAI", "Invalid Azure deployment name."
++    If InStr(1, endpoint, "/responses", vbTextCompare) > 0 Then
++        Err.Raise 5, "AskAI", "This form uses Chat Completions. Enter the Azure resource base URL or a chat/completions endpoint."
++    End If
++    pos = InStr(1, endpoint, "/deployments/", vbTextCompare)
++    If pos > 0 Then
++        pathEnd = InStr(pos + 13, endpoint, "/")
++        If pathEnd = 0 Or InStr(1, endpoint, "/chat/completions", vbTextCompare) = 0 Then
++            Err.Raise 5, "AskAI", "Use a complete legacy chat/completions URL with api-version, or the resource base URL."
++        End If
++        endpoint = Left$(endpoint, pos + 12) & deployment & Mid$(endpoint, pathEnd)
++    ElseIf InStr(1, endpoint, "/chat/completions", vbTextCompare) = 0 Then
++        If InStr(endpoint, "?") > 0 Then Err.Raise 5, "AskAI", "Use a base URL without query parameters."
++        Do While Right$(endpoint, 1) = "/"
++            endpoint = Left$(endpoint, Len(endpoint) - 1)
++        Loop
++        If Right$(LCase$(endpoint), 10) = "/openai/v1" Then
++            endpoint = endpoint & "/chat/completions"
++        Else
++            endpoint = endpoint & "/openai/v1/chat/completions"
++        End If
++    End If
++    NormalizeAzureChatEndpoint = endpoint
++End Function
++
++Private Function AzureChatEndpoint(ByVal deployment As String) As String
++    AzureChatEndpoint = NormalizeAzureChatEndpoint(GetAzureEndpoint(), deployment)
++End Function
++
++Private Sub ConfigureAzureModels()
++    On Error GoTo Failed
++    Dim endpoint As String, listText As String, names As Variant, item As Variant
++    Dim cleaned As String, deployment As String, checkedURL As String, uniqueNames As Object
++    endpoint = Trim$(InputBox("Azure resource base URL, /openai/v1/, or full chat/completions endpoint:", _
++        "Azure endpoint", GetAzureEndpoint()))
++    If endpoint = "" Then Exit Sub
++    listText = Trim$(InputBox("Enter your DEPLOYMENT names, separated by | (not base model names)." & vbCrLf & _
++        "These must already exist in your Azure resource.", "Azure deployments", GetAppSetting("azure_deployments_v3")))
++    If listText = "" Then Exit Sub
++    Set uniqueNames = CreateObject("Scripting.Dictionary")
++    names = Split(listText, "|")
++    For Each item In names
++        deployment = Trim$(CStr(item))
++        If Not ValidDeploymentName(deployment) Then Err.Raise 5, "AskAI", "Invalid deployment name: " & deployment
++        checkedURL = NormalizeAzureChatEndpoint(endpoint, deployment)
++        If Not uniqueNames.Exists(deployment) Then
++            uniqueNames.Add deployment, True
++            If cleaned <> "" Then cleaned = cleaned & "|"
++            cleaned = cleaned & deployment
++        End If
++    Next item
++    If Len(cleaned) > 30000 Then Err.Raise 5, "AskAI", "Too many deployment names."
++    SaveAzureEndpoint endpoint
++    SaveAppSetting "azure_deployments_v3", cleaned
++    UpdateProviderUI
++    Exit Sub
++Failed:
++    MsgBox "Azure setup: " & Err.Description, vbExclamation
++End Sub
++

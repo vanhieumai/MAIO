@@ -1,0 +1,954 @@
+Attribute VB_Name = "frmExpandRows"
+Attribute VB_Base = "0{AF34B592-D73C-4F17-A1CE-C2C281008647}{A99FDA8B-1BAB-4B71-ADA0-2F33BF431D05}"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Attribute VB_TemplateDerived = False
+Attribute VB_Customizable = False
+'================================================================
+' FORM: frmExpandRows
+' Dãn chi?u cao dòng cho sheet có merge cell (WrapText)
+'
+' v7 — THAY Ð?I KI?N TRÚC QUAN TR?NG:
+'   Các b?n v4-v6 d?u d?a vào Excel `Rows.AutoFit` d? do chi?u cao
+'   c?n thi?t cho text wrap. Nhung AutoFit c?a Excel có l?i t?n t?i
+'   lâu nam: nó tính THI?U chi?u cao khi text ch?a ký t? có d?u
+'   ch?ng cao (ti?ng Vi?t: ?, ?, ?, ?, ?m...) vì b?ng do line-height
+'   n?i b? c?a AutoFit dùng chi?u cao font Latin co b?n, không tính
+'   d? ph?n d?u nhô lên/xu?ng. L?i này X?Y RA B?T K? ScreenUpdating
+'   hay ActiveSheet — dúng nhu quan sát c?a ngu?i dùng.
+'
+'   GI?I PHÁP v7: KHÔNG dùng RowHeight AutoFit d? do n?a. Thay vào
+'   dó, v?i m?i cell WrapText (merge ho?c không merge), t?o t?m m?t
+'   Shape Textbox có cùng d? r?ng, cùng font, b?t WordWrap + AutoSize,
+'   r?i d?c thu?c tính .Height th?c t? c?a nó. Ðây là m?t pipeline do
+'   ch? khác (dùng TextFrame layout engine c?a Shape thay vì Row
+'   layout engine), không b? l?i thi?u chi?u cao nói trên, và là k?
+'   thu?t du?c nhi?u di?n dàn VBA xác nh?n kh?c ph?c tri?t d? v?n d?
+'   AutoFit-thi?u-chi?u-cao v?i Unicode/ngôn ng? có d?u.
+'
+'   Nh? v?y, code v7 KHÔNG C?N shadow columns n?a (dã b? toàn b? co
+'   ch? dó) — m?i cell WrapText (merge l?n không merge) d?u du?c do
+'   tr?c ti?p b?ng Textbox, don gi?n và chính xác hon h?n.
+'================================================================
+Option Explicit
+
+Private mWorkbook         As Workbook
+Private mExternalWbOpened As Boolean
+Private Const CELL_INSET As Double = 4
+
+'================================================================
+' KH?I T?O — du?c g?i t? form cha
+'================================================================
+Public Sub Init(wb As Workbook, Optional defaultSheetName As String = "")
+    Set mWorkbook = wb
+    mExternalWbOpened = False
+    UpdateWorkbookLabel
+    LoadSheetsFromWorkbook defaultSheetName
+    txtMinHeight.value = "20"
+End Sub
+
+'================================================================
+' C?P NH?T LABEL TÊN WORKBOOK
+'================================================================
+Private Sub UpdateWorkbookLabel()
+    If mWorkbook Is Nothing Then
+        lblWorkbookName.Caption = "Workbook:  (not set)"
+    Else
+        lblWorkbookName.Caption = "Workbook:  " & mWorkbook.Name
+    End If
+End Sub
+
+'================================================================
+' LOAD DANH SÁCH SHEET VÀO lbSheets
+'================================================================
+Private Sub LoadSheetsFromWorkbook(Optional defaultSheetName As String = "")
+    lbSheets.Clear
+    lbSheets.MultiSelect = fmMultiSelectMulti
+    If mWorkbook Is Nothing Then Exit Sub
+
+    Dim ws As Worksheet
+    Dim i  As Long
+    For Each ws In mWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible Then lbSheets.AddItem ws.Name
+    Next ws
+
+    If Trim(defaultSheetName) <> "" Then
+        For i = 0 To lbSheets.ListCount - 1
+            If lbSheets.List(i) = defaultSheetName Then
+                lbSheets.Selected(i) = True
+            End If
+        Next i
+    End If
+End Sub
+
+'================================================================
+' NÚT BROWSE — ch?n workbook khác
+'================================================================
+Private Sub btnBrowse_Click()
+    Dim fd As FileDialog
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+    With fd
+        .title = "Select Excel workbook to expand rows"
+        .Filters.Clear
+        .Filters.Add "Excel Files", "*.xlsx; *.xlsm; *.xls; *.xlsb"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+    End With
+
+    Dim selectedPath As String
+    selectedPath = fd.SelectedItems(1)
+
+    Dim wb    As Workbook
+    Dim wbNew As Workbook
+    For Each wb In Application.Workbooks
+        If wb.fullName = selectedPath Then Set wbNew = wb: Exit For
+    Next wb
+
+    If wbNew Is Nothing Then
+        Application.ScreenUpdating = False
+        Application.AskToUpdateLinks = False
+        On Error Resume Next
+        Set wbNew = Workbooks.Open(fileName:=selectedPath, UpdateLinks:=0, _
+                                   ReadOnly:=False, AddToMru:=False)
+        On Error GoTo 0
+        Application.AskToUpdateLinks = True
+        Application.ScreenUpdating = True
+
+        If wbNew Is Nothing Then
+            MsgBox "Cannot open file:" & vbCrLf & selectedPath, vbCritical, "Browse Error"
+            Exit Sub
+        End If
+        mExternalWbOpened = True
+    Else
+        mExternalWbOpened = False
+    End If
+
+    Set mWorkbook = wbNew
+    UpdateWorkbookLabel
+    LoadSheetsFromWorkbook
+End Sub
+
+'================================================================
+' NÚT START
+'================================================================
+Private Sub btnStart_Click()
+    Dim minH As Double
+    Dim activeWbBeforeRun As Workbook
+    Dim activeSheetBeforeRun As Object
+
+    ' Luu dúng workbook/sheet dang hi?n th? t?i th?i di?m ngu?i dùng
+    ' b?m Start. ExpandRowHeights ph?i Activate t?ng sheet d? Excel
+    ' do WrapText, nên n?u không luu l?i thì sheet cu?i cùng s? b? gi?
+    ' l?i sau khi x? lý xong.
+    On Error Resume Next
+    Set activeWbBeforeRun = Application.ActiveWorkbook
+    Set activeSheetBeforeRun = Application.ActiveSheet
+    On Error GoTo 0
+
+    If Trim(txtMinHeight.value) = "" Then
+        minH = 0
+    ElseIf IsNumeric(txtMinHeight.value) Then
+        minH = CDbl(txtMinHeight.value)
+        If minH < 0 Then minH = 0
+    Else
+        MsgBox "Minimum row height must be a number (e.g. 20).", vbExclamation, "Invalid Input"
+        txtMinHeight.SetFocus
+        Exit Sub
+    End If
+
+    Dim i As Long
+    Dim hasSelection As Boolean
+    For i = 0 To lbSheets.ListCount - 1
+        If lbSheets.Selected(i) Then hasSelection = True: Exit For
+    Next i
+    If Not hasSelection Then
+        MsgBox "Please select at least one sheet.", vbExclamation, "No Sheet Selected"
+        Exit Sub
+    End If
+
+    If mWorkbook Is Nothing Then
+        MsgBox "No workbook selected. Please use Browse to pick a file.", vbExclamation, "No Workbook"
+        Exit Sub
+    End If
+
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    Dim doneSheets As Long
+    doneSheets = 0
+
+    For i = 0 To lbSheets.ListCount - 1
+        If lbSheets.Selected(i) Then
+            Dim ws As Worksheet
+            Set ws = Nothing
+            On Error Resume Next
+            Set ws = mWorkbook.Worksheets(lbSheets.List(i))
+            On Error GoTo 0
+            If Not ws Is Nothing Then
+                ExpandRowHeights ws, minH
+                doneSheets = doneSheets + 1
+            End If
+            Set ws = Nothing
+        End If
+    Next i
+
+    If mExternalWbOpened Then
+        On Error Resume Next
+        mWorkbook.Save
+        On Error GoTo 0
+    End If
+
+    ' Hi?n th? l?i dúng workbook/sheet mà ngu?i dùng dang xem tru?c
+    ' khi b?t d?u dãn dòng, không ph? thu?c sheet du?c ch?n x? lý cu?i.
+    ' Ph?i khôi ph?c khi ScreenUpdating v?n dang t?t, n?u không Excel
+    ' s? hi?n th? sheet cu?i cùng trong ch?c lát r?i m?i nh?y v? sheet cu.
+    On Error Resume Next
+    If Not activeWbBeforeRun Is Nothing Then
+        activeWbBeforeRun.Activate
+        If Not activeSheetBeforeRun Is Nothing Then
+            activeSheetBeforeRun.Activate
+        End If
+    End If
+    On Error GoTo 0
+
+    Application.Calculation = xlCalculationAutomatic
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+
+    MsgBox "Done!  Expanded rows on " & doneSheets & " sheet(s).", vbInformation, "Expand Row Heights"
+End Sub
+
+'================================================================
+' NÚT CLOSE
+'================================================================
+Private Sub btnClose_Click()
+    Unload Me
+End Sub
+
+Private Sub UserForm_Initialize()
+    ApplyTheme Me
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If mExternalWbOpened And Not (mWorkbook Is Nothing) Then
+        Dim ans As Integer
+        ans = MsgBox("Close the external workbook """ & mWorkbook.Name & """ ?", _
+                     vbQuestion + vbYesNo, "Close Workbook?")
+        If ans = vbYes Then
+            On Error Resume Next
+            mWorkbook.Close SaveChanges:=False
+            On Error GoTo 0
+        End If
+    End If
+
+    Set mWorkbook = Nothing
+    If CloseMode = vbFormControlMenu Then Unload Me
+    UnregisterForm Me
+End Sub
+
+'================================================================
+' HÀM ÐO CHI?U CAO TEXT WRAP B?NG TEXTBOX (thay cho RowHeight AutoFit)
+'
+' T?o t?m 1 Shape Textbox off-screen v?i dúng font + dúng d? r?ng
+' c?a cell/mergeArea c?n do, b?t WordWrap + AutoSize, d?c .Height,
+' r?i xóa Shape di. Cách do này dùng TextFrame layout engine c?a
+' Shape — không b? l?i thi?u chi?u cao v?i ký t? có d?u ti?ng Vi?t
+' nhu RowHeight AutoFit.
+'================================================================
+Private Function MeasureWrapHeight(ws As Worksheet, widthPts As Double, _
+                                     txt As String, fnt As Font) As Double
+    txt = NormalizeWrapText(txt)
+    If Len(Trim(txt)) = 0 Then
+        MeasureWrapHeight = 0
+        Exit Function
+    End If
+    If widthPts < 10 Then widthPts = 10
+
+    Dim tb As Shape
+    On Error Resume Next
+    Set tb = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, -20000, -20000, widthPts, 20)
+    On Error GoTo 0
+    If tb Is Nothing Then
+        MeasureWrapHeight = 0
+        Exit Function
+    End If
+
+    Dim hTextFrame2 As Double
+    Dim hTextFrame As Double
+
+    ' Ðo b?ng c? hai b? layout c?a Excel. M?t s? phiên b?n Excel
+    ' tr? BoundHeight c?a TextFrame2 th?p h?n th?c t? (th??ng thi?u
+    ' dòng cu?i khi text ti?ng Vi?t t? wrap), vì v?y không ???c
+    ' thoát sang fallback ch? vì BoundHeight > 0.
+    On Error Resume Next
+
+    ' TextFrame2: gi? c? d? r?ng, ch? cho text wrap theo d? cao.
+    With tb.TextFrame2
+        .WordWrap = msoTrue
+        .AutoSize = msoAutoSizeNone
+        .MarginLeft = 0
+        .MarginRight = 0
+        .MarginTop = 0
+        .MarginBottom = 0
+        .TextRange.Text = Replace(txt, vbTab, " ")
+        With .TextRange.Font
+            .Name = fnt.Name
+            .Size = fnt.Size
+            .Bold = IIf(fnt.Bold, msoTrue, msoFalse)
+            .Italic = IIf(fnt.Italic, msoTrue, msoFalse)
+        End With
+    End With
+
+    tb.Width = widthPts
+    tb.Height = 10000
+    DoEvents
+    hTextFrame2 = tb.TextFrame2.TextRange.BoundHeight
+
+    ' TextFrame c? — AutoSize True giúp Excel t? tính d? cao sau khi
+    ' dã khóa chi?u r?ng. L?y k?t qu? l?n h?n c?a hai engine.
+    With tb.TextFrame
+        .WordWrap = True
+        .AutoSize = False
+        .MarginLeft = 0
+        .MarginRight = 0
+        .MarginTop = 0
+        .MarginBottom = 0
+        .Characters.Text = Replace(txt, vbTab, " ")
+        .Characters.Font.Name = fnt.Name
+        .Characters.Font.Size = fnt.Size
+        .Characters.Font.Bold = fnt.Bold
+        .Characters.Font.Italic = fnt.Italic
+    End With
+    tb.TextFrame.AutoSize = True
+    ' AutoSize có th? làm shape n?i r?ng theo n?i dung. Khóa l?i chi?u
+    ' r?ng sau khi b?t AutoSize d? phép do v?n dúng v?i chi?u r?ng ô.
+    tb.Width = widthPts
+    DoEvents
+    hTextFrame = tb.Height
+
+    On Error GoTo 0
+    ' M?t s? b?n Excel tr? v? chi?u cao kh?i t?o c?a shape (10000 pt)
+    ' thay vì chi?u cao n?i dung. Ch? nh?n giá tr? h?p l?.
+    MeasureWrapHeight = 0
+    If hTextFrame2 > 0 And hTextFrame2 < 1000 Then
+        MeasureWrapHeight = hTextFrame2
+    End If
+    If hTextFrame > 0 And hTextFrame < 1000 Then
+        If hTextFrame > MeasureWrapHeight Then
+            MeasureWrapHeight = hTextFrame
+        End If
+    End If
+
+    ' M?t s? phiên b?n Excel tr? v? Height/BoundHeight b?ng chi?u cao
+    ' kh?i t?o c?a Shape thay vì chi?u cao ch?. Không du?c d? giá tr?
+    ' dó làm dãn c? hàng; d?i chi?u v?i s? dòng u?c tính theo dúng
+    ' chi?u r?ng c?a vùng do.
+    Dim estimatedTextH As Double
+    estimatedTextH = EstimateTextWrapHeight(widthPts, txt, fnt.Size)
+
+    If MeasureWrapHeight <= 0 Then
+        MeasureWrapHeight = estimatedTextH
+    ElseIf estimatedTextH > MeasureWrapHeight Then
+        ' BoundHeight dôi khi thi?u ph?n cu?i c?a dòng Unicode. Ch? dùng
+        ' estimate d? bù ph?n thi?u, không dùng nó d? làm gi?m s? do th?t.
+        MeasureWrapHeight = estimatedTextH
+    End If
+
+    On Error Resume Next
+    tb.Delete
+    On Error GoTo 0
+End Function
+
+Private Function EstimateTextWrapHeight(ByVal widthPts As Double, _
+                                         ByVal txt As String, _
+                                         ByVal fontSize As Double) As Double
+    txt = NormalizeWrapText(txt)
+    Dim lineHeight As Double
+    lineHeight = GetEstimatedLineHeight(fontSize)
+    EstimateTextWrapHeight = EstimateTextLineCount(widthPts, txt, fontSize) * _
+                             lineHeight
+End Function
+
+Private Function GetEstimatedLineHeight(ByVal fontSize As Double) As Double
+    ' Chi?u cao dòng th?c t? c?a Excel không tang 1.5 l?n theo c? ch?.
+    ' Công th?c cu làm các ô dài b? c?ng du nhi?u di?m theo t?ng dòng.
+    If fontSize <= 0 Then fontSize = 11
+    GetEstimatedLineHeight = (fontSize * 1.2) + 2
+    If GetEstimatedLineHeight < 15 Then GetEstimatedLineHeight = 15
+End Function
+
+Private Function EstimateTextLineCount(ByVal widthPts As Double, _
+                                       ByVal txt As String, _
+                                       ByVal fontSize As Double) As Long
+    On Error GoTo Failed
+
+    Dim parts As Variant
+    Dim part As Variant
+    Dim lineCount As Long
+    Dim partLineCount As Long
+
+    If widthPts < 10 Then widthPts = 10
+    If fontSize <= 0 Then fontSize = 11
+
+    ' Excel có th? gi? l?i vbCr/vbLf ? cu?i ô sau khi copy/paste
+    ' ho?c nh?n Alt+Enter. Các ký t? này không t?o thêm n?i dung
+    ' nhìn th?y, nhung b? d?m cu v?n tính thành dòng tr?ng.
+    txt = NormalizeWrapText(txt)
+
+    parts = Split(txt, vbLf)
+
+    For Each part In parts
+        partLineCount = EstimateSegmentLineCount( _
+                            CStr(part), widthPts, fontSize)
+        If partLineCount < 1 Then partLineCount = 1
+        lineCount = lineCount + partLineCount
+    Next part
+
+    EstimateTextLineCount = lineCount
+    Exit Function
+
+Failed:
+    EstimateTextLineCount = 1
+End Function
+
+Private Function EstimateSegmentLineCount(ByVal segment As String, _
+                                          ByVal widthPts As Double, _
+                                          ByVal fontSize As Double) As Long
+    ' U?c lu?ng theo b? r?ng ký t? thay vì ch? chia t?ng s? ký t?.
+    ' Kho?ng tr?ng h?p hon ch? nên cách này tránh c?ng du dòng ? các
+    ' do?n van dài có nhi?u kho?ng tr?ng.
+    Const LETTER_WIDTH_FACTOR As Double = 0.45
+    Const SPACE_WIDTH_FACTOR  As Double = 0.25
+
+    Dim currentWidth As Double
+    Dim lineCount As Long
+    Dim i As Long
+    Dim ch As String
+    Dim charWidth As Double
+
+    If widthPts < 10 Then widthPts = 10
+    If fontSize <= 0 Then fontSize = 11
+    segment = Replace(segment, ChrW(160), " ")
+
+    If Len(Trim$(segment)) = 0 Then
+        EstimateSegmentLineCount = 1
+        Exit Function
+    End If
+
+    For i = 1 To Len(segment)
+        ch = mID$(segment, i, 1)
+        If ch = " " Then
+            ' Không t?o thêm dòng ch? vì kho?ng tr?ng ? d?u dòng.
+            If currentWidth = 0 Then GoTo NextCharacter
+            charWidth = fontSize * SPACE_WIDTH_FACTOR
+        Else
+            charWidth = fontSize * LETTER_WIDTH_FACTOR
+        End If
+
+        If currentWidth > 0 And currentWidth + charWidth > widthPts Then
+            lineCount = lineCount + 1
+            currentWidth = 0
+            If ch = " " Then GoTo NextCharacter
+        End If
+        currentWidth = currentWidth + charWidth
+
+NextCharacter:
+    Next i
+
+    If currentWidth > 0 Then lineCount = lineCount + 1
+    If lineCount < 1 Then lineCount = 1
+    EstimateSegmentLineCount = lineCount
+End Function
+
+Private Function NormalizeWrapText(ByVal txt As String) As String
+    ' Gi? xu?ng dòng có ch? ý ? gi?a n?i dung, ch? b? các dòng tr?ng
+    ' th?a ? cu?i n?i dung. Kho?ng tr?ng d?c bi?t (ChrW(160)) thu?ng
+    ' xu?t hi?n khi copy t? Word/web cung du?c xem là kho?ng tr?ng.
+    Dim parts As Variant
+    Dim lastContentLine As Long
+    Dim i As Long
+
+    txt = Replace(txt, vbCrLf, vbLf)
+    txt = Replace(txt, vbCr, vbLf)
+    txt = Replace(txt, vbTab, " ")
+    txt = Replace(txt, ChrW(160), " ")
+
+    parts = Split(txt, vbLf)
+    lastContentLine = UBound(parts)
+    Do While lastContentLine >= 0
+        If Len(Trim$(CStr(parts(lastContentLine)))) > 0 Then Exit Do
+        lastContentLine = lastContentLine - 1
+    Loop
+
+    If lastContentLine < 0 Then
+        NormalizeWrapText = vbNullString
+        Exit Function
+    End If
+
+    txt = CStr(parts(0))
+    For i = 1 To lastContentLine
+        txt = txt & vbLf & CStr(parts(i))
+    Next i
+    NormalizeWrapText = txt
+End Function
+
+Private Function MeasureNonMergedCellHeight(measureWs As Worksheet, _
+                                            sourceCell As Range, _
+                                            ByVal txt As String) As Double
+    ' Dùng m?t ô Excel th?t d? do ô không merge. Ðây là di?m quan
+    ' tr?ng: TextBox không ph?i lúc nào cung wrap dúng nhu cell Excel,
+    ' còn AutoFit trên m?t cell t?m không merge s? dùng dúng layout
+    ' engine c?a worksheet.
+    On Error GoTo Failed
+
+    Dim testCell As Range
+    Set testCell = measureWs.Cells(1, 1)
+
+    testCell.Clear
+    testCell.ColumnWidth = sourceCell.EntireColumn.ColumnWidth
+    testCell.WrapText = True
+    testCell.value = NormalizeWrapText(txt)
+    testCell.HorizontalAlignment = sourceCell.HorizontalAlignment
+    testCell.VerticalAlignment = sourceCell.VerticalAlignment
+    testCell.Orientation = sourceCell.Orientation
+    testCell.IndentLevel = sourceCell.IndentLevel
+    testCell.ShrinkToFit = False
+
+    With testCell.Font
+        .Name = sourceCell.Font.Name
+        .Size = sourceCell.Font.Size
+        .Bold = sourceCell.Font.Bold
+        .Italic = sourceCell.Font.Italic
+        .Underline = sourceCell.Font.Underline
+    End With
+
+    measureWs.rows(1).RowHeight = 15
+    testCell.EntireRow.AutoFit
+    MeasureNonMergedCellHeight = measureWs.rows(1).RowHeight
+
+    testCell.Clear
+    Exit Function
+
+Failed:
+    On Error Resume Next
+    testCell.Clear
+    MeasureNonMergedCellHeight = 0
+End Function
+
+Private Function EstimateNonMergedWrapHeight(sourceCell As Range, _
+                                             ByVal txt As String) As Double
+    ' AutoFit dôi khi v?n tr? v? chi?u cao 1 dòng khi sheet t?m dang
+    ' ?n ho?c Excel chua k?p c?p nh?t layout. Tính m?t m?c t?i thi?u
+    ' theo s? ký t? có th? ch?a trên m?t dòng d? không b? m?t dòng.
+    On Error GoTo Failed
+
+    Dim availableWidth As Double
+    Dim averageCharWidth As Double
+    Dim charsPerLine As Long
+    Dim parts As Variant
+    Dim part As Variant
+    Dim lineCount As Long
+    Dim partLength As Long
+    Dim lineHeight As Double
+
+    txt = NormalizeWrapText(txt)
+    availableWidth = sourceCell.Width - CELL_INSET
+    If availableWidth < 10 Then availableWidth = 10
+
+    ' Dùng h? s? b?o th? d? không dánh giá m?t dòng là d? khi th?c
+    ' t? Excel wrap s?m hon do ch? d?m/d?u ti?ng Vi?t.
+    averageCharWidth = CDbl(sourceCell.Font.Size) * 0.48
+    If averageCharWidth < 1 Then averageCharWidth = 1
+    charsPerLine = Int(availableWidth / averageCharWidth)
+    If charsPerLine < 1 Then charsPerLine = 1
+
+    parts = Split(txt, vbLf)
+
+    lineCount = 0
+    For Each part In parts
+        partLength = Len(CStr(part))
+        If partLength = 0 Then
+            lineCount = lineCount + 1
+        Else
+            lineCount = lineCount + _
+                        Int((partLength + charsPerLine - 1) / charsPerLine)
+        End If
+    Next part
+
+    lineHeight = GetEstimatedLineHeight(sourceCell.Font.Size)
+    EstimateNonMergedWrapHeight = lineCount * lineHeight
+    Exit Function
+
+Failed:
+    EstimateNonMergedWrapHeight = 0
+End Function
+
+Private Function CellNeedsMultipleLines(sourceCell As Range, _
+                                        ByVal insetPts As Double) As Boolean
+    On Error GoTo Failed
+
+    If IsError(sourceCell.value) Then Exit Function
+    Dim normalizedText As String
+    normalizedText = NormalizeWrapText(CStr(sourceCell.value))
+
+    If Len(Trim$(normalizedText)) = 0 Then Exit Function
+    If Not sourceCell.WrapText And InStr(normalizedText, vbLf) = 0 Then
+        Exit Function
+    End If
+
+    Dim targetWidth As Double
+    If sourceCell.MergeCells Then
+        targetWidth = sourceCell.mergeArea.Width - insetPts
+    Else
+        targetWidth = sourceCell.Width - insetPts
+    End If
+    If targetWidth < 10 Then targetWidth = 10
+
+    CellNeedsMultipleLines = _
+        EstimateTextLineCount(targetWidth, normalizedText, _
+                              sourceCell.Font.Size) > 1
+    Exit Function
+
+Failed:
+    CellNeedsMultipleLines = False
+End Function
+
+'================================================================
+' LÕI X? LÝ: Dãn chi?u cao 1 sheet  (v7 — do b?ng Textbox)
+'
+' Các fix tru?c dó v?n gi?:
+'   FIX 1 — ki?m tra IsError tru?c khi CStr (tránh crash v?i cell l?i #REF!...)
+'   FIX 2 — dùng c? rhFitReady thay vì IsEmpty (tránh crash khi sheet r?ng)
+'================================================================
+Private Sub ExpandRowHeights(ws As Worksheet, minHeight As Double)
+
+    On Error GoTo EH
+    Application.DisplayAlerts = False
+
+    ' Ch?a thêm kho?ng th? phía trên/du?i d? ký t? có d?u không b?
+    ' c?t d?u ho?c c?t chân khi Excel render RowHeight.
+    Const MEASURE_PADDING As Double = 20
+    Const MERGE_INSET     As Double = 14  ' tr? hao cho merge cell
+    Const MAX_ROW_H       As Double = 409.5
+
+    Dim rhFitReady As Boolean
+    rhFitReady = False
+
+    '----------------------------------------------------------
+    ' BU?C 0: B?t t?m ScreenUpdating + activate dúng sheet.
+    ' C? Row.AutoFit (Bu?c 2) l?n Shape.TextFrame.AutoSize (Bu?c 3,
+    ' dùng trong MeasureWrapHeight) d?u C?N Excel th?c s? render d?
+    ' do dúng chi?u cao ch? — n?u ScreenUpdating=False ho?c sheet
+    ' không active, c? hai d?u cho k?t qu? do thi?u/sai, b?t k? dùng
+    ' k? thu?t nào. Khôi ph?c l?i tr?ng thái cu ? cu?i Sub.
+    '----------------------------------------------------------
+    Dim wasScreenUpdating As Boolean
+    wasScreenUpdating = Application.ScreenUpdating
+
+    If Application.WindowState = xlMinimized Then
+        Application.WindowState = xlNormal
+    End If
+    On Error Resume Next
+    ws.parent.Activate
+    ws.Activate
+    On Error GoTo 0
+
+    ' Không b?t ScreenUpdating ? dây. btnStart_Click dã t?t c?p nh?t
+    ' cho toàn b? vòng l?p; b?t ? dây s? làm màn hình nh?y qua t?ng sheet.
+
+    '----------------------------------------------------------
+    ' BU?C 1: Xác d?nh vùng d? li?u
+    '----------------------------------------------------------
+    Dim usedRng As Range
+    Set usedRng = ws.UsedRange
+    If usedRng Is Nothing Then GoTo Cleanup
+
+    Dim firstRow As Long: firstRow = usedRng.Row
+    Dim firstCol As Long: firstCol = usedRng.Column
+    Dim lastRow  As Long: lastRow = firstRow + usedRng.rows.count - 1
+    Dim lastCol  As Long: lastCol = firstCol + usedRng.Columns.count - 1
+
+    ' Sheet t?m ch? dùng ?? Excel AutoFit ô không merge theo dúng
+    ' chi?u r?ng c?a c?t, không làm thay ??i sheet ng??i dùng.
+    Dim measureWs As Worksheet
+    On Error Resume Next
+    Set measureWs = ws.parent.Worksheets.Add( _
+                    After:=ws.parent.Worksheets(ws.parent.Worksheets.count))
+    If Not measureWs Is Nothing Then
+        measureWs.Visible = xlSheetVeryHidden
+    End If
+    On Error GoTo EH
+
+    Dim rhFit() As Double
+    ReDim rhFit(firstRow To lastRow)
+
+    Dim r As Long, c As Long
+    Dim baselineH As Double
+
+    ' Không dùng Row.AutoFit/Shape làm baseline. M?i dòng b?t d?u
+    ' dúng b?ng chi?u cao t?i thi?u ngu?i dùng nh?p; ch? n?i dung
+    ' th?c s? c?n nhi?u dòng m?i du?c tang thêm ? bu?c quét.
+    baselineH = 15
+    If minHeight > 0 Then baselineH = minHeight
+    For r = firstRow To lastRow
+        rhFit(r) = baselineH
+    Next r
+    rhFitReady = True
+
+    ' Theo dõi các dòng th?t s? c?n nhi?u hon m?t dòng. Dòng ch? có
+    ' n?i dung m?t dòng s? du?c ép v? minHeight ? bu?c cu?i, không
+    ' gi? l?i chi?u cao cu c?a worksheet.
+    Dim rowNeedsMultipleLines() As Boolean
+    Dim rowHasAnyMerge() As Boolean
+    ReDim rowNeedsMultipleLines(firstRow To lastRow)
+    ReDim rowHasAnyMerge(firstRow To lastRow)
+
+    '----------------------------------------------------------
+    ' BU?C 3: Quét toàn b? cell WrapText (merge và không merge),
+    ' do chính xác b?ng Textbox, ghi dè/g?p vào rhFit.
+    '
+    ' FIX: Tr??c dây ô không merge ch? ???c x? lý b?ng AutoFit
+    ' c?a Excel (và ch? ch?n ô dài nh?t có d?u ti?ng Vi?t). Cách
+    ' này có th? b? thi?u dúng m?t dòng khi n?i dung t? wrap.
+    ' Bây gi? m?i ô không merge c?ng ???c do b?ng Textbox v?i
+    ' chi?u r?ng th?t c?a ô, gi?ng nh? ô merge.
+    '----------------------------------------------------------
+    Dim handled As Object
+    Set handled = CreateObject("Scripting.Dictionary")
+
+    ' Luu các merge nhi?u dòng c?n phân b? chi?u cao ? Bu?c 4
+    Dim mergeRow1()   As Long
+    Dim mergeRowN()   As Long
+    Dim mergeNeeded() As Double
+    Dim mergeCount    As Long
+    ReDim mergeRow1(1 To 1): ReDim mergeRowN(1 To 1): ReDim mergeNeeded(1 To 1)
+    mergeCount = 0
+
+    Dim cellRng   As Range
+    Dim mergeArea As Range
+    Dim aAddr     As String
+    Dim measuredH As Double
+
+    For r = firstRow To lastRow
+        For c = firstCol To lastCol
+
+            Set cellRng = ws.Cells(r, c)
+
+            If cellRng.MergeCells Then
+                Set mergeArea = cellRng.mergeArea
+                aAddr = mergeArea.Address(False, False)
+                If handled.Exists(aAddr) Then GoTo NextCell
+                handled.Add aAddr, 0
+
+                Dim mergeRow As Long
+                For mergeRow = mergeArea.Row To _
+                                mergeArea.Row + mergeArea.rows.count - 1
+                    If mergeRow >= firstRow And mergeRow <= lastRow Then
+                        rowHasAnyMerge(mergeRow) = True
+                    End If
+                Next mergeRow
+
+                Dim topCell As Range: Set topCell = mergeArea.Cells(1, 1)
+
+                Dim cellHasContent As Boolean
+                cellHasContent = False
+                If Not IsError(topCell.value) Then
+                    cellHasContent = (Len(Trim( _
+                                      NormalizeWrapText(CStr(topCell.value)))) > 0)
+                End If
+
+                If topCell.WrapText And cellHasContent Then
+                    ' Ch? c?ng MEASURE_PADDING khi n?i dung th?c s? c?n
+                    ' nhi?u dòng. Không d?a vào BoundHeight d? quy?t d?nh:
+                    ' TextBox có th? tr? v? cao hon th?c t? v?i text 1 dòng
+                    ' (d?c bi?t ? các ô merge tiêu d?).
+                    Dim mergeNeedsPadding As Boolean
+                    mergeNeedsPadding = CellNeedsMultipleLines( _
+                                            topCell, MERGE_INSET)
+
+                    measuredH = MeasureWrapHeight( _
+                                    ws, _
+                                    mergeArea.Width - MERGE_INSET, _
+                                    NormalizeWrapText(CStr(topCell.value)), _
+                                    topCell.Font)
+                    If mergeNeedsPadding Then _
+                        measuredH = measuredH + MEASURE_PADDING
+
+                    If mergeNeedsPadding Then
+                        For mergeRow = mergeArea.Row To _
+                                        mergeArea.Row + mergeArea.rows.count - 1
+                            If mergeRow >= firstRow And mergeRow <= lastRow Then
+                                rowNeedsMultipleLines(mergeRow) = True
+                            End If
+                        Next mergeRow
+                    End If
+
+                    Dim spanRows As Long: spanRows = mergeArea.rows.count
+                    Dim spanR1 As Long: spanR1 = mergeArea.Row
+                    Dim spanRN As Long: spanRN = spanR1 + spanRows - 1
+
+                    If spanRows = 1 Then
+                        ' Merge ch? tr?i 1 dòng => áp tr?c ti?p vào rhFit c?a dòng dó
+                        If measuredH > rhFit(spanR1) Then rhFit(spanR1) = measuredH
+                    Else
+                        ' Merge tr?i nhi?u dòng => luu l?i d? phân b? ? Bu?c 4
+                        mergeCount = mergeCount + 1
+                        ReDim Preserve mergeRow1(1 To mergeCount)
+                        ReDim Preserve mergeRowN(1 To mergeCount)
+                        ReDim Preserve mergeNeeded(1 To mergeCount)
+                        mergeRow1(mergeCount) = spanR1
+                        mergeRowN(mergeCount) = spanRN
+                        mergeNeeded(mergeCount) = measuredH
+                    End If
+                End If
+            Else
+                ' Ô không merge: dùng m?t cell Excel t?m d? AutoFit.
+                ' Không dùng TextBox/Rows.AutoFit trên sheet g?c vì
+                ' Excel có th? b? sót dòng wrap ti?ng Vi?t.
+                If Not IsError(cellRng.value) Then
+                    Dim plainText As String
+                    plainText = NormalizeWrapText(CStr(cellRng.value))
+
+                    If Len(Trim$(plainText)) > 0 Then
+                        Dim oneLineH As Double
+                        Dim cellNeedsPadding As Boolean
+
+                        cellNeedsPadding = False
+                        oneLineH = CDbl(cellRng.Font.Size) * 1.5
+                        If oneLineH < 15 Then oneLineH = 15
+
+                        If cellRng.WrapText Or InStr(plainText, vbLf) > 0 Then
+                            ' Ch? b? sung kho?ng d?m cho cell wrap thành
+                            ' nhi?u dòng. Text wrap 1 dòng (ví d? tiêu d?
+                            ' ng?n) gi? nguyên chi?u cao do, không c?ng
+                            ' MEASURE_PADDING.
+                            cellNeedsPadding = CellNeedsMultipleLines( _
+                                                    cellRng, CELL_INSET)
+
+                            ' V?i ô không merge, dùng tr?c ti?p s? dòng
+                            ' u?c tính theo chi?u r?ng th?c t?. Không dùng
+                            ' AutoFit trên sheet t?m vì Excel dôi khi tr?
+                            ' v? chi?u cao c?a Shape/row tru?c dó.
+                            measuredH = MeasureWrapHeight( _
+                                            ws, _
+                                            cellRng.Width - CELL_INSET, _
+                                            plainText, _
+                                            cellRng.Font)
+                            If measuredH <= 0 Then
+                                measuredH = EstimateNonMergedWrapHeight( _
+                                                cellRng, plainText)
+                            End If
+                            If cellNeedsPadding Then
+                                rowNeedsMultipleLines(r) = True
+                            End If
+                        Else
+                            ' Ô không WrapText và n?i dung ng?n: b?t bu?c
+                            ' dùng chi?u cao m?t dòng, không gi? chi?u cao
+                            ' n?n b?t thu?ng do AutoFit vùng có merge.
+                            measuredH = oneLineH
+                        End If
+
+                        If cellNeedsPadding Then _
+                            measuredH = measuredH + MEASURE_PADDING
+
+                        If measuredH > rhFit(r) Then rhFit(r) = measuredH
+                    End If
+                End If
+            End If
+
+NextCell:
+        Next c
+    Next r
+
+    ' Ch?t chi?u cao baseline tru?c khi phân b? merge nhi?u dòng.
+    ' N?u th?c hi?n vi?c này ? sau bu?c phân b?, ph?n chi?u cao v?a
+    ' c?ng cho dòng d?u c?a merge s? b? reset v? minHeight.
+    For r = firstRow To lastRow
+        If Not rowNeedsMultipleLines(r) Then
+            rhFit(r) = baselineH
+        End If
+    Next r
+
+    '----------------------------------------------------------
+    ' BU?C 4: Phân b? chi?u cao cho các merge nhi?u dòng.
+    ' Dòng d?u c?a merge du?c tang thêm ph?n còn thi?u sau khi tr?
+    ' di t?ng chi?u cao các dòng còn l?i trong merge (các dòng này
+    ' dã có chi?u cao riêng t? Bu?c 2/3).
+    '----------------------------------------------------------
+    Dim mi As Long
+    For mi = 1 To mergeCount
+        Dim mr1 As Long: mr1 = mergeRow1(mi)
+        Dim mrN As Long: mrN = mergeRowN(mi)
+        If mr1 < firstRow Or mrN > lastRow Then GoTo NextMerge
+
+        Dim innerH As Double: innerH = 0
+        Dim ri As Long
+        For ri = mr1 + 1 To mrN
+            innerH = innerH + rhFit(ri)
+        Next ri
+
+        Dim newR1H As Double
+        newR1H = mergeNeeded(mi) - innerH
+
+        If newR1H < rhFit(mr1) Then newR1H = rhFit(mr1)   ' không nh? hon baseline dòng d?u
+        If minHeight > 0 And newR1H < minHeight Then newR1H = minHeight
+        rhFit(mr1) = newR1H
+
+NextMerge:
+    Next mi
+
+Cleanup:
+    If Not measureWs Is Nothing Then
+        On Error Resume Next
+        measureWs.Visible = xlSheetVisible
+        measureWs.Delete
+        On Error GoTo 0
+    End If
+
+    Application.ScreenUpdating = wasScreenUpdating
+    Application.DisplayAlerts = True
+
+    '----------------------------------------------------------
+    ' BU?C 5: Áp chi?u cao cu?i cùng + d?m b?o >= minHeight
+    '----------------------------------------------------------
+    If rhFitReady Then
+        Dim h As Double
+        For r = firstRow To lastRow
+            h = rhFit(r)
+            If minHeight > 0 And h < minHeight Then h = minHeight
+            If h > MAX_ROW_H Then h = MAX_ROW_H
+            ws.rows(r).RowHeight = h
+        Next r
+    End If
+
+    Exit Sub
+
+EH:
+    If Not measureWs Is Nothing Then
+        On Error Resume Next
+        measureWs.Visible = xlSheetVisible
+        measureWs.Delete
+        On Error GoTo 0
+    End If
+    Application.ScreenUpdating = wasScreenUpdating
+    Application.DisplayAlerts = True
+    MsgBox "Error in ExpandRowHeights (sheet: " & ws.Name & "):" & vbCrLf & _
+           Err.Description, vbCritical, "Expand Rows Error"
+End Sub
+
+
+
+
+
+
+
+
+
+
+
+
+
+

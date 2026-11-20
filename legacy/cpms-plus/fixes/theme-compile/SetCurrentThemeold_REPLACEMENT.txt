@@ -1,0 +1,8 @@
+﻿Public Sub SetCurrentThemeold(ByVal themeName As String, Optional ByVal excludeFrm As Object = Nothing)
+    EnsureFolder GetCPMSAppFolder()
+    INIWrite GetSettingsFilePath(), SETT_SECTION, SETT_KEY, themeName
+    m_CurrentTheme = themeName
+    ClearThemeCache themeName
+    LoadTheme themeName
+    ReloadAllOpenForms
+End Sub

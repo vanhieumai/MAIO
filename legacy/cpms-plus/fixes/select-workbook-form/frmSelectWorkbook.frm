@@ -1,0 +1,86 @@
+VERSION 5.00
+Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} frmSelectWorkbook 
+   Caption         =   "Workbook List"
+   ClientHeight    =   6435
+   ClientLeft      =   120
+   ClientTop       =   465
+   ClientWidth     =   4785
+   OleObjectBlob   =   "frmSelectWorkbook.frx":0000
+   StartUpPosition =   1  'CenterOwner
+End
+Attribute VB_Name = "frmSelectWorkbook"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = False
+Option Explicit
+Private mCandidates As Collection
+Private mSelected As Workbook
+Private Sub UserForm_Initialize()
+    ApplyTheme Me
+    lstWorkbook.ColumnCount = 1
+    lstWorkbook.MultiSelect = fmMultiSelectSingle
+    Label3.WordWrap = True
+    Label4.WordWrap = True
+    btnOK.Default = True
+    btnOK.Enabled = False
+End Sub
+Public Sub Configure(ByVal candidates As Collection)
+    Dim wb As Workbook
+    Set mCandidates = candidates
+    Set mSelected = Nothing
+    lstWorkbook.Clear
+    Label3.Caption = "Name:"
+    Label4.Caption = "Full path:"
+    Label3.ControlTipText = ""
+    Label4.ControlTipText = ""
+    For Each wb In candidates
+        lstWorkbook.AddItem wb.Name
+    Next wb
+    If lstWorkbook.ListCount > 0 Then lstWorkbook.ListIndex = 0
+End Sub
+Public Property Get SelectedWorkbook() As Workbook
+    Set SelectedWorkbook = mSelected
+End Property
+Private Sub lstWorkbook_Change()
+    Dim wb As Workbook, path As String
+    btnOK.Enabled = (lstWorkbook.ListIndex >= 0)
+    If lstWorkbook.ListIndex < 0 Then
+        Label3.Caption = "Name:"
+        Label4.Caption = "Full path:"
+        Exit Sub
+    End If
+    Set wb = mCandidates(lstWorkbook.ListIndex + 1)
+    If Len(wb.path) = 0 Then
+        path = "(Unsaved workbook)"
+    Else
+        path = wb.fullName
+    End If
+    Label3.Caption = "Name: " & wb.Name
+    Label4.Caption = "Full path: " & path
+    Label3.ControlTipText = wb.Name
+    Label4.ControlTipText = path
+End Sub
+Private Sub btnOK_Click()
+    Dim candidate As Workbook, wb As Workbook
+    If lstWorkbook.ListIndex < 0 Then Exit Sub
+    Set candidate = mCandidates(lstWorkbook.ListIndex + 1)
+    For Each wb In Application.Workbooks
+        If wb Is candidate Then
+            Set mSelected = wb
+            Me.Hide
+            Exit Sub
+        End If
+    Next wb
+    MsgBox "This workbook has been closed. Please reopen the source list.", vbExclamation
+End Sub
+Private Sub imgOK_Click()
+    btnOK_Click
+End Sub
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If CloseMode = 0 Then
+        Cancel = True
+        Set mSelected = Nothing
+        Me.Hide
+    End If
+End Sub

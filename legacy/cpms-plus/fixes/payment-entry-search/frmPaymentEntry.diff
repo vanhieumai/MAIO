@@ -1,0 +1,144 @@
+--- 
++++ 
+@@ -8,6 +8,11 @@
+ Attribute VB_Customizable = False
+ 'frmPaymentEhtry
+ Option Explicit
++
++Private mPaymentSearchKeyword As String
++Private mSearchContractID As String
++Private mSearchRightClickCount As Long
++Private mSearchRightClickTime As Double
+ 
+ Private editingRow As Long   ' DÒNG ÐANG S?A
+ Private isEditMode As Boolean
+@@ -839,9 +844,23 @@
+     Dim r As Long
+     Dim c As Long
+ 
++    On Error GoTo SearchFailed
++    If mSearchContractID <> contractID Then
++        mSearchContractID = contractID
++        mPaymentSearchKeyword = ""
++        txtSearch.Value = ""
++    End If
++    Dim previousSuppress As Boolean
++    previousSuppress = suppressPaymentSelect
++    ResetPaymentSelection
++    selectedLedgerRow = 0
++    lblLedgerID.Caption = ""
++    btnDeletePayment.Enabled = False
++    suppressPaymentSelect = True
+     lstPayment.Clear
+-
+-    If Not gDictLedgerByContract.exists(contractID) Then Exit Sub
++    If gDictLedgerByContract Is Nothing Then GoTo SearchDone
++
++    If Not gDictLedgerByContract.exists(contractID) Then GoTo SearchDone
+ 
+     Set rows = gDictLedgerByContract(contractID)
+ 
+@@ -907,12 +926,34 @@
+     
+         Next r
+     
+-        lstPayment.List = finalArr
+-    
+-    End If
+-
+-    ResetPaymentSelection
+-
++        Dim filtered() As Variant, matchCount As Long, outputRow As Long
++        Dim allRows As Variant
++        allRows = finalArr
++        For r = 0 To total - 1
++            If PaymentMatchesSearch(allRows, r) Then matchCount = matchCount + 1
++        Next r
++        If matchCount > 0 Then
++            ReDim filtered(0 To matchCount - 1, 0 To 8)
++            For r = 0 To total - 1
++                If PaymentMatchesSearch(allRows, r) Then
++                    For c = 0 To 8
++                        filtered(outputRow, c) = allRows(r, c)
++                    Next c
++                    outputRow = outputRow + 1
++                End If
++            Next r
++            lstPayment.List = filtered
++        End If
++    
++    End If
++
++SearchDone:
++    suppressPaymentSelect = previousSuppress
++    txtSearch.ControlTipText = "Enter: search; Esc or double right-click: clear. Results: " & lstPayment.ListCount
++    Exit Sub
++SearchFailed:
++    suppressPaymentSelect = previousSuppress
++    MsgBox "Cannot load payment search results: " & Err.Description, vbExclamation, "Payment Entry"
+ End Sub
+ 
+ Public Sub LoadLedgerSummaryFast( _
+@@ -991,7 +1032,7 @@
+ Private Sub InitPlaceholders()
+     Dim c As Control
+     For Each c In Me.Controls
+-        If TypeName(c) = "TextBox" Then
++        If TypeName(c) = "TextBox" And c.Name <> "txtSearch" Then
+             If Trim(c.Tag) <> "" Then
+                 c.value = c.Tag
+                 c.ForeColor = RGB(0, 0, 0)
+@@ -1614,3 +1655,53 @@
+ 
+     IsValidDDMMYYYY = True
+ End Function
++
++Private Function PaymentSearchText(ByVal value As Variant) As String
++    If IsError(value) Or IsNull(value) Or IsEmpty(value) Then Exit Function
++    PaymentSearchText = LCase$(VN_NoSign(Trim$(CStr(value))))
++End Function
++
++Private Function PaymentMatchesSearch(ByRef data As Variant, ByVal rowIndex As Long) As Boolean
++    Dim col As Long, ledgerIndex As Long
++    If mPaymentSearchKeyword = "" Then PaymentMatchesSearch = True: Exit Function
++    For col = 1 To 8
++        If InStr(1, PaymentSearchText(data(rowIndex, col)), mPaymentSearchKeyword, vbBinaryCompare) > 0 Then
++            PaymentMatchesSearch = True
++            Exit Function
++        End If
++    Next col
++    ledgerIndex = CLng(data(rowIndex, 0))
++    PaymentMatchesSearch = (InStr(1, PaymentSearchText(gArrLedger(ledgerIndex, 2)), mPaymentSearchKeyword, vbBinaryCompare) > 0)
++End Function
++
++Private Sub ApplyPaymentSearch()
++    mPaymentSearchKeyword = PaymentSearchText(txtSearch.Value)
++    LoadPaymentHistoryFast CStr(lblContractID.Caption)
++End Sub
++
++Private Sub txtSearch_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
++    If KeyCode = vbKeyReturn Then
++        KeyCode = 0
++        ApplyPaymentSearch
++    ElseIf KeyCode = vbKeyEscape Then
++        KeyCode = 0
++        txtSearch.Value = ""
++        ApplyPaymentSearch
++    End If
++End Sub
++
++Private Sub txtSearch_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
++    If Button <> 2 Then Exit Sub
++    Dim nowTime As Double, elapsed As Double
++    nowTime = Timer
++    elapsed = nowTime - mSearchRightClickTime
++    If elapsed < 0 Then elapsed = elapsed + 86400
++    If mSearchRightClickCount > 0 And elapsed < 0.5 Then
++        mSearchRightClickCount = 0
++        txtSearch.Value = ""
++        ApplyPaymentSearch
++    Else
++        mSearchRightClickCount = 1
++        mSearchRightClickTime = nowTime
++    End If
++End Sub

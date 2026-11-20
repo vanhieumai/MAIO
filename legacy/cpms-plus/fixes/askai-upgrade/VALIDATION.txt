@@ -1,0 +1,10 @@
+Verification — 03/10/2026
+
+PASS: Procedure-name uniqueness, quoted-string balance, no Attribute headers in paste-ready code.
+PASS: Correct event aliases, removal of obsolete btnAskAI.Enabled reference, async request path.
+PASS: 30 behavioral checks of JSON parsing/quoting, Unicode, answer extraction, malformed input, free-price and Groq model filtering.
+Behavioral checks execute the actual helper bodies adapted for VBScript: type annotations and Next variable omitted; Collection replaced by an equivalent test wrapper; Object return defaults and hex literal suffix adapted.
+This is not a VBA compiler or a live Excel test.
+
+NOT RUN: Excel Debug > Compile, UserForm layout/events in Excel, real provider requests, cancellation against a live server.
+No workbook/add-in or API key was modified. Source workbook SHA256 recorded in HUONG_DAN.md.

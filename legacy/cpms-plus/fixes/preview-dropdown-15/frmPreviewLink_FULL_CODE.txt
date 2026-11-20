@@ -1,0 +1,269 @@
+Option Explicit
+Private mPlan As clsQSMLinkPlan
+Private WithEvents mFrom As MSForms.ComboBox
+Private WithEvents mTo As MSForms.ComboBox
+Private WithEvents mLink As MSForms.CommandButton
+Private mInfo As MSForms.label
+Private mLoading As Boolean
+Private mLinking As Boolean
+Private mLayoutBusy As Boolean
+Private mRefreshing As Boolean
+
+Private Sub UserForm_Initialize()
+    mLoading = True
+    ApplyTheme Me
+    ' Hide an old designer Close button if present; no named-control dependency.
+    Dim ctl As Object
+    For Each ctl In Me.Controls
+        If TypeName(ctl) = "CommandButton" Then
+            Select Case LCase$(ctl.Name)
+                Case "cmdclose", "btnclose"
+                    ctl.Visible = False
+                Case Else
+                    If LCase$(Trim$(Replace(ctl.Caption, "&", ""))) = "close" Then ctl.Visible = False
+            End Select
+        End If
+    Next ctl
+    If Me.Width < 650 Then Me.Width = 650
+    If Me.Height < 340 Then Me.Height = 400
+    Set mInfo = Me.Controls.Add("Forms.Label.1", "lblLinkContext", True)
+    With mInfo
+        .Left = 12: .Top = 8: .Width = Me.InsideWidth - 24: .Height = 32
+        .WordWrap = True
+    End With
+    Dim label As MSForms.label
+    Set label = Me.Controls.Add("Forms.Label.1", "lblFirstTargetRow", True)
+    label.Caption = "Target: first row": label.Left = 12: label.Top = 48: label.Width = 90
+    Set mFrom = Me.Controls.Add("Forms.ComboBox.1", "cboFirstTargetRow", True)
+    mFrom.Left = 104: mFrom.Top = 44: mFrom.Width = 75: mFrom.Height = 20: mFrom.ListRows = 15
+    Set label = Me.Controls.Add("Forms.Label.1", "lblLastTargetRow", True)
+    label.Caption = "Last row (inclusive)": label.Left = 196: label.Top = 48: label.Width = 110
+    Set mTo = Me.Controls.Add("Forms.ComboBox.1", "cboLastTargetRow", True)
+    mTo.Left = 310: mTo.Top = 44: mTo.Width = 75: mTo.Height = 20: mTo.ListRows = 15
+    Set label = Me.Controls.Add("Forms.Label.1", "lblPreviewColumns", True)
+    label.Caption = "Target row | Match key | First 4 source values | Match status"
+    label.Left = 12: label.Top = 70: label.Width = Me.InsideWidth - 24
+    lbPreview.Left = 12: lbPreview.Top = 88
+    lbPreview.Width = Me.InsideWidth - 24: lbPreview.Height = Me.InsideHeight - 136
+    Set mLink = Me.Controls.Add("Forms.CommandButton.1", "btnPreviewLinkData", True)
+    With mLink
+        .Caption = "Link Data"
+        .Width = 110: .Height = 28
+        .Font.Name = Me.Font.Name: .Font.Size = Me.Font.Size
+        .ForeColor = Me.ForeColor
+        .BackColor = &H8000000F
+        .Enabled = False
+    End With
+    LayoutPreviewControls
+    mLoading = False
+End Sub
+
+Public Sub Configure(ByVal plan As clsQSMLinkPlan)
+    Set mPlan = plan
+    mLoading = True
+    Dim lastRow As Long, r As Long
+    lastRow = plan.LastTargetRow
+    mFrom.Clear: mTo.Clear
+    If lastRow <= 10000 Then
+        For r = 1 To lastRow
+            mFrom.AddItem CStr(r): mTo.AddItem CStr(r)
+        Next r
+    Else
+        mFrom.AddItem "1": mFrom.AddItem CStr(lastRow)
+        mTo.AddItem "1": mTo.AddItem CStr(lastRow)
+    End If
+    mFrom.Style = fmStyleDropDownCombo: mTo.Style = fmStyleDropDownCombo
+    mFrom.value = "1": mTo.value = CStr(lastRow)
+    mInfo.Caption = plan.Description & vbCrLf & "Columns: " & plan.MappingDescription
+    mInfo.ControlTipText = mInfo.Caption
+    LayoutPreviewControls
+    mLoading = False
+    RefreshPreview
+End Sub
+
+Private Function Bounds(ByRef firstRow As Long, ByRef lastRow As Long, Optional ByVal showMessage As Boolean = True) As Boolean
+    On Error GoTo Invalid
+    Dim a As Double, b As Double
+    If mPlan Is Nothing Then Exit Function
+    If Not IsNumeric(mFrom.value) Or Not IsNumeric(mTo.value) Then GoTo Invalid
+    a = CDbl(mFrom.value): b = CDbl(mTo.value)
+    If a <> Fix(a) Or b <> Fix(b) Then GoTo Invalid
+    If a < 1 Or b < a Or b > mPlan.LastTargetRow Then GoTo Invalid
+    firstRow = CLng(a): lastRow = CLng(b)
+    Bounds = True
+    Exit Function
+Invalid:
+    mLink.Enabled = False
+    lbPreview.Clear
+    If showMessage Then MsgBox "Enter whole target row numbers: 1 <= first row <= last row <= last target data row.", vbExclamation, "Preview"
+End Function
+
+Private Sub RefreshPreview(Optional ByVal showBoundsMessage As Boolean = True)
+    If mLoading Or mLinking Or mRefreshing Then Exit Sub
+    If mPlan Is Nothing Then Exit Sub
+    Dim firstRow As Long, lastRow As Long
+    On Error GoTo Failed
+    mRefreshing = True
+    mLink.Enabled = False
+    If Not Bounds(firstRow, lastRow, showBoundsMessage) Then GoTo Finished
+    mPlan.FillPreview lbPreview, firstRow, lastRow
+    mLink.Enabled = True
+Finished:
+    mRefreshing = False
+    Exit Sub
+Failed:
+    lbPreview.Clear
+    mLink.Enabled = False
+    mRefreshing = False
+    MsgBox "Cannot preview: " & Err.Description, vbExclamation, "Preview"
+End Sub
+
+Private Sub mFrom_AfterUpdate()
+    RefreshPreview
+End Sub
+Private Sub mTo_AfterUpdate()
+    RefreshPreview
+End Sub
+Private Sub mFrom_Change()
+    ' Validate silently while typing; do not leave the old preview visible.
+    RefreshPreview False
+End Sub
+Private Sub mTo_Change()
+    ' Validate silently while typing; do not leave the old preview visible.
+    RefreshPreview False
+End Sub
+
+Private Sub mLink_Click()
+    If mLinking Then Exit Sub
+    Dim firstRow As Long, lastRow As Long, Done As Boolean
+    On Error GoTo Failed
+    If Not Bounds(firstRow, lastRow) Then Exit Sub
+    mLinking = True
+    mLink.Enabled = False
+    mFrom.Enabled = False: mTo.Enabled = False
+    mPlan.FillPreview lbPreview, firstRow, lastRow
+    Done = mPlan.Execute(firstRow, lastRow)
+Clean:
+    mLinking = False
+    mFrom.Enabled = True: mTo.Enabled = True
+    RefreshPreview
+    Exit Sub
+Failed:
+    MsgBox "Cannot link: " & Err.Description, vbExclamation, "Preview"
+    Resume Clean
+End Sub
+
+Private Sub lbPreview_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
+    On Error GoTo Failed
+    If mPlan Is Nothing Or lbPreview.ListIndex < 0 Then Exit Sub
+    mPlan.NavigateSource CLng(lbPreview.List(lbPreview.ListIndex, 7))
+    Exit Sub
+Failed:
+    MsgBox Err.Description, vbInformation, "Preview"
+End Sub
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If mLinking Then Cancel = True: Exit Sub
+    Set mPlan = Nothing
+    UnregisterForm Me
+End Sub
+
+
+
+Private Sub MatchPreviewFont(ByVal ctrl As Object)
+    With ctrl.Font
+        .Name = lbPreview.Font.Name
+        .Size = lbPreview.Font.Size
+        .Bold = lbPreview.Font.Bold
+        '.Italic = lbPreview.Font.Italic
+        '.Underline = lbPreview.Font.Underline
+    End With
+End Sub
+
+Private Sub LayoutPreviewControls()
+    If mLayoutBusy Then Exit Sub
+    If mLink Is Nothing Then Exit Sub
+    mLayoutBusy = True
+    On Error GoTo Done
+    Dim firstLabel As Object, lastLabel As Object, heading As Object
+    Set firstLabel = Me.Controls("lblFirstTargetRow")
+    Set lastLabel = Me.Controls("lblLastTargetRow")
+    Set heading = Me.Controls("lblPreviewColumns")
+    MatchPreviewFont mInfo
+    MatchPreviewFont firstLabel
+    MatchPreviewFont lastLabel
+    MatchPreviewFont heading
+    MatchPreviewFont mFrom
+    MatchPreviewFont mTo
+    MatchPreviewFont mLink
+
+    Dim lineHeight As Single, inputHeight As Single, rowTop As Single
+    lineHeight = lbPreview.Font.Size + 6
+    inputHeight = lineHeight + 6
+    If inputHeight < 24 Then inputHeight = 24
+    With mInfo
+        .Left = 12: .Top = 8
+        .Width = Me.InsideWidth - 24
+        .Height = lineHeight * 3
+        .WordWrap = True
+        .ZOrder 0
+    End With
+    rowTop = mInfo.Top + mInfo.Height + 8
+    firstLabel.AutoSize = True
+    firstLabel.Left = 12: firstLabel.Top = rowTop + 4
+    mFrom.Left = firstLabel.Left + firstLabel.Width + 8
+    mFrom.Top = rowTop: mFrom.Width = 75: mFrom.Height = inputHeight
+    lastLabel.AutoSize = True
+    lastLabel.Left = mFrom.Left + mFrom.Width + 16
+    lastLabel.Top = rowTop + 4
+    mTo.Left = lastLabel.Left + lastLabel.Width + 8
+    mTo.Top = rowTop: mTo.Width = 75: mTo.Height = inputHeight
+    If mTo.Left + mTo.Width > Me.InsideWidth - 12 Then
+        rowTop = rowTop + inputHeight + 8
+        lastLabel.Left = 12: lastLabel.Top = rowTop + 4
+        mTo.Left = lastLabel.Left + lastLabel.Width + 8
+        mTo.Top = rowTop
+    End If
+    With mLink
+        .Caption = "Link Data"
+        .Width = 110: .Height = inputHeight + 4
+        .Left = Me.InsideWidth - .Width - 12
+        .Top = rowTop - 2
+        If .Left < mTo.Left + mTo.Width + 12 Then
+            .Top = rowTop + inputHeight + 8
+        End If
+        .Visible = True
+        .ZOrder 0
+    End With
+    Dim headingTop As Single
+    headingTop = mLink.Top + mLink.Height + 8
+    If headingTop < rowTop + inputHeight + 8 Then headingTop = rowTop + inputHeight + 8
+    With heading
+        .Left = 12: .Top = headingTop
+        .Width = Me.InsideWidth - 24
+        .Height = lineHeight * 2
+        .WordWrap = True
+        .ZOrder 0
+    End With
+    With lbPreview
+        .Left = 12: .Top = heading.Top + heading.Height + 4
+        .Width = Me.InsideWidth - 24
+        If Me.InsideHeight - .Top - 12 >= 40 Then
+            .Height = Me.InsideHeight - .Top - 12
+        Else
+            .Height = 40
+        End If
+        .ZOrder 0
+    End With
+    firstLabel.ZOrder 0: lastLabel.ZOrder 0
+    mFrom.ZOrder 0: mTo.ZOrder 0
+Done:
+    mLayoutBusy = False
+End Sub
+
+Private Sub UserForm_Activate()
+    LayoutPreviewControls
+End Sub
+
+Private Sub UserForm_Resize()
+    LayoutPreviewControls
+End Sub

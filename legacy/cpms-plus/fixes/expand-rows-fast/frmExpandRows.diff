@@ -1,0 +1,387 @@
+--- current/frmExpandRows
++++ fast/frmExpandRows
+@@ -37,11 +37,16 @@
+ Private mWorkbook         As Workbook
+ Private mExternalWbOpened As Boolean
+ Private Const CELL_INSET As Double = 4
++Private mMeasureShape As Shape
++Private mHeightCache As Object
++Private mRunning As Boolean
++Private mLastYield As Double
+ 
+ '================================================================
+ ' KH?I T?O — du?c g?i t? form cha
+ '================================================================
+ Public Sub Init(wb As Workbook, Optional defaultSheetName As String = "")
++    If mRunning Then Exit Sub
+     Set mWorkbook = wb
+     mExternalWbOpened = False
+     UpdateWorkbookLabel
+@@ -87,6 +92,7 @@
+ ' NÚT BROWSE — ch?n workbook khác
+ '================================================================
+ Private Sub btnBrowse_Click()
++    If mRunning Then Exit Sub
+     Dim fd As FileDialog
+     Set fd = Application.FileDialog(msoFileDialogFilePicker)
+     With fd
+@@ -134,6 +140,7 @@
+ ' NÚT START
+ '================================================================
+ Private Sub btnStart_Click()
++    If mRunning Then Exit Sub
+     Dim minH As Double
+     Dim activeWbBeforeRun As Workbook
+     Dim activeSheetBeforeRun As Object
+@@ -173,58 +180,72 @@
+         Exit Sub
+     End If
+ 
++    Dim oldScreen As Boolean, oldEvents As Boolean, oldCalc As XlCalculation
++    Dim oldAlerts As Boolean, oldStatus As Variant, oldCancel As XlEnableCancelKey
++    Dim doneSheets As Long, failed As String, startedAt As Double
++    oldScreen = Application.ScreenUpdating
++    oldEvents = Application.EnableEvents
++    oldCalc = Application.Calculation
++    oldAlerts = Application.DisplayAlerts
++    oldStatus = Application.StatusBar
++    oldCancel = Application.EnableCancelKey
++    mRunning = True
++    mLastYield = Timer
++    startedAt = Timer
++    btnStart.Enabled = False
++    btnBrowse.Enabled = False
++    lbSheets.Enabled = False
++    On Error GoTo FailedRun
++    Application.EnableCancelKey = xlErrorHandler
+     Application.ScreenUpdating = False
+     Application.EnableEvents = False
+     Application.Calculation = xlCalculationManual
+-
+-    Dim doneSheets As Long
+-    doneSheets = 0
+-
+     For i = 0 To lbSheets.ListCount - 1
+         If lbSheets.Selected(i) Then
+             Dim ws As Worksheet
+-            Set ws = Nothing
+-            On Error Resume Next
+             Set ws = mWorkbook.Worksheets(lbSheets.List(i))
+-            On Error GoTo 0
+-            If Not ws Is Nothing Then
+-                ExpandRowHeights ws, minH
+-                doneSheets = doneSheets + 1
+-            End If
+-            Set ws = Nothing
++            Application.StatusBar = "Expand rows: " & ws.Name
++            ExpandRowHeights ws, minH
++            doneSheets = doneSheets + 1
+         End If
+     Next i
+-
+-    If mExternalWbOpened Then
+-        On Error Resume Next
+-        mWorkbook.Save
+-        On Error GoTo 0
+-    End If
+-
+-    ' Hi?n th? l?i dúng workbook/sheet mà ngu?i dùng dang xem tru?c
+-    ' khi b?t d?u dãn dòng, không ph? thu?c sheet du?c ch?n x? lý cu?i.
+-    ' Ph?i khôi ph?c khi ScreenUpdating v?n dang t?t, n?u không Excel
+-    ' s? hi?n th? sheet cu?i cùng trong ch?c lát r?i m?i nh?y v? sheet cu.
++    If mExternalWbOpened Then mWorkbook.Save
++    GoTo FinishRun
++FailedRun:
++    failed = Err.Source & ": " & Err.Description
++FinishRun:
+     On Error Resume Next
++    ReleaseExpandMeasurement
+     If Not activeWbBeforeRun Is Nothing Then
+         activeWbBeforeRun.Activate
+-        If Not activeSheetBeforeRun Is Nothing Then
+-            activeSheetBeforeRun.Activate
+-        End If
+-    End If
++        If Not activeSheetBeforeRun Is Nothing Then activeSheetBeforeRun.Activate
++    End If
++    Application.Calculation = oldCalc
++    Application.EnableEvents = oldEvents
++    Application.DisplayAlerts = oldAlerts
++    Application.StatusBar = oldStatus
++    Application.EnableCancelKey = oldCancel
++    Application.ScreenUpdating = oldScreen
++    btnStart.Enabled = True
++    btnBrowse.Enabled = True
++    lbSheets.Enabled = True
++    mRunning = False
+     On Error GoTo 0
+-
+-    Application.Calculation = xlCalculationAutomatic
+-    Application.EnableEvents = True
+-    Application.ScreenUpdating = True
+-
+-    MsgBox "Done!  Expanded rows on " & doneSheets & " sheet(s).", vbInformation, "Expand Row Heights"
++    If failed <> "" Then
++        MsgBox "Stopped after " & doneSheets & " sheet(s). Changes already applied are retained." & vbCrLf & failed, vbExclamation, "Expand Rows"
++    Else
++        Dim elapsed As Double
++        elapsed = Timer - startedAt
++        If elapsed < 0 Then elapsed = elapsed + 86400
++        MsgBox "Done! Expanded rows on " & doneSheets & " sheet(s), " & Format$(elapsed, "0.0") & " seconds.", vbInformation, "Expand Rows"
++    End If
+ End Sub
+ 
+ '================================================================
+ ' NÚT CLOSE
+ '================================================================
+ Private Sub btnClose_Click()
++    If mRunning Then Exit Sub
+     Unload Me
+ End Sub
+ 
+@@ -233,6 +254,10 @@
+ End Sub
+ 
+ Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
++    If mRunning Then
++        Cancel = True
++        Exit Sub
++    End If
+     If mExternalWbOpened And Not (mWorkbook Is Nothing) Then
+         Dim ans As Integer
+         ans = MsgBox("Close the external workbook """ & mWorkbook.Name & """ ?", _
+@@ -267,14 +292,24 @@
+     End If
+     If widthPts < 10 Then widthPts = 10
+ 
++    Dim cacheKey As String
++    cacheKey = CStr(widthPts) & "|" & CStr(fnt.Name) & "|" & CStr(fnt.Size) & "|" & _
++               CStr(fnt.Bold) & "|" & CStr(fnt.Italic) & "|" & txt
++    If Not mHeightCache Is Nothing Then
++        If mHeightCache.Exists(cacheKey) Then
++            MeasureWrapHeight = CDbl(mHeightCache(cacheKey))
++            Exit Function
++        End If
++    End If
+     Dim tb As Shape
+-    On Error Resume Next
+-    Set tb = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, -20000, -20000, widthPts, 20)
+-    On Error GoTo 0
+-    If tb Is Nothing Then
+-        MeasureWrapHeight = 0
+-        Exit Function
+-    End If
++    If mMeasureShape Is Nothing Then
++        Set mMeasureShape = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, -20000, -20000, widthPts, 20)
++    End If
++    Set tb = mMeasureShape
++    tb.TextFrame.AutoSize = False
++    tb.TextFrame2.AutoSize = msoAutoSizeNone
++    tb.Width = widthPts
++    tb.Height = 20
+ 
+     Dim hTextFrame2 As Double
+     Dim hTextFrame As Double
+@@ -304,7 +339,6 @@
+ 
+     tb.Width = widthPts
+     tb.Height = 10000
+-    DoEvents
+     hTextFrame2 = tb.TextFrame2.TextRange.BoundHeight
+ 
+     ' TextFrame c? — AutoSize True giúp Excel t? tính d? cao sau khi
+@@ -326,7 +360,6 @@
+     ' AutoSize có th? làm shape n?i r?ng theo n?i dung. Khóa l?i chi?u
+     ' r?ng sau khi b?t AutoSize d? phép do v?n dúng v?i chi?u r?ng ô.
+     tb.Width = widthPts
+-    DoEvents
+     hTextFrame = tb.Height
+ 
+     On Error GoTo 0
+@@ -357,9 +390,9 @@
+         MeasureWrapHeight = estimatedTextH
+     End If
+ 
+-    On Error Resume Next
+-    tb.Delete
+-    On Error GoTo 0
++    If Not mHeightCache Is Nothing Then
++        If mHeightCache.Count < 2000 Then mHeightCache(cacheKey) = MeasureWrapHeight
++    End If
+ End Function
+ 
+ Private Function EstimateTextWrapHeight(ByVal widthPts As Double, _
+@@ -626,7 +659,7 @@
+ Private Sub ExpandRowHeights(ws As Worksheet, minHeight As Double)
+ 
+     On Error GoTo EH
+-    Application.DisplayAlerts = False
++    Set mHeightCache = CreateObject("Scripting.Dictionary")
+ 
+     ' Ch?a thêm kho?ng th? phía trên/du?i d? ký t? có d?u không b?
+     ' c?t d?u ho?c c?t chân khi Excel render RowHeight.
+@@ -654,7 +687,7 @@
+     On Error Resume Next
+     ws.parent.Activate
+     ws.Activate
+-    On Error GoTo 0
++    On Error GoTo EH
+ 
+     ' Không b?t ScreenUpdating ? dây. btnStart_Click dã t?t c?p nh?t
+     ' cho toàn b? vòng l?p; b?t ? dây s? làm màn hình nh?y qua t?ng sheet.
+@@ -673,15 +706,6 @@
+ 
+     ' Sheet t?m ch? dùng ?? Excel AutoFit ô không merge theo dúng
+     ' chi?u r?ng c?a c?t, không làm thay ??i sheet ng??i dùng.
+-    Dim measureWs As Worksheet
+-    On Error Resume Next
+-    Set measureWs = ws.parent.Worksheets.Add( _
+-                    After:=ws.parent.Worksheets(ws.parent.Worksheets.count))
+-    If Not measureWs Is Nothing Then
+-        measureWs.Visible = xlSheetVeryHidden
+-    End If
+-    On Error GoTo EH
+-
+     Dim rhFit() As Double
+     ReDim rhFit(firstRow To lastRow)
+ 
+@@ -723,17 +747,39 @@
+     Dim mergeRow1()   As Long
+     Dim mergeRowN()   As Long
+     Dim mergeNeeded() As Double
++    Dim mergeCapacity As Long
+     Dim mergeCount    As Long
+     ReDim mergeRow1(1 To 1): ReDim mergeRowN(1 To 1): ReDim mergeNeeded(1 To 1)
+     mergeCount = 0
+-
++    mergeCapacity = 1
++
++    Dim values As Variant, blockEnd As Long, blockStart As Long, blockRows As Long
++    Dim rawValue As Variant
++    blockRows = 65536 \ (lastCol - firstCol + 1)
++    If blockRows < 1 Then blockRows = 1
++    If blockRows > 256 Then blockRows = 256
+     Dim cellRng   As Range
+     Dim mergeArea As Range
+     Dim aAddr     As String
+     Dim measuredH As Double
+ 
+     For r = firstRow To lastRow
++        ExpandPulse ws.Name, r, lastRow
++        If r > blockEnd Then
++            blockStart = r
++            blockEnd = r + blockRows - 1
++            If blockEnd > lastRow Then blockEnd = lastRow
++            values = ws.Range(ws.Cells(r, firstCol), ws.Cells(blockEnd, lastCol)).Value
++        End If
+         For c = firstCol To lastCol
++            If c Mod 64 = 0 Then ExpandPulse ws.Name, r, lastRow
++            If IsArray(values) Then
++                rawValue = values(r - blockStart + 1, c - firstCol + 1)
++            Else
++                rawValue = values
++            End If
++            If IsError(rawValue) Then GoTo NextCell
++            If Len(Trim$(NormalizeWrapText(CStr(rawValue)))) = 0 Then GoTo NextCell
+ 
+             Set cellRng = ws.Cells(r, c)
+ 
+@@ -796,9 +842,12 @@
+                     Else
+                         ' Merge tr?i nhi?u dòng => luu l?i d? phân b? ? Bu?c 4
+                         mergeCount = mergeCount + 1
+-                        ReDim Preserve mergeRow1(1 To mergeCount)
+-                        ReDim Preserve mergeRowN(1 To mergeCount)
+-                        ReDim Preserve mergeNeeded(1 To mergeCount)
++                        If mergeCount > mergeCapacity Then
++                            mergeCapacity = mergeCapacity * 2
++                            ReDim Preserve mergeRow1(1 To mergeCapacity)
++                            ReDim Preserve mergeRowN(1 To mergeCapacity)
++                            ReDim Preserve mergeNeeded(1 To mergeCapacity)
++                        End If
+                         mergeRow1(mergeCount) = spanR1
+                         mergeRowN(mergeCount) = spanRN
+                         mergeNeeded(mergeCount) = measuredH
+@@ -901,42 +950,33 @@
+     Next mi
+ 
+ Cleanup:
+-    If Not measureWs Is Nothing Then
+-        On Error Resume Next
+-        measureWs.Visible = xlSheetVisible
+-        measureWs.Delete
+-        On Error GoTo 0
+-    End If
+-
++    ReleaseExpandMeasurement
+     Application.ScreenUpdating = wasScreenUpdating
+-    Application.DisplayAlerts = True
+-
+-    '----------------------------------------------------------
+-    ' BU?C 5: Áp chi?u cao cu?i cùng + d?m b?o >= minHeight
+-    '----------------------------------------------------------
+     If rhFitReady Then
+-        Dim h As Double
++        Dim h As Double, runHeight As Double, runStart As Long
++        runStart = firstRow
++        runHeight = -1
+         For r = firstRow To lastRow
+             h = rhFit(r)
+             If minHeight > 0 And h < minHeight Then h = minHeight
+             If h > MAX_ROW_H Then h = MAX_ROW_H
+-            ws.rows(r).RowHeight = h
++            If runHeight < 0 Then runHeight = h
++            If h <> runHeight Then
++                ws.Rows(CStr(runStart) & ":" & CStr(r - 1)).RowHeight = runHeight
++                runStart = r
++                runHeight = h
++            End If
+         Next r
+-    End If
+-
++        ws.Rows(CStr(runStart) & ":" & CStr(lastRow)).RowHeight = runHeight
++    End If
+     Exit Sub
+-
+ EH:
+-    If Not measureWs Is Nothing Then
+-        On Error Resume Next
+-        measureWs.Visible = xlSheetVisible
+-        measureWs.Delete
+-        On Error GoTo 0
+-    End If
++    Dim failure As String, failureNumber As Long
++    failure = Err.Description
++    failureNumber = Err.Number
++    ReleaseExpandMeasurement
+     Application.ScreenUpdating = wasScreenUpdating
+-    Application.DisplayAlerts = True
+-    MsgBox "Error in ExpandRowHeights (sheet: " & ws.Name & "):" & vbCrLf & _
+-           Err.Description, vbCritical, "Expand Rows Error"
++    Err.Raise failureNumber, "ExpandRowHeights: " & ws.Name, failure
+ End Sub
+ 
+ 
+@@ -952,3 +992,22 @@
+ 
+ 
+ 
++
++Private Sub ReleaseExpandMeasurement()
++    On Error Resume Next
++    If Not mMeasureShape Is Nothing Then mMeasureShape.Delete
++    Set mMeasureShape = Nothing
++    Set mHeightCache = Nothing
++    On Error GoTo 0
++End Sub
++
++Private Sub ExpandPulse(ByVal sheetName As String, ByVal rowNo As Long, ByVal lastRow As Long)
++    Dim nowTime As Double, delta As Double
++    nowTime = Timer
++    delta = nowTime - mLastYield
++    If delta < 0 Then delta = delta + 86400
++    If delta < 0.25 Then Exit Sub
++    Application.StatusBar = "Expand rows: " & sheetName & " | row " & rowNo & "/" & lastRow
++    mLastYield = nowTime
++    DoEvents
++End Sub

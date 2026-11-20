@@ -1,0 +1,7 @@
+PASS: static procedure uniqueness, quote balance, paste-ready headers.
+PASS: 47 behavioral checks: JSON, Unicode, response parsing, model filters, vision rules, Azure base/v1/legacy URL normalization and deployment replacement.
+Helpers were adapted from VBA to VBScript (type declarations/Next variable removed, Collection test wrapper, Object defaults and hex suffix adapted). This is NOT an Excel VBA compile.
+PASS: retired GitHub endpoint removed; GitHub request guard; Azure deployment settings; Gemini pagination code present.
+JSON module unchanged from prior package.
+NOT RUN: Excel Compile, live UserForm/UI, live API calls or provider account permissions.
+No workbook/add-in, key or Azure deployment was changed.

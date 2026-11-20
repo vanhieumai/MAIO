@@ -1,0 +1,156 @@
+{
+  "CPMS": {
+    "count": 2,
+    "header": {
+      "row": 19,
+      "cells": {
+        "1": "F522901AA65E5725",
+        "2": "202607036CB773B3",
+        "3": "202609263C054C54",
+        "4": "20261226141B6BAD",
+        "5": "202706263EE075CF",
+        "6": "99991231E4C48597"
+      }
+    }
+  },
+  "SYS_INFO": {
+    "count": 4,
+    "header": {
+      "row": 1,
+      "cells": {
+        "2": "key"
+      }
+    }
+  },
+  "CONTRACT_DB": {
+    "count": 95,
+    "header": {
+      "row": 1,
+      "cells": {
+        "1": "ContractID",
+        "2": "ContractNo.",
+        "3": "ContractType",
+        "4": "SigningDate",
+        "5": "EndDate",
+        "6": "Status",
+        "7": "Company1",
+        "8": "Company2",
+        "9": "Company3",
+        "10": "RepB2",
+        "11": "ScopeOfWork",
+        "12": "temp2",
+        "13": "ExchangeRate",
+        "14": "EstimatedValue",
+        "15": "ContractValue",
+        "16": "RepA",
+        "17": "RepB",
+        "18": "Categories",
+        "19": "Payee",
+        "20": "BankAccountNo.",
+        "21": "BankName",
+        "22": "ContactPersonB",
+        "23": "CreatedDate"
+      }
+    }
+  },
+  "PAYMENT_LEDGER": {
+    "count": 346,
+    "header": {
+      "row": 1,
+      "cells": {
+        "1": "RowID",
+        "2": "LedgerID",
+        "3": "ContractID",
+        "4": "ContractNo.",
+        "5": "ItemIndex",
+        "6": "ItemName",
+        "7": "ExchangeRate",
+        "8": "EstimatedValue",
+        "9": "ContractValue",
+        "10": "ActualVolume",
+        "11": "AcceptedVolume",
+        "12": "RequestAmount",
+        "13": "PaidAmount",
+        "14": "Remaining",
+        "15": "PaymentRef",
+        "16": "PaymentNo.",
+        "17": "PaymentDate",
+        "18": "InvoiceValue",
+        "19": "InvoiceRef",
+        "20": "InvoiceDate",
+        "21": "Note",
+        "22": "CreatedDate"
+      }
+    }
+  },
+  "DOCUMENT_TRACKER": {
+    "count": 221,
+    "header": {
+      "row": 1,
+      "cells": {
+        "1": "DocumentID",
+        "2": "ContractID",
+        "3": "Hồ sơ",
+        "4": "Số",
+        "5": "Tên hồ sơ",
+        "6": "Link",
+        "7": "Từ ngày",
+        "8": "Đến ngày",
+        "9": "Tiếp nhận",
+        "10": "Trả lại",
+        "11": "Người nhận lại",
+        "12": "Số lượng",
+        "13": "Hồ sơ kèm theo",
+        "14": "Lần",
+        "15": "Tình trạng",
+        "16": "Ghi chú"
+      }
+    }
+  },
+  "SETTINGS": {
+    "count": 16,
+    "header": {
+      "row": 1,
+      "cells": {
+        "1": "key",
+        "2": "value"
+      }
+    }
+  },
+  "AI_NOTES": {
+    "count": 2,
+    "header": {
+      "row": 1,
+      "cells": {
+        "1": "Thoi gian",
+        "2": "Cau hoi",
+        "3": "Tra loi AI",
+        "4": "Provider",
+        "5": "Model"
+      }
+    }
+  },
+  "LIBRARY_DB": {
+    "count": 14,
+    "header": {
+      "row": 1,
+      "cells": {
+        "1": "DocType",
+        "2": "DisplayName",
+        "3": "TemplatePath",
+        "4": "FolderPath",
+        "5": "LastUpdated"
+      }
+    }
+  },
+  "PROJECT_SETTINGS": {
+    "count": 11,
+    "header": {
+      "row": 1,
+      "cells": {
+        "1": "Key",
+        "2": "Value"
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+﻿Private Function ReadKeyColumn(ByVal ws As Worksheet, ByVal col As Long, ByVal lastRow As Long) As Variant
+    Dim data As Variant, oneCellData(1 To 1, 1 To 1) As Variant
+    data = ws.Range(ws.Cells(1, col), ws.Cells(lastRow, col)).Value
+    If lastRow = 1 Then
+        oneCellData(1, 1) = data
+        ReadKeyColumn = oneCellData
+    Else
+        ReadKeyColumn = data
+    End If
+End Function

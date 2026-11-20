@@ -1,0 +1,6 @@
+# MAIO Cursor Rules
+- Luôn trả lời và bình luận bằng Tiếng Việt.
+- Tuân thủ cấu trúc dự án SPA Zero-build (HTML5 + CSS3 + Vanilla JS ES6 Modules).
+- Tham khảo schema dữ liệu tại docs/DATA_SCHEMA.md và kiến trúc tại docs/ARCHITECTURE.md.
+- Không cài đặt thêm bundler phức tạp nếu không có yêu cầu rõ ràng từ người dùng.
+- Giữ nguyên các file trong legacy/ làm tài liệu đối chiếu nghiệp vụ.

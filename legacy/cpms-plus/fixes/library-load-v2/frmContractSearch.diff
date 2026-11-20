@@ -1,0 +1,350 @@
+--- CPMS AR Plus.xlsm/frmContractSearch
++++ fixed/frmContractSearch
+@@ -40,6 +40,12 @@
+ '      theo tuy chon hien tai.
+ '================================================================
+ Option Explicit
++
++Private Declare PtrSafe Function LibReleaseCapture Lib "user32" Alias "ReleaseCapture" () As Long
++Private mLibMetaEditing As Boolean
++Private mLibraryLoading As Boolean
++Private mLibraryLabelsLoading As Boolean
++Private mResultClickBusy As Boolean
+ 
+ ' ---- API gia lap click chuot trai ----
+ Private Declare PtrSafe Sub mouse_event Lib "user32" ( _
+@@ -4855,6 +4861,8 @@
+ ' TAB CHANGE
+ '================================================================
+ Private Sub tabMain_Change()
++    If mLibMetaEditing Or mLibraryLoading Then Exit Sub
++    LibraryTrace "tabMain_Change: page=" & tabMain.Value
+ 
+     If tabMain.value = 1 Then
+ 
+@@ -5367,17 +5375,22 @@
+ 
+ 
+ Private Sub lstResult_Click()
++    If mLibMetaEditing Or mLibraryLoading Or mResultClickBusy Then Exit Sub
+     If suppressListClick Then Exit Sub
+-    On Error GoTo SAFE_EXIT
++    mResultClickBusy = True
++    On Error GoTo ClickFailed
++    LibraryTrace "lstResult_Click: begin"
+     Dim contractID As String
+-    If lstResult.ListIndex < 0 Then Exit Sub
++    If lstResult.ListIndex < 0 Then GoTo SAFE_EXIT
+     contractID = CStr(lstResult.List(lstResult.ListIndex, 0))
+     If contractID = "0" Then
+         LoadSummaryBox ""
+         GoTo SAFE_EXIT
+     End If
+     gCurrentContractID = contractID
++    LibraryTrace "lstResult_Click: detail begin"
+     LoadContractDetail contractID, False
++    LibraryTrace "lstResult_Click: detail done"
+     'If tabMain.value = 1 Then
+     '    If optPDR.value Then LoadDocTypeComboCS contractID
+     '    LoadDocumentList contractID
+@@ -5405,6 +5418,13 @@
+     If tabMain.value = 5 Then InitExportTab 'LoadLibraryPage
+     
+ SAFE_EXIT:
++    mResultClickBusy = False
++    LibraryTrace "lstResult_Click: complete"
++    Exit Sub
++ClickFailed:
++    LibraryTrace "lstResult_Click ERROR " & Err.Number & ": " & Err.Description
++    MsgBox "Cannot display the selected contract: " & Err.Description, vbExclamation, "CPMS"
++    Resume SAFE_EXIT
+ End Sub
+ Private Function WorksheetExists(ByVal sheetName As String) As Boolean
+     Dim ws As Worksheet
+@@ -6018,12 +6038,23 @@
+ ' - Set ControlTipText (tooltip) cho tung nhan
+ '================================================================
+ Public Sub LoadLibraryPage()
++    If mLibraryLoading Or mLibMetaEditing Then Exit Sub
++    mLibraryLoading = True
+     On Error GoTo ErrLib
+-    EnsureLibraryDB
+-    RefreshLibraryMeta        ' [MOD] Hien thi Project Code, Client, v.v.
++    LibraryTrace "LoadLibraryPage: begin"
++    LibraryTrace "LoadLibraryPage: metadata begin"
++    RefreshLibraryMeta
++    LibraryTrace "LoadLibraryPage: metadata done"
+     RefreshAllLibraryLabels
++    LibraryTrace "LoadLibraryPage: complete"
++CleanLib:
++    mLibraryLoading = False
+     Exit Sub
+ ErrLib:
++    LibraryTrace "LoadLibraryPage ERROR " & Err.Number & ": " & Err.Description
++    MsgBox "Library could not be loaded: " & Err.Description & vbCrLf & _
++        "Diagnostic log: " & Environ$("TEMP") & "\CPMS_Library_trace.log", vbExclamation, "CPMS Library"
++    Resume CleanLib
+ End Sub
+ 
+ '================================================================
+@@ -6067,13 +6098,34 @@
+         ByVal fieldKey As String, _
+         ByVal Prompt As String)
+ 
++    If mLibMetaEditing Then Exit Sub
++    Dim previousSuppress As Boolean
++    previousSuppress = suppressListClick
++    mLibMetaEditing = True
++    suppressListClick = True
++    On Error GoTo Failed
++    ' MouseUp has occurred; do not carry a label mouse capture into a modal dialog.
++    LibReleaseCapture
++    Dim editWorkbook As Workbook
++    Set editWorkbook = GetDataWorkbook()
++    Dim editCID As String
++    editCID = Trim$(gCurrentContractID)
++
+     Dim isGlobal As Boolean
+     isGlobal = (UCase$(fieldKey) <> "SUBCON")
+ 
+     ' SUBCON can chon contract truoc
+     If Not isGlobal And Trim$(gCurrentContractID) = "" Then
+         MsgCenter "Please select a contract first.", vbInformation
+-        Exit Sub
++        GoTo CleanExit
++    End If
++
++    If Not isGlobal Then
++        If lstResult.ListIndex < 0 Then GoTo SelectionChanged
++        If Trim$(CStr(lstResult.List(lstResult.ListIndex, 0))) <> editCID Then GoTo SelectionChanged
++        BuildGlobalContractCache
++        If gDictContract Is Nothing Then GoTo SelectionChanged
++        If Not gDictContract.Exists(editCID) Then GoTo SelectionChanged
+     End If
+ 
+     ' Lay gia tri hien tai
+@@ -6081,7 +6133,7 @@
+     If isGlobal Then
+         curVal = GetGlobalSetting(fieldKey)
+     Else
+-        curVal = GetContractMetaField(gCurrentContractID, fieldKey)
++        curVal = GetContractMetaField(editCID, fieldKey)
+     End If
+ 
+     ' Tao tieu de InputBox
+@@ -6093,7 +6145,7 @@
+         Dim contractNo As String
+         contractNo = gCurrentContractID
+         If Not gDictContract Is Nothing Then
+-            If gDictContract.exists(gCurrentContractID) Then
++            If gDictContract.Exists(gCurrentContractID) Then
+                 Dim r As Long
+                 r = gDictContract(gCurrentContractID)
+                 Dim cn As String
+@@ -6106,44 +6158,64 @@
+ 
+     Dim newVal As String
+     newVal = InputBox(Prompt & ":", boxTitle, curVal)
+-    If StrPtr(newVal) = 0 Then Exit Sub   ' bam Cancel
++    If StrPtr(newVal) = 0 Then GoTo CleanExit   ' bam Cancel
+ 
+     newVal = Trim$(newVal)
++
++    Dim currentWorkbook As Workbook
++    Set currentWorkbook = GetDataWorkbook()
++    If Not (currentWorkbook Is editWorkbook) Then GoTo SelectionChanged
++    If Not isGlobal Then
++        If gCurrentContractID <> editCID Then GoTo SelectionChanged
++        If lstResult.ListIndex < 0 Then GoTo SelectionChanged
++        If Trim$(CStr(lstResult.List(lstResult.ListIndex, 0))) <> editCID Then GoTo SelectionChanged
++    End If
++    If newVal = curVal Then GoTo CleanExit
+ 
+     ' Luu vao dung noi
+     If isGlobal Then
+         SaveGlobalSetting fieldKey, newVal
+     Else
+-        SaveContractMetaField gCurrentContractID, fieldKey, newVal
++        SaveContractMetaField editCID, fieldKey, newVal
+     End If
+ 
+     RefreshLibraryMeta
++CleanExit:
++    suppressListClick = previousSuppress
++    mLibMetaEditing = False
++    Exit Sub
++SelectionChanged:
++    MsgBox "The selected contract or project has changed. Select the contract and try again.", vbExclamation, "Library"
++    GoTo CleanExit
++Failed:
++    MsgBox "Cannot edit Library code: " & Err.Description, vbExclamation, "Library"
++    Resume CleanExit
+ End Sub
+ '================================================================
+ ' EVENTS — Meta Labels (Project Code, Client, v.v.)
+ ' Ctrl+Click: nhap/sua gia tri
+ '================================================================
+-Private Sub lblValProjCode_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValProjCode_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                       ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "PROJ", "Project Code"
+ End Sub
+ 
+-Private Sub lblValClient_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValClient_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                     ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "CLIENT", "Client"
+ End Sub
+ 
+-Private Sub lblValMainCon_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValMainCon_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                      ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "MAINCON", "Main Contractor"
+ End Sub
+ 
+-Private Sub lblValSupCon_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValSupCon_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                     ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "SUPCON", "Supervision Consultant"
+ End Sub
+ 
+-Private Sub lblValSubCon_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValSubCon_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                     ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "SUBCON", "Subcontractor"
+ End Sub
+@@ -6153,9 +6225,15 @@
+ '       Tooltip don gian: chi hien thi thong tin template
+ '================================================================
+ Private Sub RefreshAllLibraryLabels()
++    If mLibraryLabelsLoading Then Exit Sub
++    mLibraryLabelsLoading = True
++    On Error GoTo Failed
++    Dim counts As Object, templates As Object
+     Dim i As Integer
+     Dim cidFilter As String
+     cidFilter = Trim$(gCurrentContractID)
++
++    ReadLibrarySnapshot cidFilter, counts, templates
+ 
+     For i = 0 To 24
+         Dim dt As String
+@@ -6166,17 +6244,21 @@
+ 
+         Dim ctl As Object
+         On Error Resume Next
++        Set ctl = Nothing
+         Set ctl = Me.Controls(nm)
+-        On Error GoTo 0
++        On Error GoTo Failed
+         If ctl Is Nothing Then GoTo NEXT_LBL
+ 
+         ' Template path lay tu LIBRARY_DB (dung chung)
+         Dim tplPath As String
+-        tplPath = GetTemplatePath(dt)
++        tplPath = ""
++        If templates.Exists(dt) Then tplPath = CStr(templates(dt))
+ 
+         ' So luong records tu DOCUMENT_TRACKER loc theo contract hien tai
+         Dim recCount As Long
+-        recCount = CountDocTrackerByType(cidFilter, dt)
++        recCount = 0
++        If counts.Exists(dt) Then recCount = CLng(counts(dt))
++        LibraryTrace "label: " & nm
+ 
+         ' Mau sac: xanh dam = co template, xam = chua co
+         'If tplPath <> "" Then
+@@ -6218,6 +6300,16 @@
+         Set ctl = Nothing
+ NEXT_LBL:
+     Next i
++    mLibraryLabelsLoading = False
++    LibraryTrace "labels: complete"
++    Exit Sub
++Failed:
++    Dim errorNumber As Long, errorDescription As String
++    errorNumber = Err.Number
++    errorDescription = Err.Description
++    mLibraryLabelsLoading = False
++    LibraryTrace "labels ERROR " & errorNumber & ": " & errorDescription
++    Err.Raise errorNumber, "frmContractSearch.RefreshAllLibraryLabels", errorDescription
+ End Sub
+ 
+ '================================================================
+@@ -7075,3 +7167,76 @@
+ 
+ 
+ 
++
++Private Sub LibraryTrace(ByVal stage As String)
++    ' Local diagnostic file: each stage is flushed before the next operation.
++    Dim f As Integer, opened As Boolean, p As String
++    On Error GoTo Done
++    p = Environ$("TEMP") & "\CPMS_Library_trace.log"
++    f = FreeFile
++    If Len(Dir$(p)) > 0 Then
++        If FileLen(p) > 262144 Then
++            Open p For Output As #f
++            Close #f
++        End If
++    End If
++    Open p For Append As #f
++    opened = True
++    Print #f, Format$(Now, "yyyy-mm-dd hh:nn:ss") & " | " & Format$(Timer, "0.000") & " | " & stage
++Done:
++    On Error Resume Next
++    If opened Then Close #f
++End Sub
++
++Private Function LibraryText(ByVal value As Variant) As String
++    If IsError(value) Or IsNull(value) Or IsEmpty(value) Then Exit Function
++    LibraryText = Trim$(CStr(value))
++End Function
++
++Private Sub ReadLibrarySnapshot(ByVal cid As String, ByRef counts As Object, ByRef templates As Object)
++    Dim wb As Workbook, ws As Worksheet, data As Variant
++    Dim lastRow As Long, r As Long, key As String
++    Set counts = CreateObject("Scripting.Dictionary")
++    Set templates = CreateObject("Scripting.Dictionary")
++    counts.CompareMode = vbTextCompare
++    templates.CompareMode = vbTextCompare
++    LibraryTrace "snapshot: get workbook"
++    Set wb = GetDataWorkbook()
++    Set ws = wb.Worksheets("DOCUMENT_TRACKER")
++    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
++    LibraryTrace "snapshot: read DOCUMENT_TRACKER rows=" & lastRow
++    If lastRow >= 2 Then
++        data = ws.Range("A2:C" & lastRow).Value2
++        For r = 1 To UBound(data, 1)
++            If Not IsError(data(r, 2)) And Not IsError(data(r, 3)) Then
++                If cid = "" Or LibraryText(data(r, 2)) = cid Then
++                    key = UCase$(LibraryText(data(r, 3)))
++                    ' Preserve IPC alias used by CountDocTrackerByType.
++                    If key = "THANH TOAN" Then key = "IPC"
++                    If key <> "" Then
++                        If Not counts.Exists(key) Then counts.Add key, CLng(0)
++                        counts(key) = CLng(counts(key)) + 1
++                    End If
++                End If
++            End If
++        Next r
++    End If
++    LibraryTrace "snapshot: document counts ready"
++    Set ws = Nothing
++    On Error Resume Next
++    Set ws = wb.Worksheets("LIBRARY_DB")
++    On Error GoTo 0
++    If ws Is Nothing Then Exit Sub
++    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
++    LibraryTrace "snapshot: read LIBRARY_DB rows=" & lastRow
++    If lastRow >= 2 Then
++        data = ws.Range("A2:C" & lastRow).Value2
++        For r = 1 To UBound(data, 1)
++            key = UCase$(LibraryText(data(r, 1)))
++            If key <> "" Then
++                If Not templates.Exists(key) Then templates.Add key, LibraryText(data(r, 3))
++            End If
++        Next r
++    End If
++    LibraryTrace "snapshot: templates ready"
++End Sub

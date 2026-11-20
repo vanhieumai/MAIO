@@ -1,0 +1,186 @@
+Option Explicit
+
+Public Function AIJsonParse(ByVal source As String) As Object
+    Dim pos As Long
+    pos = 1
+    Set AIJsonParse = JsonReadValue(source, pos, 0)
+    JsonWhitespace source, pos
+    If pos <= Len(source) Then Err.Raise 5, "AskAI JSON", "Unexpected trailing data."
+End Function
+
+Public Function AIJsonChild(ByVal node As Object, ByVal key As Variant) As Object
+    If node Is Nothing Then Exit Function
+    Dim children As Object
+    Select Case node("kind")
+        Case "object"
+            Set children = node("value")
+            If children.Exists(CStr(key)) Then Set AIJsonChild = children(CStr(key))
+        Case "array"
+            Set children = node("value")
+            If IsNumeric(key) Then
+                If CLng(key) >= 1 And CLng(key) <= children.Count Then Set AIJsonChild = children(CLng(key))
+            End If
+    End Select
+End Function
+
+Public Function AIJsonCount(ByVal node As Object) As Long
+    If node Is Nothing Then Exit Function
+    If node("kind") = "array" Or node("kind") = "object" Then AIJsonCount = node("value").Count
+End Function
+
+Public Function AIJsonText(ByVal node As Object) As String
+    If node Is Nothing Then Exit Function
+    Select Case node("kind")
+        Case "string", "number", "boolean": AIJsonText = CStr(node("value"))
+    End Select
+End Function
+
+Public Function AIJsonHasText(ByVal node As Object, ByVal value As String) As Boolean
+    Dim i As Long
+    For i = 1 To AIJsonCount(node)
+        If AIJsonText(AIJsonChild(node, i)) = value Then
+            AIJsonHasText = True
+            Exit Function
+        End If
+    Next i
+End Function
+
+Public Function AIJsonQuote(ByVal value As String) As String
+    Dim i As Long, ch As String, code As Long, result As String
+    For i = 1 To Len(value)
+        ch = Mid$(value, i, 1)
+        code = AscW(ch)
+        Select Case ch
+            Case """": result = result & "\"""
+            Case "\": result = result & "\\"
+            Case vbCr: result = result & "\r"
+            Case vbLf: result = result & "\n"
+            Case vbTab: result = result & "\t"
+            Case Else
+                If code >= 0 And code < 32 Then
+                    result = result & "\u" & Right$("0000" & Hex$(code), 4)
+                Else
+                    result = result & ch
+                End If
+        End Select
+    Next i
+    AIJsonQuote = """" & result & """"
+End Function
+
+Private Sub JsonWhitespace(ByRef source As String, ByRef pos As Long)
+    Do While pos <= Len(source)
+        Select Case Mid$(source, pos, 1)
+            Case " ", vbTab, vbCr, vbLf: pos = pos + 1
+            Case Else: Exit Do
+        End Select
+    Loop
+End Sub
+
+Private Function JsonReadValue(ByRef source As String, ByRef pos As Long, ByVal depth As Long) As Object
+    If depth > 128 Then Err.Raise 5, "AskAI JSON", "Nesting limit exceeded."
+    JsonWhitespace source, pos
+    Dim node As Object, children As Object, child As Object
+    Dim ch As String, key As String, token As String, start As Long, closing As String
+    Set node = CreateObject("Scripting.Dictionary")
+    ch = Mid$(source, pos, 1)
+    Select Case ch
+        Case "{", "["
+            If ch = "{" Then
+                node.Add "kind", "object"
+                Set children = CreateObject("Scripting.Dictionary")
+                closing = "}"
+            Else
+                node.Add "kind", "array"
+                Set children = New Collection
+                closing = "]"
+            End If
+            node.Add "value", children
+            pos = pos + 1
+            JsonWhitespace source, pos
+            If Mid$(source, pos, 1) <> closing Then
+                Do
+                    If node("kind") = "object" Then
+                        JsonWhitespace source, pos
+                        key = JsonReadString(source, pos)
+                        JsonWhitespace source, pos
+                        If Mid$(source, pos, 1) <> ":" Then Err.Raise 5, "AskAI JSON", "Expected colon."
+                        pos = pos + 1
+                        Set child = JsonReadValue(source, pos, depth + 1)
+                        children.Add key, child
+                    Else
+                        Set child = JsonReadValue(source, pos, depth + 1)
+                        children.Add child
+                    End If
+                    JsonWhitespace source, pos
+                    If Mid$(source, pos, 1) = closing Then Exit Do
+                    If Mid$(source, pos, 1) <> "," Then Err.Raise 5, "AskAI JSON", "Expected comma."
+                    pos = pos + 1
+                Loop
+            End If
+            pos = pos + 1
+        Case """"
+            node.Add "kind", "string"
+            node.Add "value", JsonReadString(source, pos)
+        Case Else
+            start = pos
+            Do While pos <= Len(source)
+                ch = Mid$(source, pos, 1)
+                If InStr(1, ",]} " & vbCr & vbLf & vbTab, ch, vbBinaryCompare) > 0 Then Exit Do
+                pos = pos + 1
+            Loop
+            token = Mid$(source, start, pos - start)
+            Select Case token
+                Case "true", "false": node.Add "kind", "boolean"
+                Case "null": node.Add "kind", "null"
+                Case Else
+                    Dim rx As Object
+                    Set rx = CreateObject("VBScript.RegExp")
+                    rx.Pattern = "^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?$"
+                    If Not rx.Test(token) Then Err.Raise 5, "AskAI JSON", "Invalid value."
+                    node.Add "kind", "number"
+            End Select
+            node.Add "value", token
+    End Select
+    Set JsonReadValue = node
+End Function
+
+Private Function JsonReadString(ByRef source As String, ByRef pos As Long) As String
+    If Mid$(source, pos, 1) <> """" Then Err.Raise 5, "AskAI JSON", "Expected string."
+    pos = pos + 1
+    Dim result As String, ch As String, hexText As String, code As Long, j As Long
+    Do While pos <= Len(source)
+        ch = Mid$(source, pos, 1)
+        pos = pos + 1
+        If ch = """" Then
+            JsonReadString = result
+            Exit Function
+        ElseIf ch = "\" Then
+            ch = Mid$(source, pos, 1)
+            pos = pos + 1
+            Select Case ch
+                Case """", "\", "/": result = result & ch
+                Case "n": result = result & vbLf
+                Case "r": result = result & vbCr
+                Case "t": result = result & vbTab
+                Case "b": result = result & Chr$(8)
+                Case "f": result = result & Chr$(12)
+                Case "u"
+                    hexText = Mid$(source, pos, 4)
+                    If Len(hexText) <> 4 Then Err.Raise 5, "AskAI JSON", "Incomplete Unicode escape."
+                    For j = 1 To 4
+                        If InStr(1, "0123456789abcdef", Mid$(hexText, j, 1), vbTextCompare) = 0 Then Err.Raise 5, "AskAI JSON", "Invalid Unicode escape."
+                    Next j
+                    code = CLng("&H" & hexText & "&")
+                    If code > 32767 Then code = code - 65536
+                    result = result & ChrW$(code)
+                    pos = pos + 4
+                Case Else: Err.Raise 5, "AskAI JSON", "Invalid escape."
+            End Select
+        Else
+            If AscW(ch) >= 0 And AscW(ch) < 32 Then Err.Raise 5, "AskAI JSON", "Unescaped control character."
+            result = result & ch
+        End If
+    Loop
+    Err.Raise 5, "AskAI JSON", "Unterminated string."
+End Function
+

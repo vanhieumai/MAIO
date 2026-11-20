@@ -1,0 +1,383 @@
+{
+  "CONTRACT_DB": {
+    "total_rows": 95,
+    "header_row": {
+      "row": 1,
+      "cells": {
+        "1": "ContractID",
+        "2": "ContractNo.",
+        "3": "ContractType",
+        "4": "SigningDate",
+        "5": "EndDate",
+        "6": "Status",
+        "7": "Company1",
+        "8": "Company2",
+        "9": "Company3",
+        "10": "RepB2",
+        "11": "ScopeOfWork",
+        "12": "temp2",
+        "13": "ExchangeRate",
+        "14": "EstimatedValue",
+        "15": "ContractValue",
+        "16": "RepA",
+        "17": "RepB",
+        "18": "Categories",
+        "19": "Payee",
+        "20": "BankAccountNo.",
+        "21": "BankName",
+        "22": "ContactPersonB",
+        "23": "CreatedDate"
+      }
+    },
+    "sample_rows": [
+      {
+        "row": 2,
+        "cells": {
+          "1": "GROUP-A",
+          "2": "Hợp đồng với chủ đầu tư"
+        }
+      },
+      {
+        "row": 3,
+        "cells": {
+          "1": "A-2026-01",
+          "2": "68/2022/HĐKT/CHC1/VEC",
+          "3": "MAIN",
+          "4": 44774.0,
+          "6": "Active",
+          "7": "Công ty Cổ phần Xây dựng và Kỹ thuật Việt Nam",
+          "8": "Công ty Cổ phần Đầu tư Xây dựng và Kỹ thuật VNCN E&C",
+          "11": "Hợp đồng tổng thầu thiết kế và thi công",
+          "13": 1.0,
+          "14": 1200000000000.0,
+          "15": 1200000000000.0,
+          "16": "Phạm Công Trụ",
+          "17": "Trịnh Thái Toàn",
+          "18": "Design & Build",
+          "19": "Công ty Cổ phần Đầu tư Xây dựng và Kỹ thuật VNCN E&C",
+          "20": "1221 0000 7136 52",
+          "21": "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Chi nhánh Hà Thành",
+          "23": 46329.547638888886,
+          "24": "A-1",
+          "25": 1.0
+        }
+      },
+      {
+        "row": 4,
+        "cells": {
+          "1": "A-2026-01-01",
+          "2": "APP-05",
+          "3": "Appendix",
+          "4": 44788.0,
+          "6": "Active",
+          "7": "Công ty Cổ phần Xây dựng và Kỹ thuật Việt Nam",
+          "8": "Công ty Cổ phần Đầu tư Xây dựng và Kỹ thuật VNCN E&C",
+          "11": "Thi công cọc thí nghiệm",
+          "13": 1.0,
+          "14": 2108442794.0,
+          "15": 2108442794.0,
+          "16": "Phạm Công Trụ",
+          "17": "Trịnh Thái Toàn",
+          "18": "Construction",
+          "19": "Công ty Cổ phần Đầu tư Xây dựng và Kỹ thuật VNCN E&C",
+          "20": "1221 0000 7136 52",
+          "21": "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Chi nhánh Hà Thành",
+          "23": 46227.70081018518,
+          "24": "A-1.1",
+          "25": 2.0
+        }
+      },
+      {
+        "row": 5,
+        "cells": {
+          "1": "A-2026-01-02",
+          "2": "APP-06",
+          "3": "Appendix",
+          "4": 45464.0,
+          "6": "Active",
+          "7": "Công ty Cổ phần Xây dựng và Kỹ thuật Việt Nam",
+          "8": "Công ty Cổ phần Đầu tư Xây dựng và Kỹ thuật VNCN E&C",
+          "11": "Gói thầu số 2: Thi công cọc đại trà, tường vây và kết cấu ngầm\r\nGói thầu số 3: Thi công kết cấu phần thân, xây tường, trát hoàn thiện mặt ngoài, chống thấm",
+          "13": 1.0,
+          "14": 313500000000.0,
+          "15": 313500000000.0,
+          "16": "Phạm Công Trụ",
+          "17": "Trịnh Thái Toàn",
+          "18": "Construction",
+          "19": "Công ty Cổ phần Đầu tư Xây dựng và Kỹ thuật VNCN E&C",
+          "20": "1221 0000 7136 52",
+          "21": "Ngân hàng TMCP Đầu tư và Phát triển Việt Nam - Chi nhánh Hà Thành",
+          "23": 46227.7009375,
+          "24": "A-1.2",
+          "25": 3.0
+        }
+      }
+    ]
+  },
+  "PAYMENT_LEDGER": {
+    "total_rows": 346,
+    "header_row": {
+      "row": 1,
+      "cells": {
+        "1": "RowID",
+        "2": "LedgerID",
+        "3": "ContractID",
+        "4": "ContractNo.",
+        "5": "ItemIndex",
+        "6": "ItemName",
+        "7": "ExchangeRate",
+        "8": "EstimatedValue",
+        "9": "ContractValue",
+        "10": "ActualVolume",
+        "11": "AcceptedVolume",
+        "12": "RequestAmount",
+        "13": "PaidAmount",
+        "14": "Remaining",
+        "15": "PaymentRef",
+        "16": "PaymentNo.",
+        "17": "PaymentDate",
+        "18": "InvoiceValue",
+        "19": "InvoiceRef",
+        "20": "InvoiceDate",
+        "21": "Note",
+        "22": "CreatedDate"
+      }
+    },
+    "sample_rows": [
+      {
+        "row": 2,
+        "cells": {
+          "3": "GROUP-A",
+          "6": "Hợp đồng với chủ đầu tư",
+          "7": 1.0,
+          "8": 1200000000000.0,
+          "9": 1200000000000.0,
+          "10": 471188352942.0,
+          "11": 477289101287.0,
+          "12": 708821050510.0,
+          "13": 567546904117.0,
+          "14": 141274146393.0,
+          "23": 471188352942.0,
+          "24": 477289101287.0,
+          "25": 708821050510.0,
+          "26": 567546904117.0
+        }
+      },
+      {
+        "row": 3,
+        "cells": {
+          "1": "GROUP-A",
+          "3": "A-2026-01",
+          "4": "68/2022/HĐKT/CHC1/VEC",
+          "6": "Hợp đồng tổng thầu thiết kế và thi công",
+          "7": 1.0,
+          "8": 1200000000000.0,
+          "9": 1200000000000.0,
+          "10": 471188352942.0,
+          "11": 477289101287.0,
+          "12": 708821050510.0,
+          "13": 567546904117.0,
+          "14": 141274146393.0,
+          "22": 46034.67278935185,
+          "23": 471188352942.0,
+          "24": 477289101287.0,
+          "25": 708821050510.0,
+          "26": 567546904117.0
+        }
+      },
+      {
+        "row": 4,
+        "cells": {
+          "1": "A-2026-01",
+          "2": "LG-20260123162820",
+          "3": "A-2026-01",
+          "5": 1.0,
+          "6": "Tạm ứng Hợp đồng Tổng thầu lần 1",
+          "7": 1.0,
+          "10": 0.0,
+          "11": 0.0,
+          "12": 110129810911.0,
+          "13": 110129810911.0,
+          "14": 0.0,
+          "15": "Tạm ứng Hợp đồng Tổng thầu lần 1",
+          "16": "00",
+          "17": 44774.0,
+          "18": 0.0,
+          "19": "",
+          "21": "Tạm ứng ban đầu 200 tỷ, trừ vào tạm ứng PL06, PL11",
+          "22": 46045.68634259259,
+          "23": 0.0,
+          "24": 0.0,
+          "25": 110129810911.0,
+          "26": 110129810911.0
+        }
+      },
+      {
+        "row": 5,
+        "cells": {
+          "1": "A-2026-01",
+          "3": "A-2026-01-01",
+          "4": "APP-05",
+          "6": "Thi công cọc thí nghiệm",
+          "7": 1.0,
+          "8": 2108442794.0,
+          "9": 2108442794.0,
+          "10": 2053825704.0,
+          "11": 2053825704.0,
+          "12": 1951134419.0,
+          "13": 1773185762.0,
+          "14": 177948657.0,
+          "22": 46034.67278935185,
+          "23": 2053825704.0,
+          "24": 2053825704.0,
+          "25": 1951134419.0,
+          "26": 1773185762.0
+        }
+      }
+    ]
+  },
+  "DOCUMENT_TRACKER": {
+    "total_rows": 221,
+    "header_row": {
+      "row": 1,
+      "cells": {
+        "1": "DocumentID",
+        "2": "ContractID",
+        "3": "Hồ sơ",
+        "4": "Số",
+        "5": "Tên hồ sơ",
+        "6": "Link",
+        "7": "Từ ngày",
+        "8": "Đến ngày",
+        "9": "Tiếp nhận",
+        "10": "Trả lại",
+        "11": "Người nhận lại",
+        "12": "Số lượng",
+        "13": "Hồ sơ kèm theo",
+        "14": "Lần",
+        "15": "Tình trạng",
+        "16": "Ghi chú"
+      }
+    },
+    "sample_rows": [
+      {
+        "row": 2,
+        "cells": {
+          "1": "DOC-20260603-001",
+          "2": "B-2026-25",
+          "3": "IPC",
+          "4": 1.0,
+          "5": "Interim Payment Certificate",
+          "6": "D:\\OneDrive\\_Cong Viec\\_Westlake Residential\\03 Thanh toan\\03 NCC\\Ha Dung\\IPC01\\202606041019-1.pdf",
+          "7": 46135.0,
+          "9": 46176.0,
+          "10": 46177.0,
+          "11": "Trần Thái Dương - 0961429633",
+          "12": 1.0,
+          "13": "THKL:3|NTVL:1",
+          "14": "L1",
+          "15": "Accepted",
+          "16": "THKL đã được BĐH xác nhận, chuyển Grab về 34 Láng Hạ giao cho Dương"
+        }
+      },
+      {
+        "row": 3,
+        "cells": {
+          "1": "DOC-20260603-002",
+          "2": "B-2026-23",
+          "3": "IPC",
+          "4": "260604.CHC1.EUS.IPC.EC.002",
+          "5": "Interim Payment Certificate",
+          "6": "D:\\OneDrive\\_Cong Viec\\_Westlake Residential\\03 Thanh toan\\03 NCC\\EUS\\dot 2\\202606041019.pdf",
+          "7": 46079.0,
+          "9": 46176.0,
+          "10": 46177.0,
+          "11": "Nguyễn Sỹ Minh",
+          "12": 1.0,
+          "13": "THKL:3|DGKL:3|NTVL:1",
+          "14": "L1",
+          "15": "Accepted",
+          "16": "THKL đã được BĐH xác nhận, giao Nguyễn Sỹ Minh trả lại NCC",
+          "17": "EUS",
+          "18": "EC"
+        }
+      },
+      {
+        "row": 4,
+        "cells": {
+          "1": "DOC-20260603-003",
+          "2": "B-2026-03-02",
+          "3": "IPC",
+          "4": "260615.CHC1.CTC.IPC-PKG03.EC.004",
+          "5": "Interim Payment Certificate",
+          "6": "D:\\OneDrive\\_Cong Viec\\_Westlake Residential\\03 Thanh toan\\01 EC-CTC\\Gói thầu số 3 (Phần thân)\\IPC.04\\CHC1_EC.CTC_GT 03_IPC 04_260609.xlsx",
+          "7": 45469.0,
+          "9": 46150.0,
+          "10": 46188.0,
+          "11": "Sơn - QS CTC",
+          "12": 1.0,
+          "13": "GTTT:10|THKL:10|DGKL:10|NTCL:1|NTVL:1|HSK:1|NOTE:(Báo cáo tiến độ)x5;(Hồ sơ Prelims)x4",
+          "14": "L1",
+          "15": "Accepted",
+          "17": "CTC",
+          "18": "EC"
+        }
+      },
+      {
+        "row": 5,
+        "cells": {
+          "1": "DOC-20260603-004",
+          "2": "B-2026-29",
+          "3": "CON",
+          "4": "01/HĐKT/CHC1/VINAE&C-SH",
+          "5": "Contract",
+          "6": "D:\\OneDrive\\_Cong Viec\\_Westlake Residential\\01 Hop dong va Phap ly\\03 Hop dong NTP\\EC-SH_Chong chay lan\\01.HĐKT.CHC1.VINAEC_SH Hợp đồng chống cháy lan SH VN.pdf",
+          "7": 46167.0,
+          "12": 1.0,
+          "14": "L1",
+          "16": "Cung cấp và thi công hệ thống chống cháy lan"
+        }
+      }
+    ]
+  },
+  "PROJECT_SETTINGS": {
+    "total_rows": 11,
+    "header_row": {
+      "row": 1,
+      "cells": {
+        "1": "Key",
+        "2": "Value"
+      }
+    },
+    "sample_rows": [
+      {
+        "row": 2,
+        "cells": {
+          "1": "PROJ",
+          "2": "CHC1"
+        }
+      },
+      {
+        "row": 3,
+        "cells": {
+          "1": "CLIENT",
+          "2": "CLI"
+        }
+      },
+      {
+        "row": 4,
+        "cells": {
+          "1": "SUPCON",
+          "2": "ART"
+        }
+      },
+      {
+        "row": 5,
+        "cells": {
+          "1": "MAINCON",
+          "2": "EC"
+        }
+      }
+    ]
+  }
+}

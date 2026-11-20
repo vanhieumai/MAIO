@@ -1,0 +1,145 @@
+--- library-freeze/frmContractSearch
++++ library-ctrlclick/frmContractSearch
+@@ -40,6 +40,9 @@
+ '      theo tuy chon hien tai.
+ '================================================================
+ Option Explicit
++
++Private Declare PtrSafe Function LibReleaseCapture Lib "user32" Alias "ReleaseCapture" () As Long
++Private mLibMetaEditing As Boolean
+ 
+ ' ---- API gia lap click chuot trai ----
+ Private Declare PtrSafe Sub mouse_event Lib "user32" ( _
+@@ -4855,6 +4858,7 @@
+ ' TAB CHANGE
+ '================================================================
+ Private Sub tabMain_Change()
++    If mLibMetaEditing Then Exit Sub
+ 
+     If tabMain.value = 1 Then
+ 
+@@ -5367,6 +5371,7 @@
+ 
+ 
+ Private Sub lstResult_Click()
++    If mLibMetaEditing Then Exit Sub
+     If suppressListClick Then Exit Sub
+     On Error GoTo SAFE_EXIT
+     Dim contractID As String
+@@ -6067,13 +6072,34 @@
+         ByVal fieldKey As String, _
+         ByVal Prompt As String)
+ 
++    If mLibMetaEditing Then Exit Sub
++    Dim previousSuppress As Boolean
++    previousSuppress = suppressListClick
++    mLibMetaEditing = True
++    suppressListClick = True
++    On Error GoTo Failed
++    ' MouseUp has occurred; do not carry a label mouse capture into a modal dialog.
++    LibReleaseCapture
++    Dim editWorkbook As Workbook
++    Set editWorkbook = GetDataWorkbook()
++    Dim editCID As String
++    editCID = Trim$(gCurrentContractID)
++
+     Dim isGlobal As Boolean
+     isGlobal = (UCase$(fieldKey) <> "SUBCON")
+ 
+     ' SUBCON can chon contract truoc
+     If Not isGlobal And Trim$(gCurrentContractID) = "" Then
+         MsgCenter "Please select a contract first.", vbInformation
+-        Exit Sub
++        GoTo CleanExit
++    End If
++
++    If Not isGlobal Then
++        If lstResult.ListIndex < 0 Then GoTo SelectionChanged
++        If Trim$(CStr(lstResult.List(lstResult.ListIndex, 0))) <> editCID Then GoTo SelectionChanged
++        BuildGlobalContractCache
++        If gDictContract Is Nothing Then GoTo SelectionChanged
++        If Not gDictContract.Exists(editCID) Then GoTo SelectionChanged
+     End If
+ 
+     ' Lay gia tri hien tai
+@@ -6081,7 +6107,7 @@
+     If isGlobal Then
+         curVal = GetGlobalSetting(fieldKey)
+     Else
+-        curVal = GetContractMetaField(gCurrentContractID, fieldKey)
++        curVal = GetContractMetaField(editCID, fieldKey)
+     End If
+ 
+     ' Tao tieu de InputBox
+@@ -6106,44 +6132,64 @@
+ 
+     Dim newVal As String
+     newVal = InputBox(Prompt & ":", boxTitle, curVal)
+-    If StrPtr(newVal) = 0 Then Exit Sub   ' bam Cancel
++    If StrPtr(newVal) = 0 Then GoTo CleanExit   ' bam Cancel
+ 
+     newVal = Trim$(newVal)
++
++    Dim currentWorkbook As Workbook
++    Set currentWorkbook = GetDataWorkbook()
++    If Not (currentWorkbook Is editWorkbook) Then GoTo SelectionChanged
++    If Not isGlobal Then
++        If gCurrentContractID <> editCID Then GoTo SelectionChanged
++        If lstResult.ListIndex < 0 Then GoTo SelectionChanged
++        If Trim$(CStr(lstResult.List(lstResult.ListIndex, 0))) <> editCID Then GoTo SelectionChanged
++    End If
++    If newVal = curVal Then GoTo CleanExit
+ 
+     ' Luu vao dung noi
+     If isGlobal Then
+         SaveGlobalSetting fieldKey, newVal
+     Else
+-        SaveContractMetaField gCurrentContractID, fieldKey, newVal
++        SaveContractMetaField editCID, fieldKey, newVal
+     End If
+ 
+     RefreshLibraryMeta
++CleanExit:
++    suppressListClick = previousSuppress
++    mLibMetaEditing = False
++    Exit Sub
++SelectionChanged:
++    MsgBox "The selected contract or project has changed. Select the contract and try again.", vbExclamation, "Library"
++    GoTo CleanExit
++Failed:
++    MsgBox "Cannot edit Library code: " & Err.Description, vbExclamation, "Library"
++    Resume CleanExit
+ End Sub
+ '================================================================
+ ' EVENTS — Meta Labels (Project Code, Client, v.v.)
+ ' Ctrl+Click: nhap/sua gia tri
+ '================================================================
+-Private Sub lblValProjCode_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValProjCode_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                       ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "PROJ", "Project Code"
+ End Sub
+ 
+-Private Sub lblValClient_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValClient_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                     ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "CLIENT", "Client"
+ End Sub
+ 
+-Private Sub lblValMainCon_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValMainCon_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                      ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "MAINCON", "Main Contractor"
+ End Sub
+ 
+-Private Sub lblValSupCon_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValSupCon_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                     ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "SUPCON", "Supervision Consultant"
+ End Sub
+ 
+-Private Sub lblValSubCon_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, _
++Private Sub lblValSubCon_MouseUp(ByVal Button As Integer, ByVal Shift As Integer, _
+                                     ByVal X As Single, ByVal Y As Single)
+     If Button = 1 And (Shift And 2) Then LibMeta_CtrlClick "SUBCON", "Subcontractor"
+ End Sub

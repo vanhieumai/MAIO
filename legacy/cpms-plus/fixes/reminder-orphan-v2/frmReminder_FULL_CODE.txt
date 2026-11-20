@@ -1,0 +1,1485 @@
+﻿'================================================================
+' FORM MODULE: frmReminder
+'================================================================
+' CONTROLS EXPECTED ON FORM:
+'   lstPending    - ListBox (8 cols)
+'   fraDetail     - Frame (replaces txtDetail TextBox)
+'   lblCount      - Label
+'   btnGoTo       - CommandButton
+'   btnRefresh    - CommandButton
+'   optAll        - OptionButton "All Documents"
+'   optIPC        - OptionButton "Interim Payment Certificate"
+'   optOther      - OptionButton "Other Documents"
+'   cboDocType    - ComboBox (enabled only when optOther = True)
+'   txtSearch     - TextBox tim kiem cong ty / tai lieu (Enter de loc)
+'================================================================
+Option Explicit
+
+Private WithEvents mDeleteOrphan As MSForms.CommandButton
+Private WithEvents mAssignContract As MSForms.CommandButton
+Private WithEvents mContractChoice As MSForms.ComboBox
+Private WithEvents mConfirmAssign As MSForms.CommandButton
+Private WithEvents mCancelAssign As MSForms.CommandButton
+Private mAssignPanel As MSForms.Frame
+Private mContractPreview As MSForms.TextBox
+Private mAssignDocID As String
+Private mAssignOldCID As String
+Private mRefreshLeft As Single
+Private mGoToLeft As Single
+Private mListWorkbook As Workbook
+Private mGroupArr()  As String
+Private mIsHiding    As Boolean
+Private mContractSearch As Object   ' ref den frmContractSearch
+Private mHomePage   As Object       ' ref den frmHomePage
+
+' --- Filter state ---
+' 0 = All, 1 = IPC only, 2 = Other (use cboDocType)
+Private mFilterMode    As Integer
+Private mShowCompleted As Boolean   ' True = hien thi da hoan thanh
+Private mKeyword       As String    ' tu khoa tim kiem hien tai
+Private mRSClickCount  As Integer   ' dem right-click de clear keyword
+Private mRSClickTime   As Double
+
+Public Sub SetContractSearchRef(ByVal frm As Object)
+    Set mContractSearch = frm
+End Sub
+
+Public Sub SetHomePageRef(ByVal frm As Object)
+    Set mHomePage = frm
+End Sub
+
+'================================================================
+Private Sub UserForm_Initialize()
+
+    CreateOrphanDeleteButton
+
+    With lstPending
+        .ColumnCount = 8
+        .ColumnWidths = "0 pt;310 pt;40 pt;40 pt;40 pt;0 pt;0 pt;0 pt"
+        .Font.Name = "Consolas"
+        .Font.Size = 9
+    End With
+
+    btnGoTo.Enabled = False
+
+    ' Default: All Documents
+    optAll.value = True
+    optIPC.value = False
+    optOther.value = False
+    mFilterMode = 0
+    cboDocType.Enabled = False
+
+    ' Default: chi hien thi ho so dang xu ly
+    mShowCompleted = False
+    On Error Resume Next
+    chkShowCompleted.value = False
+    On Error GoTo 0
+
+    ' Dam bao cache duoc build truoc khi load list
+    If Not gContractLoaded Then BuildGlobalContractCache
+    If Not gPaymentLoaded Then BuildPaymentCache
+
+    ' Nap unique doc types tu col C vao combobox
+    LoadDocTypeCombo
+
+    LoadPendingList
+    ApplyTheme Me
+    StyleOrphanButtons
+
+    ' Chon vao o tim kiem ngay khi mo form (giong txtKeyword)
+    On Error Resume Next
+    txtSearch.SetFocus
+    txtSearch.SelStart = 0
+    txtSearch.SelLength = Len(txtSearch.Text)
+    On Error GoTo 0
+    'UnregisterForm Me
+End Sub
+
+'================================================================
+' NAP UNIQUE DOC TYPES TU COT C SHEET DOCUMENT_TRACKER
+' (bo qua "Interim Payment Certificate" vi da co opt rieng)
+'================================================================
+Private Sub LoadDocTypeCombo()
+
+    cboDocType.Clear
+
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = GetDataSheet("DOCUMENT_TRACKER")
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
+
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.rows.count, "A").End(xlUp).Row
+    If lastRow < 2 Then Exit Sub
+
+    Dim dictTypes As Object
+    Set dictTypes = CreateObject("Scripting.Dictionary")
+    dictTypes.CompareMode = 1  ' case-insensitive
+
+    Dim i As Long
+    For i = 2 To lastRow
+        Dim st As String
+        st = UCase(Trim(CStr(ws.Cells(i, "O").value)))
+        Dim passStatus As Boolean
+        If mShowCompleted Then
+            passStatus = (st = "COMPLETED" Or st = "ACCEPTED")
+        Else
+            passStatus = (st = "CHECKING" Or st = "PROCESSING")
+        End If
+        If passStatus Then
+            Dim docType As String
+            docType = Trim(CStr(ws.Cells(i, "C").value))
+            If docType <> "" Then
+                ' Bo qua IPC vi da co option rieng
+                If UCase(docType) <> UCase("Interim Payment Certificate") Then
+                    If Not dictTypes.Exists(docType) Then
+                        dictTypes(docType) = 1
+                    End If
+                End If
+            End If
+        End If
+    Next i
+
+    Dim k As Variant
+    For Each k In dictTypes.keys
+        cboDocType.AddItem CStr(k)
+    Next k
+
+    If cboDocType.ListCount > 0 Then
+        cboDocType.ListIndex = 0
+    End If
+
+End Sub
+
+'================================================================
+' OPTION BUTTON HANDLERS
+'================================================================
+Private Sub optAll_Click()
+    If optAll.value Then
+        mFilterMode = 0
+        cboDocType.Enabled = False
+        LoadPendingList
+    End If
+End Sub
+
+Private Sub optIPC_Click()
+    If optIPC.value Then
+        mFilterMode = 1
+        cboDocType.Enabled = False
+        LoadPendingList
+    End If
+End Sub
+
+Private Sub optOther_Click()
+    If optOther.value Then
+        mFilterMode = 2
+        cboDocType.Enabled = True
+        LoadPendingList
+    End If
+End Sub
+
+Private Sub cboDocType_Change()
+    ' Chi re-filter khi dang o che do Other Documents
+    If mFilterMode = 2 Then
+        LoadPendingList
+    End If
+End Sub
+
+'================================================================
+' CHECKBOX: hien thi ho so da hoan thanh (Completed / Accepted)
+'================================================================
+Private Sub chkShowCompleted_Click()
+    mShowCompleted = (chkShowCompleted.value = True)
+    ' Reload combo de lay dung tap doc type theo mode moi
+    LoadDocTypeCombo
+    LoadPendingList
+End Sub
+
+'================================================================
+Private Sub lstPending_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
+    btnGoTo_Click
+End Sub
+
+'================================================================
+Public Sub LoadPendingList()
+
+    CloseContractPicker
+    Set mListWorkbook = Nothing
+    If Not mDeleteOrphan Is Nothing Then mDeleteOrphan.Visible = False
+    If Not mAssignContract Is Nothing Then mAssignContract.Visible = False
+
+    lstPending.Clear
+    ClearDetailPanel
+    btnGoTo.Enabled = False
+
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = GetDataSheet("DOCUMENT_TRACKER")
+    On Error GoTo 0
+    If ws Is Nothing Then
+        lblCount.Caption = "Sheet DOCUMENT_TRACKER not found!"
+        Exit Sub
+    End If
+
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.rows.count, "A").End(xlUp).Row
+    If lastRow < 2 Then
+        lblCount.Caption = "No documents found."
+        Exit Sub
+    End If
+
+    Set mListWorkbook = ws.Parent
+
+    ' Xac dinh filter doc type theo mode
+    Dim filterDocType As String
+    filterDocType = ""
+    Select Case mFilterMode
+        Case 1
+            filterDocType = "IPC"
+        Case 2
+            If cboDocType.ListIndex >= 0 Then
+                filterDocType = CStr(cboDocType.value)
+            Else
+                lblCount.Caption = "Please select a document type."
+                Exit Sub
+            End If
+    End Select
+
+    Dim buf() As Variant
+    ReDim buf(0 To lastRow - 2, 0 To 9)
+    Dim cnt As Long: cnt = 0
+
+    Dim i As Long
+    For i = 2 To lastRow
+        Dim st As String
+        st = UCase(Trim(CStr(ws.Cells(i, "O").value)))
+        Dim passStatus As Boolean
+        If mShowCompleted Then
+            passStatus = (st = "COMPLETED" Or st = "ACCEPTED")
+        Else
+            passStatus = (st = "CHECKING" Or st = "PROCESSING")
+        End If
+        If passStatus Then
+
+            ' Kiem tra filter doc type
+            Dim rowDocType As String
+            rowDocType = Trim(CStr(ws.Cells(i, "C").value))
+
+            Dim passFilter As Boolean
+            passFilter = False
+            Select Case mFilterMode
+                Case 0   ' All Documents
+                    passFilter = True
+                Case 1   ' IPC only
+                    passFilter = (UCase(rowDocType) = UCase(filterDocType))
+                Case 2   ' Other - match selected combobox
+                    passFilter = (UCase(rowDocType) = UCase(filterDocType))
+            End Select
+
+            If passFilter Then
+
+                ' ---- Tim kiem theo tu khoa (giong txtKeyword) ----
+                If mKeyword <> "" Then
+                    Dim kw As String
+                    kw = LCase(VN_NoSign(mKeyword))
+                    Dim kwPartyB  As String: kwPartyB = ""
+                    Dim kwConID   As String: kwConID = ""
+                    Dim kwDocType As String: kwDocType = ""
+                    Dim kwDocName As String: kwDocName = ""
+                    Dim kwDocNo   As String: kwDocNo = ""
+                    Dim kwConNo   As String: kwConNo = ""
+                    Dim tmpCID As String: tmpCID = Trim(CStr(ws.Cells(i, "B").value))
+                    kwConID = LCase(VN_NoSign(tmpCID))
+                    kwDocType = LCase(VN_NoSign(rowDocType))
+                    kwDocName = LCase(VN_NoSign(Trim(CStr(ws.Cells(i, "E").value))))
+                    kwDocNo = LCase(VN_NoSign(Trim(CStr(ws.Cells(i, "D").value))))
+                    If Not gDictContract Is Nothing Then
+                        If gDictContract.Exists(tmpCID) Then
+                            Dim kwR As Long: kwR = gDictContract(tmpCID)
+                            kwPartyB = LCase(VN_NoSign(Trim(CStr(gArrContract(kwR, 8)))))
+                            kwConNo = LCase(VN_NoSign(Trim(CStr(gArrContract(kwR, 2)))))
+                        End If
+                    End If
+                    Dim kwPass As Boolean
+                    kwPass = (InStr(kwPartyB, kw) > 0 Or InStr(kwConID, kw) > 0 _
+                             Or InStr(kwConNo, kw) > 0 Or InStr(kwDocType, kw) > 0 _
+                             Or InStr(kwDocName, kw) > 0 Or InStr(kwDocNo, kw) > 0)
+                    If Not kwPass Then GoTo NEXT_ROW
+                End If
+
+                Dim docID As String
+                docID = Trim(CStr(ws.Cells(i, "A").value))
+                Dim contractID As String
+                contractID = Trim(CStr(ws.Cells(i, "B").value))
+
+                Dim grp As String
+                If Left$(contractID, 2) = "A-" Then
+                    grp = "A"
+                ElseIf Left$(contractID, 2) = "B-" Then
+                    grp = "B"
+                Else
+                    grp = "B"
+                End If
+
+                Dim contractNo As String: contractNo = contractID
+                Dim partyB As String:     partyB = ""
+                If Not gDictContract Is Nothing Then
+                    If gDictContract.Exists(contractID) Then
+                        Dim r As Long
+                        r = gDictContract(contractID)
+                        contractNo = Trim(CStr(gArrContract(r, 2)))
+                        partyB = Trim(CStr(gArrContract(r, 8)))
+                    End If
+                End If
+
+                Dim ngayCol As String
+                If IsDate(ws.Cells(i, "I").value) Then
+                    ngayCol = Format(ws.Cells(i, "I").value, "dd/mm/yy")
+                Else
+                    ngayCol = Trim(CStr(ws.Cells(i, "I").value))
+                End If
+
+                If Not ReminderContractExists(mListWorkbook, contractID) Then
+                    partyB = "[Missing contract] " & contractID
+                End If
+
+                buf(cnt, 0) = contractNo
+                buf(cnt, 1) = partyB
+                buf(cnt, 2) = rowDocType
+                buf(cnt, 3) = ExtractDocShortCode(Trim(CStr(ws.Cells(i, "D").value)))
+                buf(cnt, 4) = ngayCol
+                buf(cnt, 5) = Trim(CStr(ws.Cells(i, "O").value))
+                buf(cnt, 6) = contractID
+                buf(cnt, 7) = docID
+                buf(cnt, 8) = grp
+                ' col 9: NgayTra (col J) luu raw de sort completed
+                If IsDate(ws.Cells(i, "J").value) Then
+                    buf(cnt, 9) = ws.Cells(i, "J").value
+                Else
+                    buf(cnt, 9) = 0
+                End If
+                cnt = cnt + 1
+            End If
+        End If
+NEXT_ROW:
+    Next i
+
+    If cnt = 0 Then
+        Dim noMsg As String
+        If mShowCompleted Then
+            Select Case mFilterMode
+                Case 0: noMsg = "No completed documents."
+                Case 1: noMsg = "No completed IPC documents."
+                Case 2: noMsg = "No completed documents of type: " & filterDocType
+            End Select
+        Else
+            Select Case mFilterMode
+                Case 0: noMsg = "No pending documents."
+                Case 1: noMsg = "No pending IPC documents."
+                Case 2: noMsg = "No pending documents of type: " & filterDocType
+            End Select
+        End If
+        lblCount.Caption = noMsg
+        Exit Sub
+    End If
+
+    ' Sap xep:
+    '   Pending   -> group A truoc B, trong group ngay tang dan (NgayNhan)
+    '   Completed -> moi nhat truoc (NgayTra giam dan, col J = buf col 9)
+    Dim r1 As Long, r2 As Long, c As Long
+    Dim tmpRow(0 To 9) As Variant
+    For r1 = 0 To cnt - 2
+        For r2 = r1 + 1 To cnt - 1
+            Dim doSwap As Boolean: doSwap = False
+            If mShowCompleted Then
+                ' Sort completed: NgayTra giam dan (moi nhat len dau)
+                Dim dt1 As Double: dt1 = 0
+                Dim dt2 As Double: dt2 = 0
+                On Error Resume Next
+                If buf(r1, 9) <> 0 Then dt1 = CDbl(buf(r1, 9))
+                If buf(r2, 9) <> 0 Then dt2 = CDbl(buf(r2, 9))
+                On Error GoTo 0
+                If dt1 < dt2 Then doSwap = True   ' giam dan: r2 moi hon r1 -> doi cho
+            Else
+                ' Sort pending: group A truoc B, trong group ngay tang dan
+                Dim g1 As String: g1 = CStr(buf(r1, 8))
+                Dim g2 As String: g2 = CStr(buf(r2, 8))
+                If g1 > g2 Then
+                    doSwap = True
+                ElseIf g1 = g2 Then
+                    Dim d1 As Date, d2 As Date
+                    Dim ok1 As Boolean, ok2 As Boolean
+                    ok1 = False: ok2 = False
+                    On Error Resume Next
+                    If buf(r1, 4) <> "" Then d1 = CDate(buf(r1, 4)): ok1 = (Err.Number = 0)
+                    Err.Clear
+                    If buf(r2, 4) <> "" Then d2 = CDate(buf(r2, 4)): ok2 = (Err.Number = 0)
+                    Err.Clear
+                    On Error GoTo 0
+                    If ok1 And ok2 Then
+                        If d1 > d2 Then doSwap = True
+                    ElseIf Not ok1 And ok2 Then
+                        doSwap = True
+                    End If
+                End If
+            End If
+            If doSwap Then
+                For c = 0 To 9
+                    tmpRow(c) = buf(r1, c)
+                    buf(r1, c) = buf(r2, c)
+                    buf(r2, c) = tmpRow(c)
+                Next c
+            End If
+        Next r2
+    Next r1
+
+    ' Xay dung finalArr va mGroupArr
+    Dim finalArr() As Variant
+    ReDim finalArr(0 To cnt - 1, 0 To 7)
+    ReDim mGroupArr(0 To cnt - 1)
+
+    Dim rr As Long, cc As Long
+    For rr = 0 To cnt - 1
+        For cc = 0 To 7
+            finalArr(rr, cc) = buf(rr, cc)
+        Next cc
+        mGroupArr(rr) = buf(rr, 8)
+    Next rr
+
+    On Error Resume Next
+    lstPending.List = finalArr
+    On Error GoTo 0
+
+    ' Hien thi caption phu hop voi filter
+    Dim filterLabel As String
+    Select Case mFilterMode
+        Case 0: filterLabel = "All"
+        Case 1: filterLabel = "IPC"
+        Case 2: filterLabel = filterDocType
+    End Select
+    Dim modeLabel As String
+    If mShowCompleted Then modeLabel = "Completed" Else modeLabel = "Pending"
+    lblCount.Caption = modeLabel & " [" & filterLabel & "]: " & cnt & " document(s)"
+
+    If lstPending.ListCount > 0 Then
+        lstPending.ListIndex = 0
+        lstPending_Click
+    End If
+
+End Sub
+
+'================================================================
+Private Sub lstPending_Click()
+
+    UpdateReminderActions
+
+    Dim idx As Long
+    idx = lstPending.ListIndex
+    If idx < 0 Then
+        ClearDetailPanel
+        btnGoTo.Enabled = False
+        Exit Sub
+    End If
+
+    ' UpdateReminderActions validates the current document and contract.
+
+    Dim contractID As String
+    Dim docID As String
+    contractID = CStr(lstPending.List(idx, 6))
+    docID = CStr(lstPending.List(idx, 7))
+
+    Dim grp As String
+    If idx <= UBound(mGroupArr) Then grp = mGroupArr(idx) Else grp = "B"
+
+    Dim dateLabel As String
+    If grp = "A" Then dateLabel = "Processed Date" Else dateLabel = "Received Date"
+
+    Dim contractNo As String: contractNo = ""
+    Dim partyB As String:     partyB = ""
+    Dim scope As String:      scope = ""
+    If Not gDictContract Is Nothing Then
+        If gDictContract.Exists(contractID) Then
+            Dim r As Long
+            r = gDictContract(contractID)
+            contractNo = Trim(CStr(gArrContract(r, 2)))
+            partyB = Trim(CStr(gArrContract(r, 8)))
+            scope = Trim(CStr(gArrContract(r, 11)))
+        End If
+    End If
+
+    Dim ws As Worksheet
+    On Error Resume Next
+    Set ws = GetDataSheet("DOCUMENT_TRACKER")
+    On Error GoTo 0
+    If ws Is Nothing Then Exit Sub
+
+    Dim lastRow As Long
+    lastRow = ws.Cells(ws.rows.count, "A").End(xlUp).Row
+
+    Dim i As Long
+    Dim foundRow As Long: foundRow = -1
+    For i = 2 To lastRow
+        If Trim(CStr(ws.Cells(i, "A").value)) = docID Then
+            foundRow = i
+            Exit For
+        End If
+    Next i
+
+    DrawDetailPanel grp, dateLabel, contractID, partyB, scope, ws, foundRow
+
+End Sub
+
+'================================================================
+' ClearDetailPanel — Xoa toan bo Label dong (DYN_DT_*) trong fraDetail
+'================================================================
+Private Sub ClearDetailPanel()
+    On Error Resume Next
+    Dim toDel() As String
+    ReDim toDel(0 To fraDetail.Controls.count)
+    Dim n As Long: n = 0
+    Dim ctrl As MSForms.Control
+    For Each ctrl In fraDetail.Controls
+        If Left$(ctrl.Name, 7) = "DYN_DT_" Then
+            toDel(n) = ctrl.Name
+            n = n + 1
+        End If
+    Next ctrl
+    Dim j As Long
+    For j = 0 To n - 1
+        fraDetail.Controls.Remove toDel(j)
+    Next j
+    On Error GoTo 0
+End Sub
+
+'================================================================
+' DrawDetailPanel — Ve chi tiet ho so bang Label dong (khong scrollbar)
+'
+' grp       : "A" hoac "B" (quyet dinh mau header)
+' dateLabel : "Processed Date" hoac "Received Date"
+' contractNo, partyB, scope : tu gArrContract
+' ws        : sheet DOCUMENT_TRACKER
+' wsRow     : dong du lieu (-1 neu khong tim thay)
+'================================================================
+Private Sub DrawDetailPanel( _
+    ByVal grp As String, _
+    ByVal dateLabel As String, _
+    ByVal contractID As String, _
+    ByVal partyB As String, _
+    ByVal scope As String, _
+    ByVal ws As Worksheet, _
+    ByVal wsRow As Long)
+
+    On Error GoTo ERR_DRAW
+    ClearDetailPanel
+
+    '---- Layout constants ----
+    Const ROW_H  As Single = 15   ' chieu cao moi dong du lieu
+    Const HDR_H  As Single = 18   ' chieu cao header
+    Const SEP_H  As Single = 5    ' duong ke ngang
+    Const W_KEY  As Single = 110  ' do rong cot nhan (field name)
+    Const PAD_L  As Single = 1    ' le trai
+    Const FONT_SZ As Single = 8
+
+    Dim frm As MSForms.Frame
+    Set frm = fraDetail
+
+    Dim fW As Single
+    fW = frm.InsideWidth - 2
+    If fW < 60 Then fW = 60
+
+    '---- Mau theo group ----
+    Dim clrHdr   As Long
+    Dim clrHdrFG As Long
+    Dim clrKey1  As Long
+    Dim clrKey2  As Long
+    Dim clrVal1  As Long
+    Dim clrVal2  As Long
+    Dim clrKeyFG As Long
+    Dim clrValFG As Long
+    Dim clrSep   As Long
+
+    If grp = "A" Then
+        clrHdr = RGB(31, 73, 125)
+        clrHdrFG = RGB(255, 255, 255)
+        clrKey1 = RGB(210, 228, 255)
+        clrKey2 = RGB(200, 218, 248)
+        clrVal1 = RGB(235, 244, 255)
+        clrVal2 = RGB(225, 237, 255)
+        clrKeyFG = RGB(31, 56, 100)
+        clrValFG = RGB(20, 40, 80)
+        clrSep = RGB(31, 73, 125)
+    Else
+        clrHdr = RGB(120, 40, 40)
+        clrHdrFG = RGB(255, 255, 255)
+        clrKey1 = RGB(255, 225, 225)
+        clrKey2 = RGB(248, 212, 212)
+        clrVal1 = RGB(255, 242, 242)
+        clrVal2 = RGB(255, 232, 232)
+        clrKeyFG = RGB(100, 31, 31)
+        clrValFG = RGB(80, 20, 20)
+        clrSep = RGB(120, 40, 40)
+    End If
+
+    Dim Y As Single: Y = 1
+    Dim rowIdx As Long: rowIdx = 0
+
+    '================================================================
+    ' Helper: them 1 dong (key + value)
+    ' Dung bien rowIdx de xen ke mau nen
+    '================================================================
+
+    '---- HEADER ----
+    Dim lHdr As MSForms.Label
+    Set lHdr = frm.Controls.Add("Forms.Label.1", "DYN_DT_HDR")
+    With lHdr
+        .Caption = "  " & IIf(grp = "A", "GROUP A", "GROUP B") & _
+                   "  |  " & BuildDisplayContractNo(contractID)
+        .Left = PAD_L: .Top = Y: .Width = fW: .Height = HDR_H
+        .Font.Size = FONT_SZ + 1: .Font.Bold = True
+        .ForeColor = clrHdrFG: .BackColor = clrHdr: .BackStyle = 1
+        .WordWrap = False
+    End With
+    Y = Y + HDR_H + 1
+
+    '----------------------------------------------------------------
+    ' Macro noi bo: them 1 dong label key + value
+    '----------------------------------------------------------------
+    Dim clrK As Long, clrV As Long
+
+    ' --- Party B ---
+    clrK = IIf(rowIdx Mod 2 = 0, clrKey1, clrKey2)
+    clrV = IIf(rowIdx Mod 2 = 0, clrVal1, clrVal2)
+    Dim lK0 As MSForms.Label
+    Set lK0 = frm.Controls.Add("Forms.Label.1", "DYN_DT_K0")
+    With lK0
+        .Caption = "  Party B"
+        .Left = PAD_L: .Top = Y: .Width = W_KEY: .Height = ROW_H
+        .Font.Size = FONT_SZ: .Font.Bold = True
+        .ForeColor = clrKeyFG: .BackColor = clrK: .BackStyle = 1: .WordWrap = False
+    End With
+    Dim lV0 As MSForms.TextBox
+    Set lV0 = frm.Controls.Add("Forms.TextBox.1", "DYN_DT_V0")
+    With lV0
+        .Text = partyB
+        .Left = PAD_L + W_KEY: .Top = Y: .Width = fW - W_KEY: .Height = ROW_H
+        .Font.Size = FONT_SZ: .Font.Bold = False
+        .ForeColor = clrValFG: .BackColor = clrV
+        .Locked = True: .BorderStyle = 1: .SpecialEffect = 0: .BorderColor = RGB(189, 215, 238): .ScrollBars = 0
+        .MultiLine = False: .WordWrap = False
+        .EnterKeyBehavior = False: .TabKeyBehavior = False
+    End With
+    Y = Y + ROW_H: rowIdx = rowIdx + 1
+
+    ' --- Scope (2 dong chieu cao de bao gom text dai) ---
+    clrK = IIf(rowIdx Mod 2 = 0, clrKey1, clrKey2)
+    clrV = IIf(rowIdx Mod 2 = 0, clrVal1, clrVal2)
+    Dim lKSc As MSForms.Label
+    Set lKSc = frm.Controls.Add("Forms.Label.1", "DYN_DT_KSC")
+    With lKSc
+        .Caption = "  Scope"
+        .Left = PAD_L: .Top = Y: .Width = W_KEY: .Height = ROW_H * 2
+        .Font.Size = FONT_SZ: .Font.Bold = True
+        .ForeColor = clrKeyFG: .BackColor = clrK: .BackStyle = 1: .WordWrap = False
+    End With
+    Dim lVSc As MSForms.TextBox
+    Set lVSc = frm.Controls.Add("Forms.TextBox.1", "DYN_DT_VSC")
+    With lVSc
+        .Text = scope
+        .Left = PAD_L + W_KEY: .Top = Y: .Width = fW - W_KEY: .Height = ROW_H * 2
+        .Font.Size = FONT_SZ: .Font.Bold = False
+        .ForeColor = clrValFG: .BackColor = clrV
+        .Locked = True: .BorderStyle = 1: .SpecialEffect = 0: .BorderColor = RGB(189, 215, 238): .ScrollBars = 0
+        .MultiLine = True: .WordWrap = True
+        .EnterKeyBehavior = False: .TabKeyBehavior = False
+    End With
+    Y = Y + ROW_H * 2: rowIdx = rowIdx + 1
+
+    ' --- Separator ---
+    Dim lSep As MSForms.Label
+    Set lSep = frm.Controls.Add("Forms.Label.1", "DYN_DT_SEP")
+    With lSep
+        .Caption = ""
+        .Left = PAD_L: .Top = Y: .Width = fW: .Height = SEP_H
+        .BackColor = clrSep: .BackStyle = 1
+    End With
+    Y = Y + SEP_H + 1
+
+    '---- Doc fields: tu worksheet ----
+    Dim fType As String:  fType = ""
+    Dim fName As String:  fName = ""
+    Dim fDocNo As String: fDocNo = ""
+    Dim fStat As String:  fStat = ""
+    Dim fNgay As String:  fNgay = ""
+    Dim fSupp As String:  fSupp = ""
+    Dim fVer As String:   fVer = ""
+    Dim fNote As String:  fNote = ""
+    Dim fLink As String:  fLink = ""
+
+    If wsRow > 0 Then
+        fType = Trim(CStr(ws.Cells(wsRow, "C").value))
+        fName = Trim(CStr(ws.Cells(wsRow, "E").value))
+        fDocNo = Trim(CStr(ws.Cells(wsRow, "D").value))
+        fStat = Trim(CStr(ws.Cells(wsRow, "O").value))
+        If IsDate(ws.Cells(wsRow, "I").value) Then
+            fNgay = Format(ws.Cells(wsRow, "I").value, "dd/mm/yyyy")
+        Else
+            fNgay = Trim(CStr(ws.Cells(wsRow, "I").value))
+        End If
+        fSupp = Trim(CStr(ws.Cells(wsRow, "M").value))
+        fVer = Trim(CStr(ws.Cells(wsRow, "N").value))
+        fNote = Trim(CStr(ws.Cells(wsRow, "P").value))
+        fLink = Trim(CStr(ws.Cells(wsRow, "F").value))
+    End If
+
+    ' Mau Status
+    Dim clrStatBg As Long: clrStatBg = 0
+    Dim clrStatFG As Long: clrStatFG = 0
+    Select Case UCase(Trim(fStat))
+        Case "CHECKING", "PROCESSING"
+            clrStatBg = RGB(255, 240, 200): clrStatFG = RGB(130, 70, 0)
+        Case "COMPLETED", "ACCEPTED"
+            clrStatBg = RGB(210, 245, 220): clrStatFG = RGB(20, 100, 40)
+        Case Else
+            clrStatBg = 0: clrStatFG = 0
+    End Select
+
+    '---- Bang dinh nghia cac dong field ----
+    Dim fieldKeys(0 To 8)   As String
+    Dim fieldVals(0 To 8)   As String
+    Dim fieldCtlK(0 To 8)   As String
+    Dim fieldCtlV(0 To 8)   As String
+    Dim fieldH(0 To 8)      As Single   ' 0 = ROW_H, else custom
+    Dim fieldIsNote(0 To 8) As Boolean
+
+    fieldKeys(0) = "Type":               fieldVals(0) = fType:  fieldH(0) = ROW_H
+    fieldKeys(1) = "Name":               fieldVals(1) = fName:  fieldH(1) = ROW_H
+    fieldKeys(2) = "Document Number":    fieldVals(2) = fDocNo: fieldH(2) = ROW_H
+    fieldKeys(3) = "Status":             fieldVals(3) = fStat:  fieldH(3) = ROW_H
+    fieldKeys(4) = dateLabel:            fieldVals(4) = fNgay:  fieldH(4) = ROW_H
+    fieldKeys(5) = "Supporting Docs":    fieldVals(5) = fSupp:  fieldH(5) = ROW_H
+    fieldKeys(6) = "Version":            fieldVals(6) = fVer:   fieldH(6) = ROW_H
+    fieldKeys(7) = "Note":               fieldVals(7) = fNote:  fieldH(7) = ROW_H * 2: fieldIsNote(7) = True
+    fieldKeys(8) = "Link":               fieldVals(8) = fLink:  fieldH(8) = ROW_H
+
+    Dim fi As Long
+    For fi = 0 To 8
+        clrK = IIf(rowIdx Mod 2 = 0, clrKey1, clrKey2)
+        clrV = IIf(rowIdx Mod 2 = 0, clrVal1, clrVal2)
+
+        ' Ghi de mau neu la Status co gia tri dac biet
+        Dim useStatColor As Boolean
+        useStatColor = (fi = 3 And clrStatBg <> 0)
+
+        Dim lK As MSForms.Label
+        Set lK = frm.Controls.Add("Forms.Label.1", "DYN_DT_K" & (fi + 1))
+        With lK
+            .Caption = "  " & fieldKeys(fi)
+            .Left = PAD_L: .Top = Y: .Width = W_KEY: .Height = fieldH(fi)
+            .Font.Size = FONT_SZ: .Font.Bold = True
+            .ForeColor = clrKeyFG
+            .BackColor = IIf(useStatColor, clrStatBg, clrK): .BackStyle = 1
+            .WordWrap = False
+        End With
+
+        Dim lV As MSForms.TextBox
+        Set lV = frm.Controls.Add("Forms.TextBox.1", "DYN_DT_V" & (fi + 1))
+        With lV
+            .Text = fieldVals(fi)
+            .Left = PAD_L + W_KEY: .Top = Y: .Width = fW - W_KEY: .Height = fieldH(fi)
+            .Font.Size = FONT_SZ: .Font.Bold = IIf(useStatColor, True, False)
+            .ForeColor = IIf(useStatColor, clrStatFG, clrValFG)
+            .BackColor = IIf(useStatColor, clrStatBg, clrV)
+            .Locked = True: .BorderStyle = 1: .SpecialEffect = 0: .BorderColor = RGB(189, 215, 238): .ScrollBars = 0
+            .MultiLine = fieldIsNote(fi): .WordWrap = fieldIsNote(fi)
+            .EnterKeyBehavior = False: .TabKeyBehavior = False
+        End With
+
+        Y = Y + fieldH(fi): rowIdx = rowIdx + 1
+    Next fi
+
+    Exit Sub
+ERR_DRAW:
+    Debug.Print "DrawDetailPanel error: " & Err.Description
+End Sub
+
+
+'================================================================
+' TIM KIEM (txtSearch) — giong txtKeyword trong frmContractSearch
+'================================================================
+Private Sub txtSearch_KeyDown( _
+    ByVal KeyCode As MSForms.ReturnInteger, _
+    ByVal Shift As Integer)
+
+    If KeyCode = vbKeyReturn Then
+        KeyCode = 0
+        mKeyword = Trim(txtSearch.Text)
+        LoadPendingList
+    End If
+
+End Sub
+
+Private Sub txtSearch_MouseDown( _
+    ByVal Button As Integer, _
+    ByVal Shift As Integer, _
+    ByVal X As Single, _
+    ByVal Y As Single)
+
+    If Button <> 2 Then Exit Sub  ' chi xu ly click phai
+
+    Dim t As Double
+    t = Timer
+
+    If mRSClickCount >= 1 And (t - mRSClickTime) < 0.5 Then
+        ' Double right-click: xoa keyword va reload
+        mRSClickCount = 0
+        mRSClickTime = 0
+        txtSearch.Text = ""
+        mKeyword = ""
+        LoadPendingList
+    Else
+        mRSClickCount = 1
+        mRSClickTime = t
+    End If
+
+End Sub
+
+Private Function PadRR(ByVal s As String, ByVal n As Integer) As String
+    If Len(s) >= n Then PadRR = Left$(s, n) Else PadRR = s & String(n - Len(s), " ")
+End Function
+
+'================================================================
+' Trich xuat phan so cuoi cua document number + version (A-Z) neu co
+' Neu phan so chi 1 chu so (<10) -> pad thanh 2 chu so
+' Vi du:
+'   "260619.CHC1.MN.IPC.VEC.001"  -> "001"   (da du 3 chu so, giu nguyen)
+'   "260619.CHC1.MN.IPC.VEC.001A" -> "001A"
+'   "260619.CHC1.MN.IPC.VEC.3"    -> "03"    (1 chu so -> pad)
+'   "260619.CHC1.MN.IPC.VEC.3A"   -> "03A"   (1 chu so + version -> pad)
+'   "ABC-2026-001B"               -> "001B"
+'   "001"                         -> "001"
+'   ""                            -> ""
+'================================================================
+Private Function ExtractDocShortCode(ByVal docNum As String) As String
+
+    If docNum = "" Then
+        ExtractDocShortCode = ""
+        Exit Function
+    End If
+
+    ' Lay phan sau dau "." cuoi cung
+    Dim lastDot As Long
+    lastDot = 0
+    Dim p As Long
+    For p = Len(docNum) To 1 Step -1
+        If mID$(docNum, p, 1) = "." Then
+            lastDot = p
+            Exit For
+        End If
+    Next p
+
+    Dim tail As String
+    If lastDot > 0 Then
+        tail = mID$(docNum, lastDot + 1)
+    Else
+        ' Khong co dau ".", thu tim dau "-" cuoi
+        Dim lastDash As Long
+        lastDash = 0
+        For p = Len(docNum) To 1 Step -1
+            If mID$(docNum, p, 1) = "-" Then
+                lastDash = p
+                Exit For
+            End If
+        Next p
+        If lastDash > 0 Then
+            tail = mID$(docNum, lastDash + 1)
+        Else
+            tail = docNum
+        End If
+    End If
+
+    Dim tailTrim As String
+    tailTrim = Trim$(tail)
+
+    If tailTrim = "" Then
+        ExtractDocShortCode = docNum   ' fallback
+        Exit Function
+    End If
+
+    ' Kiem tra ky tu cuoi co phai version letter (A-Z) khong
+    Dim lastChar As String
+    lastChar = Right$(tailTrim, 1)
+    Dim hasVersion As Boolean
+    hasVersion = (lastChar >= "A" And lastChar <= "Z") Or _
+                 (lastChar >= "a" And lastChar <= "z")
+
+    Dim numPart As String
+    Dim verPart As String
+    If hasVersion Then
+        numPart = Left$(tailTrim, Len(tailTrim) - 1)
+        verPart = lastChar
+    Else
+        numPart = tailTrim
+        verPart = ""
+    End If
+
+    ' Kiem tra numPart toan chu so
+    Dim allDigits As Boolean
+    allDigits = True
+    Dim ch As String
+    For p = 1 To Len(numPart)
+        ch = mID$(numPart, p, 1)
+        If ch < "0" Or ch > "9" Then
+            allDigits = False
+            Exit For
+        End If
+    Next p
+
+    If allDigits And Len(numPart) > 0 Then
+        ' Pad len 2 chu so neu chi co 1 chu so
+        If Len(numPart) = 1 Then numPart = "0" & numPart
+        ExtractDocShortCode = numPart & verPart
+    Else
+        ' Tail khong phai so -> fallback giu nguyen
+        ExtractDocShortCode = docNum
+    End If
+
+End Function
+
+'================================================================
+Private Function IsFormAlive(ByVal frm As Object) As Boolean
+    If frm Is Nothing Then
+        IsFormAlive = False
+        Exit Function
+    End If
+    On Error Resume Next
+    Dim dummy As String
+    dummy = frm.Caption
+    IsFormAlive = (Err.Number = 0)
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+'================================================================
+Private Sub btnGoTo_Click()
+
+    If Not CanNavigateReminderSelection() Then Exit Sub
+
+    Dim idx As Long
+    idx = lstPending.ListIndex
+    If idx < 0 Then Exit Sub
+
+    Dim contractID As String
+    Dim docID As String
+    Dim docType As String
+    contractID = CStr(lstPending.List(idx, 6))
+    docID = CStr(lstPending.List(idx, 7))
+    docType = CStr(lstPending.List(idx, 2))   ' cot C: kieu tai lieu
+
+    If Not gContractLoaded Then BuildGlobalContractCache
+    If Not gPaymentLoaded Then BuildPaymentCache
+
+    If Not IsFormAlive(mContractSearch) Then
+        Set mContractSearch = Nothing
+    End If
+
+    Dim needLoadList As Boolean: needLoadList = False
+
+    If mContractSearch Is Nothing Then
+        Dim newCS As frmContractSearch
+        Set newCS = New frmContractSearch
+        Set mContractSearch = newCS
+        newCS.SetReminderRef Me
+        needLoadList = True
+    End If
+
+    mContractSearch.Show vbModeless
+
+    If needLoadList Then
+        mContractSearch.LoadContractList
+    End If
+
+    On Error Resume Next
+    mContractSearch.NavigateToDocument contractID, docID, docType
+    On Error GoTo 0
+
+    Me.Hide
+
+    If Not mHomePage Is Nothing Then
+        If IsFormAlive(mHomePage) Then
+            mHomePage.Hide
+        Else
+            Set mHomePage = Nothing
+        End If
+    End If
+
+End Sub
+
+'================================================================
+Private Sub btnRefreshRiminder_Click()
+    BuildGlobalContractCache
+    BuildPaymentCache
+    ' Cap nhat lai combobox truoc (co the co doc type moi)
+    LoadDocTypeCombo
+    LoadPendingList
+End Sub
+
+'================================================================
+' Expose mShowCompleted cho caller neu can
+'================================================================
+Public Property Get ShowCompleted() As Boolean
+    ShowCompleted = mShowCompleted
+End Property
+
+'================================================================
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If CloseMode = vbFormControlMenu Then
+        If mIsHiding Then Exit Sub
+        Unload Me
+    End If
+    'ApplyTheme Me
+    UnregisterForm Me
+End Sub
+
+'================================================================
+Private Sub UserForm_Terminate()
+    On Error Resume Next
+    If Not mContractSearch Is Nothing Then
+        mContractSearch.ClearReminderRef
+    Else
+        ' Ðu?c m? t? Ribbon (standalone) -> báo v? module Ribbon
+        On Error Resume Next
+        ClearStandaloneReminderRef
+        On Error GoTo 0
+    End If
+    Set mContractSearch = Nothing
+    Set mHomePage = Nothing
+    Set mListWorkbook = Nothing
+    Set mDeleteOrphan = Nothing
+    Set mAssignContract = Nothing
+    Set mContractChoice = Nothing
+    Set mConfirmAssign = Nothing
+    Set mCancelAssign = Nothing
+    Set mContractPreview = Nothing
+    Set mAssignPanel = Nothing
+    On Error GoTo 0
+End Sub
+
+'================================================================
+Public Sub ClearContractSearchRef()
+    Set mContractSearch = Nothing
+End Sub
+
+' Delete only a selected document whose internal ContractID no longer exists.
+Private Sub CreateOrphanDeleteButton()
+    mRefreshLeft = btnRefreshRiminder.Left
+    mGoToLeft = btnGoTo.Left
+    Set mDeleteOrphan = Me.Controls.Add("Forms.CommandButton.1", "btnDeleteOrphan", True)
+    Set mAssignContract = Me.Controls.Add("Forms.CommandButton.1", "btnAssignContract", True)
+    mDeleteOrphan.Caption = "Delete orphan"
+    mAssignContract.Caption = "Assign contract"
+    mDeleteOrphan.Visible = False
+    mAssignContract.Visible = False
+    StyleOrphanButtons
+End Sub
+
+Private Sub MatchReminderButton(ByVal target As MSForms.CommandButton)
+    With target
+        .Width = btnRefreshRiminder.Width
+        .Height = btnRefreshRiminder.Height
+        .Font.Name = btnRefreshRiminder.Font.Name
+        .Font.Size = btnRefreshRiminder.Font.Size
+        .Font.Bold = btnRefreshRiminder.Font.Bold
+        .Font.Italic = btnRefreshRiminder.Font.Italic
+        .Font.Underline = btnRefreshRiminder.Font.Underline
+        .ForeColor = btnRefreshRiminder.ForeColor
+        .BackColor = btnRefreshRiminder.BackColor
+        .TakeFocusOnClick = True
+    End With
+End Sub
+
+Private Sub StyleOrphanButtons()
+    If mDeleteOrphan Is Nothing Then Exit Sub
+    MatchReminderButton mDeleteOrphan
+    MatchReminderButton mAssignContract
+    mDeleteOrphan.Top = btnRefreshRiminder.Top
+    mAssignContract.Top = btnRefreshRiminder.Top
+    mDeleteOrphan.Left = 12
+    mAssignContract.Left = mDeleteOrphan.Left + mDeleteOrphan.Width + 8
+End Sub
+
+Private Function ReminderContractExists(ByVal wb As Workbook, ByVal contractID As String) As Boolean
+    Dim ws As Worksheet, r As Long, lastRow As Long
+    Set ws = wb.Worksheets("CONTRACT_DB")
+    lastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+    For r = 2 To lastRow
+        If Len(Trim$(CStr(ws.Cells(r, "A").Value2))) > 0 Then
+            If StrComp(Trim$(CStr(ws.Cells(r, "A").Value2)), Trim$(contractID), vbTextCompare) = 0 Then
+                ReminderContractExists = True
+                Exit Function
+            End If
+        End If
+    Next r
+End Function
+
+Private Function ResolveReminderSelection(ByRef wb As Workbook, ByRef ws As Worksheet, _
+        ByRef rowNo As Long, ByRef docID As String, ByRef contractID As String) As Boolean
+    Dim i As Long, matches As Long, idx As Long
+    idx = lstPending.ListIndex
+    If idx < 0 Then Exit Function
+    If mListWorkbook Is Nothing Then Exit Function
+    Set wb = GetDataWorkbook()
+    If wb Is Nothing Then Exit Function
+    If Not (wb Is mListWorkbook) Then Exit Function
+    Set ws = wb.Worksheets("DOCUMENT_TRACKER")
+    docID = Trim$(CStr(lstPending.List(idx, 7)))
+    contractID = Trim$(CStr(lstPending.List(idx, 6)))
+    If Len(docID) = 0 Then Exit Function
+    For i = 2 To ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        If StrComp(Trim$(CStr(ws.Cells(i, "A").Value2)), docID, vbTextCompare) = 0 Then
+            matches = matches + 1
+            rowNo = i
+        End If
+    Next i
+    If matches <> 1 Then Exit Function
+    If StrComp(Trim$(CStr(ws.Cells(rowNo, "B").Value2)), contractID, vbTextCompare) <> 0 Then Exit Function
+    ResolveReminderSelection = True
+End Function
+
+Private Sub UpdateReminderActions()
+    Dim wb As Workbook, ws As Worksheet, rowNo As Long
+    Dim docID As String, contractID As String, exists As Boolean
+    CloseContractPicker
+    btnGoTo.Enabled = False
+    btnRefreshRiminder.Left = mRefreshLeft
+    btnGoTo.Left = mGoToLeft
+    If Not mDeleteOrphan Is Nothing Then mDeleteOrphan.Visible = False
+    If Not mAssignContract Is Nothing Then mAssignContract.Visible = False
+    On Error GoTo Done
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, contractID) Then Exit Sub
+    exists = ReminderContractExists(wb, contractID)
+    btnGoTo.Enabled = exists
+    If Not exists And Not mDeleteOrphan Is Nothing Then
+        StyleOrphanButtons
+        mDeleteOrphan.Visible = True
+        mAssignContract.Visible = True
+        mDeleteOrphan.Enabled = Not wb.ReadOnly And Not ws.ProtectContents
+        mAssignContract.Enabled = mDeleteOrphan.Enabled
+        btnRefreshRiminder.Left = mAssignContract.Left + mAssignContract.Width + 8
+        btnGoTo.Left = btnRefreshRiminder.Left + btnRefreshRiminder.Width + 8
+    End If
+Done:
+End Sub
+
+Private Function CanNavigateReminderSelection() As Boolean
+    Dim wb As Workbook, ws As Worksheet, rowNo As Long
+    Dim docID As String, contractID As String
+    On Error GoTo Unavailable
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, contractID) Then GoTo Unavailable
+    If Not ReminderContractExists(wb, contractID) Then
+        MsgBox "This document has no existing contract. Use Assign contract to repair it, or Delete orphan to remove it.", vbInformation, "Reminders"
+        UpdateReminderActions
+        Exit Function
+    End If
+    CanNavigateReminderSelection = True
+    Exit Function
+Unavailable:
+    MsgBox "The selected document or data project has changed. Click Refresh and try again.", vbExclamation, "Reminders"
+    UpdateReminderActions
+End Function
+
+Private Sub mDeleteOrphan_Click()
+    Dim wb As Workbook, ws As Worksheet, rowNo As Long
+    Dim docID As String, contractID As String, docNo As String
+    Dim confirmedID As String, confirmedCID As String, confirmedNo As String
+    Dim confirmedWorkbook As Workbook, deleted As Boolean, saved As Boolean
+    Dim errorText As String
+    On Error GoTo Failed
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, contractID) Then GoTo Changed
+    If ReminderContractExists(wb, contractID) Then
+        MsgBox "This document still belongs to an existing contract and cannot be deleted here.", vbExclamation, "Reminders"
+        UpdateReminderActions
+        Exit Sub
+    End If
+    If wb.ReadOnly Or ws.ProtectContents Then
+        MsgBox "The data file is read-only or DOCUMENT_TRACKER is protected.", vbExclamation, "Reminders"
+        Exit Sub
+    End If
+    docNo = CStr(ws.Cells(rowNo, "D").Value2)
+    confirmedID = docID
+    confirmedCID = contractID
+    confirmedNo = docNo
+    Set confirmedWorkbook = wb
+    If MsgBox("Delete this orphan document from the data file?" & vbCrLf & vbCrLf & _
+            "DocumentID: " & docID & vbCrLf & "Document: " & docNo & vbCrLf & _
+            "Missing ContractID: " & contractID & vbCrLf & vbCrLf & _
+            "The linked file will NOT be deleted." & vbCrLf & _
+            "Saving also saves other pending changes in this data file.", _
+            vbYesNo + vbQuestion + vbDefaultButton2, "Delete orphan document") <> vbYes Then Exit Sub
+
+    ' Re-resolve the stable ID after confirmation; never trust a cached row number.
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, contractID) Then GoTo Changed
+    If Not (wb Is confirmedWorkbook) Then GoTo Changed
+    If docID <> confirmedID Or contractID <> confirmedCID Then GoTo Changed
+    If CStr(ws.Cells(rowNo, "D").Value2) <> confirmedNo Then GoTo Changed
+    If ReminderContractExists(wb, contractID) Then GoTo Changed
+    If wb.ReadOnly Or ws.ProtectContents Then GoTo Changed
+    ws.Rows(rowNo).Delete
+    deleted = True
+    gDocLoaded = False
+    wb.Save
+    If Not wb.Saved Then Err.Raise vbObjectError + 2101, "frmReminder", "The data workbook was not saved."
+    saved = True
+    BuildDocTrackerCache
+    BuildGlobalContractCache
+    LoadPendingList
+    MsgBox "Orphan document deleted and data file saved.", vbInformation, "Reminders"
+    Exit Sub
+Changed:
+    MsgBox "The selected document or its contract has changed. Click Refresh and try again.", vbExclamation, "Reminders"
+    UpdateReminderActions
+    Exit Sub
+Failed:
+    errorText = Err.Description
+    On Error Resume Next
+    If deleted Then
+        gDocLoaded = False
+        BuildDocTrackerCache
+        LoadPendingList
+    End If
+    UpdateReminderActions
+    On Error GoTo 0
+    If saved Then
+        MsgBox "The document was deleted and saved, but the display could not be refreshed: " & errorText, vbExclamation, "Reminders"
+    ElseIf deleted Then
+        MsgBox "The document was removed in memory, but saving failed. The deletion is not confirmed on disk. " & _
+            "Keep the data workbook open and resolve the save error: " & errorText, vbCritical, "Reminders"
+    Else
+        MsgBox "The document was not deleted: " & errorText, vbExclamation, "Reminders"
+    End If
+End Sub
+
+Private Sub CloseContractPicker()
+    If Not mAssignPanel Is Nothing Then mAssignPanel.Visible = False
+    mAssignDocID = ""
+    mAssignOldCID = ""
+End Sub
+
+Private Sub CreateContractPicker()
+    If Not mAssignPanel Is Nothing Then Exit Sub
+    Set mAssignPanel = Me.Controls.Add("Forms.Frame.1", "fraAssignContract", True)
+    With mAssignPanel
+        .Caption = "Assign document to an existing contract / appendix"
+        .Left = fraDetail.Left
+        .Top = fraDetail.Top
+        .Width = fraDetail.Width
+        .Height = fraDetail.Height
+        .BackColor = fraDetail.BackColor
+        .Font.Name = btnRefreshRiminder.Font.Name
+        .Font.Size = btnRefreshRiminder.Font.Size
+        .Visible = False
+    End With
+    Set mContractChoice = mAssignPanel.Controls.Add("Forms.ComboBox.1", "cboAssignContract", True)
+    With mContractChoice
+        .Left = 8
+        .Top = 18
+        .Width = mAssignPanel.Width - 20
+        .Height = 20
+        .Style = fmStyleDropDownList
+        .ColumnCount = 2
+        .BoundColumn = 1
+        .TextColumn = 2
+        .ColumnWidths = "0 pt;400 pt"
+        .ListRows = 14
+        .Font.Name = btnRefreshRiminder.Font.Name
+        .Font.Size = btnRefreshRiminder.Font.Size
+    End With
+    Set mContractPreview = mAssignPanel.Controls.Add("Forms.TextBox.1", "txtAssignPreview", True)
+    With mContractPreview
+        .Left = 8
+        .Top = 44
+        .Width = mAssignPanel.Width - 20
+        .Height = mAssignPanel.Height - btnRefreshRiminder.Height - 66
+        .MultiLine = True
+        .WordWrap = True
+        .ScrollBars = fmScrollBarsVertical
+        .Locked = True
+        .TabStop = False
+        .BackColor = vbWhite
+        .ForeColor = vbBlack
+        .Font.Name = btnRefreshRiminder.Font.Name
+        .Font.Size = btnRefreshRiminder.Font.Size
+    End With
+    Set mConfirmAssign = mAssignPanel.Controls.Add("Forms.CommandButton.1", "btnConfirmAssign", True)
+    Set mCancelAssign = mAssignPanel.Controls.Add("Forms.CommandButton.1", "btnCancelAssign", True)
+    MatchReminderButton mConfirmAssign
+    MatchReminderButton mCancelAssign
+    mConfirmAssign.Caption = "Confirm assign"
+    mCancelAssign.Caption = "Cancel"
+    mConfirmAssign.Left = 8
+    mCancelAssign.Left = mConfirmAssign.Left + mConfirmAssign.Width + 8
+    mConfirmAssign.Top = mContractPreview.Top + mContractPreview.Height + 6
+    mCancelAssign.Top = mConfirmAssign.Top
+End Sub
+
+' Unique, real contract only: exclude group separator records.
+Private Function AssignmentContractRow(ByVal wb As Workbook, ByVal newID As String) As Long
+    Dim ws As Worksheet, r As Long, found As Long, hits As Long, key As String
+    If Len(Trim$(newID)) = 0 Then Exit Function
+    If UCase$(Left$(Trim$(newID), 6)) = "GROUP-" Then Exit Function
+    Set ws = wb.Worksheets("CONTRACT_DB")
+    For r = 2 To ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        key = Trim$(CStr(ws.Cells(r, "A").Value2))
+        If StrComp(key, newID, vbTextCompare) = 0 Then
+            found = r
+            hits = hits + 1
+        End If
+    Next r
+    If hits = 1 Then AssignmentContractRow = found
+End Function
+
+Private Function AssignmentContractInfo(ByVal wb As Workbook, ByVal r As Long) As String
+    With wb.Worksheets("CONTRACT_DB")
+        AssignmentContractInfo = "ContractID: " & CStr(.Cells(r, "A").Value2) & vbCrLf & _
+            "Sequence: " & CStr(.Cells(r, "X").Value2) & vbCrLf & _
+            "Contract / appendix: " & CStr(.Cells(r, "B").Value2) & vbCrLf & _
+            "Type: " & CStr(.Cells(r, "C").Value2) & vbCrLf & _
+            "Party B: " & CStr(.Cells(r, "H").Value2) & vbCrLf & _
+            "Scope: " & CStr(.Cells(r, "K").Value2) & vbCrLf & _
+            "Status: " & CStr(.Cells(r, "F").Value2)
+    End With
+End Function
+
+Private Sub mAssignContract_Click()
+    Dim wb As Workbook, ws As Worksheet, contracts As Worksheet, rowNo As Long
+    Dim docID As String, oldID As String, newID As String, r As Long, n As Long
+    On Error GoTo Failed
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Changed
+    If ReminderContractExists(wb, oldID) Then GoTo Changed
+    If wb.ReadOnly Or ws.ProtectContents Then GoTo Changed
+    CreateContractPicker
+    mAssignDocID = docID
+    mAssignOldCID = oldID
+    mContractChoice.Clear
+    mConfirmAssign.Enabled = False
+    Set contracts = wb.Worksheets("CONTRACT_DB")
+    For r = 2 To contracts.Cells(contracts.Rows.Count, "A").End(xlUp).Row
+        newID = Trim$(CStr(contracts.Cells(r, "A").Value2))
+        If AssignmentContractRow(wb, newID) = r Then
+            mContractChoice.AddItem newID
+            n = mContractChoice.ListCount - 1
+            mContractChoice.List(n, 1) = CStr(contracts.Cells(r, "X").Value2) & " | " & _
+                CStr(contracts.Cells(r, "B").Value2) & " | " & CStr(contracts.Cells(r, "H").Value2)
+        End If
+    Next r
+    mContractPreview.Text = "DocumentID: " & docID & vbCrLf & "Old ContractID: " & oldID & vbCrLf & vbCrLf & _
+        "Select the new contract above and review its information before confirming."
+    mAssignPanel.Visible = True
+    mAssignPanel.ZOrder 0
+    mContractChoice.SetFocus
+    Exit Sub
+Changed:
+    MsgBox "The document or project has changed, or the data file cannot be edited. Refresh and try again.", vbExclamation, "Reminders"
+    UpdateReminderActions
+    Exit Sub
+Failed:
+    MsgBox "Cannot open contract selection: " & Err.Description, vbExclamation, "Reminders"
+    CloseContractPicker
+End Sub
+
+Private Sub mContractChoice_Change()
+    Dim wb As Workbook, ws As Worksheet, rowNo As Long, r As Long
+    Dim docID As String, oldID As String, newID As String
+    On Error GoTo Failed
+    mConfirmAssign.Enabled = False
+    If mContractChoice.ListIndex < 0 Then Exit Sub
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Failed
+    If docID <> mAssignDocID Or oldID <> mAssignOldCID Then GoTo Failed
+    newID = CStr(mContractChoice.List(mContractChoice.ListIndex, 0))
+    r = AssignmentContractRow(wb, newID)
+    If r = 0 Then GoTo Failed
+    mContractPreview.Text = "DocumentID: " & docID & vbCrLf & "Old ContractID: " & oldID & vbCrLf & vbCrLf & AssignmentContractInfo(wb, r)
+    mConfirmAssign.Enabled = True
+    Exit Sub
+Failed:
+    If Not mContractPreview Is Nothing Then mContractPreview.Text = "Selection is no longer valid. Cancel and refresh."
+End Sub
+
+Private Sub mCancelAssign_Click()
+    CloseContractPicker
+End Sub
+
+Private Sub mConfirmAssign_Click()
+    Dim wb As Workbook, ws As Worksheet, confirmedWB As Workbook
+    Dim rowNo As Long, r As Long, docID As String, oldID As String, newID As String
+    Dim info As String, docNo As String, changed As Boolean, saved As Boolean, errorText As String
+    On Error GoTo Failed
+    If mContractChoice.ListIndex < 0 Then Exit Sub
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Stale
+    If docID <> mAssignDocID Or oldID <> mAssignOldCID Then GoTo Stale
+    If ReminderContractExists(wb, oldID) Then GoTo Stale
+    If wb.ReadOnly Or ws.ProtectContents Then GoTo Stale
+    newID = CStr(mContractChoice.List(mContractChoice.ListIndex, 0))
+    r = AssignmentContractRow(wb, newID)
+    If r = 0 Then GoTo Stale
+    info = AssignmentContractInfo(wb, r)
+    docNo = CStr(ws.Cells(rowNo, "D").Value2)
+    Set confirmedWB = wb
+    If MsgBox("Assign this document to the following contract?" & vbCrLf & _
+        "DocumentID: " & docID & vbCrLf & "Document: " & docNo & vbCrLf & _
+        "Old ContractID: " & oldID & vbCrLf & vbCrLf & info & vbCrLf & vbCrLf & _
+        "Only the contract link changes. Saving also saves other pending changes in this data file.", _
+        vbYesNo + vbQuestion + vbDefaultButton2, "Confirm contract assignment") <> vbYes Then Exit Sub
+    If Not ResolveReminderSelection(wb, ws, rowNo, docID, oldID) Then GoTo Stale
+    If Not (wb Is confirmedWB) Then GoTo Stale
+    If docID <> mAssignDocID Or oldID <> mAssignOldCID Then GoTo Stale
+    If CStr(ws.Cells(rowNo, "D").Value2) <> docNo Then GoTo Stale
+    If ReminderContractExists(wb, oldID) Then GoTo Stale
+    If wb.ReadOnly Or ws.ProtectContents Then GoTo Stale
+    r = AssignmentContractRow(wb, newID)
+    If r = 0 Then GoTo Stale
+    If AssignmentContractInfo(wb, r) <> info Then GoTo Stale
+    ws.Cells(rowNo, "B").Value2 = newID
+    changed = True
+    gDocLoaded = False
+    wb.Save
+    If Not wb.Saved Then Err.Raise vbObjectError + 2102, "frmReminder", "The data workbook was not saved."
+    saved = True
+    CloseContractPicker
+    BuildGlobalContractCache
+    BuildDocTrackerCache
+    LoadPendingList
+    ' Keep the repaired document selected if it still passes the current filters.
+    For r = 0 To lstPending.ListCount - 1
+        If CStr(lstPending.List(r, 7)) = docID Then
+            lstPending.ListIndex = r
+            lstPending_Click
+            Exit For
+        End If
+    Next r
+    MsgBox "Contract assigned and data file saved.", vbInformation, "Reminders"
+    Exit Sub
+Stale:
+    MsgBox "The document, contract or project has changed, or cannot be edited. Refresh and select again.", vbExclamation, "Reminders"
+    UpdateReminderActions
+    Exit Sub
+Failed:
+    errorText = Err.Description
+    On Error Resume Next
+    CloseContractPicker
+    If changed Then
+        gDocLoaded = False
+        BuildGlobalContractCache
+        BuildDocTrackerCache
+        LoadPendingList
+    End If
+    UpdateReminderActions
+    On Error GoTo 0
+    If saved Then
+        MsgBox "Assignment was saved, but refreshing failed: " & errorText, vbExclamation, "Reminders"
+    ElseIf changed Then
+        MsgBox "ContractID changed in memory but saving failed. Keep the data workbook open and resolve the save error: " & errorText, vbCritical, "Reminders"
+    Else
+        MsgBox "ContractID was not changed: " & errorText, vbExclamation, "Reminders"
+    End If
+End Sub

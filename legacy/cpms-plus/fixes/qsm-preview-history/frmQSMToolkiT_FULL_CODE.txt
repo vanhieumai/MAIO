@@ -1,0 +1,956 @@
+﻿'form LinkKL
+'Ðã tách trang License ra form frmLicense riêng.
+'Form này ch? còn n?i dung Toolkit (b? MultiPage1).
+Option Explicit
+Private isBusy As Boolean
+Private srcWorkbook As Workbook
+Private mHistorySession As String
+Private mUnsavedHistory As Object
+
+
+Private Sub btnExpandRows_Click()
+    If defaultWorkbook Is Nothing Then
+        ShowMsgCenter "No workbook loaded. Please open a workbook first.", vbExclamation
+        Exit Sub
+    End If
+
+    Dim f As frmExpandRows
+    Set f = New frmExpandRows
+    f.Init defaultWorkbook, cbSheetGT.value
+    f.Show vbModeless
+    Set f = Nothing
+End Sub
+
+Private Sub btnExportSheet_Click()
+    'frmExportSlx.Show vbModeless
+    frmExportnewSlx.Show vbModeless
+End Sub
+
+
+
+Private Sub imgVanhieumai_MouseUp(ByVal Button As Integer, _
+                             ByVal Shift As Integer, _
+                             ByVal X As Single, _
+                             ByVal Y As Single)
+    HandleImageMouseUp imgVanhieumai, Button, Shift
+End Sub
+
+Private Sub imgVNCN_MouseUp(ByVal Button As Integer, _
+                             ByVal Shift As Integer, _
+                             ByVal X As Single, _
+                             ByVal Y As Single)
+    HandleImageMouseUp imgVNCN, Button, Shift
+End Sub
+
+
+
+
+
+Private Sub UpdateSourceLabel()
+
+    Dim userWbName As String
+    If defaultWorkbook Is Nothing Then
+        userWbName = "(no workbook open)"
+    Else
+        userWbName = defaultWorkbook.Name
+    End If
+
+    If srcWorkbook Is Nothing Then
+        ' Chua ch?n source ngoài ? TH l?y t? file user
+        lblSourceInfo.Caption = "Source: " & userWbName
+    Else
+        ' Ðã ch?n external source cho sheet TH
+        lblSourceInfo.Caption = "Source (TH): External [" & srcWorkbook.Name & "]" & _
+                                "  |  Target (GT): " & userWbName
+    End If
+
+End Sub
+
+Private Sub RefreshSheetCombos()
+
+    Dim ws As Worksheet
+
+    cbSheetTH.Clear
+    cbSheetGT.Clear
+
+    ' N?u chua detect du?c workbook c?a user thì th? l?i
+    If defaultWorkbook Is Nothing Then
+        Set defaultWorkbook = GetUserWorkbook()
+    End If
+
+    If defaultWorkbook Is Nothing Then Exit Sub   ' Không có workbook nào m?
+
+    For Each ws In defaultWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible Then
+            cbSheetTH.AddItem ws.Name
+            cbSheetGT.AddItem ws.Name
+        End If
+    Next ws
+
+End Sub
+
+
+Private Sub cbSheetTH_Change()
+
+    If isBusy Then Exit Sub
+    If cbSheetTH.ListIndex = -1 Then Exit Sub
+    If Trim(cbSheetTH.value) = "" Then Exit Sub
+
+    UpdateSourceLabel
+
+    Dim wb As Workbook
+    If srcWorkbook Is Nothing Then
+        Set wb = defaultWorkbook
+    Else
+        Set wb = srcWorkbook
+    End If
+
+    '--- DOUBLE CHECK: sheet có t?n t?i không
+    On Error Resume Next
+    LoadColumns wb.Worksheets(cbSheetTH.value), cbCotTenTH, lbCotKL_TH, 1
+    On Error GoTo 0
+
+End Sub
+
+
+
+Private Sub cbSheetGT_Change()
+
+    If isBusy Then Exit Sub
+    If cbSheetGT.ListIndex = -1 Then Exit Sub
+    If Trim(cbSheetGT.value) = "" Then Exit Sub
+
+    LoadColumns defaultWorkbook.Worksheets(cbSheetGT.value), cbCotTenGT, lbCotKL_GT, 1
+
+End Sub
+
+
+
+Private Sub btnExternalSource_Click()
+
+    Dim fd As FileDialog
+    Dim wbSrc As Workbook
+    Dim wbTarget As Workbook
+    Dim selectedPath As String
+    Dim wb As Workbook
+
+    Set wbTarget = defaultWorkbook
+
+    Set srcWorkbook = Nothing
+    srcWbName = ""
+    srcWbPath = ""
+
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+
+    With fd
+        .title = "Select source Excel file"
+        .Filters.Clear
+        .Filters.Add "Excel Files", "*.xlsx; *.xlsm"
+        .AllowMultiSelect = False
+        If .Show <> -1 Then Exit Sub
+    End With
+
+    selectedPath = fd.SelectedItems(1)
+
+    ' Ki?m tra file dã m? chua qua Workbooks collection (KHÔNG dùng GetObject)
+    For Each wb In Application.Workbooks
+        If wb.fullName = selectedPath Then
+            Set wbSrc = wb
+            Exit For
+        End If
+    Next wb
+
+    ' N?u dã m? nhung không ph?i read-only ? dóng và m? l?i
+    If Not wbSrc Is Nothing Then
+        If Not wbSrc.ReadOnly Then
+            wbSrc.Close SaveChanges:=False
+            Set wbSrc = Nothing
+        End If
+    End If
+
+    ' M? file n?u chua m?
+    If wbSrc Is Nothing Then
+
+        Application.ScreenUpdating = False
+        Application.AskToUpdateLinks = False
+
+        Set wbSrc = Workbooks.Open( _
+            fileName:=selectedPath, _
+            UpdateLinks:=0, _
+            ReadOnly:=True, _
+            IgnoreReadOnlyRecommended:=True, _
+            AddToMru:=False _
+        )
+
+        Application.AskToUpdateLinks = True
+        Application.ScreenUpdating = True
+
+    End If
+
+    If wbSrc Is Nothing Then
+        ShowMsgCenter "Cannot open source file"
+        UpdateSourceLabel
+        Exit Sub
+    End If
+
+    If wbSrc.Windows.count > 0 Then
+        wbSrc.Windows(1).Visible = True
+    End If
+
+    Set srcWorkbook = wbSrc
+    srcWbName = wbSrc.Name
+    srcWbPath = wbSrc.fullName
+    isUsingExternalSource = True
+
+    LoadSourceSheets
+    UpdateSourceLabel
+
+    wbTarget.Activate
+
+    ShowMsgCenter "External file loaded as Source (Read-Only)"
+
+End Sub
+
+
+Private Sub LoadSourceSheets()
+
+    Dim ws As Worksheet
+
+    cbSheetTH.Clear
+
+    For Each ws In srcWorkbook.Worksheets
+        If ws.Visible = xlSheetVisible Then
+            cbSheetTH.AddItem ws.Name
+        End If
+    Next ws
+
+End Sub
+
+Private Sub btnWorkbookManager_Click()
+
+    On Error GoTo EH
+
+    '==============================
+    ' CH? M? FORM — m?i hành d?ng
+    ' (unhide/rehide sheets, merge,
+    '  luu file) du?c x? lý bên trong
+    '  form frmMergeSheets.
+    '==============================
+    Dim f As frmMergeSheets
+    Set f = New frmMergeSheets
+    f.Show vbModeless
+    Set f = Nothing
+
+    '==============================
+    ' REFRESH SHEET LIST (n?u c?n)
+    '==============================
+    RefreshSheetCombos
+
+    Exit Sub
+
+EH:
+    ShowMsgCenter _
+        "An error occurred while opening Merge tool." & vbCrLf & _
+        "Please try again.", vbCritical
+
+End Sub
+
+
+
+Private Sub btnPreviewLink_Click()
+    On Error GoTo Failed
+    If isBusy Then Exit Sub
+    If Not LinkInputsReady() Then
+        If Not RestoreLinkHistory() Then Exit Sub
+    End If
+    Dim plan As clsQSMLinkPlan, f As frmPreviewLink
+    Set plan = CaptureLinkPlan()
+    Set f = New frmPreviewLink
+    f.Configure plan
+    RememberLinkSetup
+    f.Show vbModeless
+    Exit Sub
+Failed:
+    MsgBox "Cannot open Preview: " & Err.Description, vbExclamation, "QSM Toolkit"
+End Sub
+
+
+
+
+Private Function FindMatchingRow(wsTH As Worksheet, wsGT As Worksheet, _
+                                 rGT As Long, colTenTH As Long, colTenGT As Long) As Long
+    Dim i As Long, rTH As Long
+    Dim hm As String
+    Dim countGT As Long, countTH As Long
+    Dim firstRow As Long: firstRow = 10
+
+    hm = Trim(wsGT.Cells(rGT, colTenGT).value)
+
+    For i = firstRow To rGT
+        If Trim(wsGT.Cells(i, colTenGT).value) = hm Then countGT = countGT + 1
+    Next i
+
+    For rTH = firstRow To wsTH.Cells(wsTH.rows.count, colTenTH).End(xlUp).Row
+        If Trim(wsTH.Cells(rTH, colTenTH).value) = hm Then
+            countTH = countTH + 1
+            If countTH = countGT Then
+                FindMatchingRow = rTH
+                Exit Function
+            End If
+        End If
+    Next rTH
+End Function
+
+Private Function FormatPreviewValue(v As Variant) As String
+
+    ' 1. Error value (#N/A, #VALUE!, ...)
+    If IsError(v) Then
+        FormatPreviewValue = ""
+        Exit Function
+    End If
+
+    ' 2. Empty / Null
+    If IsEmpty(v) Or IsNull(v) Then
+        FormatPreviewValue = ""
+        Exit Function
+    End If
+
+    ' 3. Empty string
+    If Trim(CStr(v)) = "" Then
+        FormatPreviewValue = ""
+        Exit Function
+    End If
+
+    ' 4. Numeric
+    If IsNumeric(v) Then
+        FormatPreviewValue = Format(CDbl(v), "#,##0.00")
+        Exit Function
+    End If
+
+    ' 5. Default
+    FormatPreviewValue = CStr(v)
+
+End Function
+
+
+
+Private Function ValidateInputForLink() As Boolean
+
+    Dim i As Long
+    Dim cntTH As Long, cntGT As Long
+
+    '--- CHECK SHEET
+    If cbSheetTH.value = "" Or cbSheetGT.value = "" Then
+        ShowMsgCenter "Please select source sheet and target sheet", vbExclamation
+        Exit Function
+    End If
+
+    '--- CHECK C?T TÊN
+    If cbCotTenTH.value = "" Or cbCotTenGT.value = "" Then
+        ShowMsgCenter "Please select matching column", vbCritical
+        Exit Function
+    End If
+
+    '--- COUNT C?T KL
+    For i = 0 To lbCotKL_TH.ListCount - 1
+        If lbCotKL_TH.Selected(i) Then cntTH = cntTH + 1
+    Next i
+
+    For i = 0 To lbCotKL_GT.ListCount - 1
+        If lbCotKL_GT.Selected(i) Then cntGT = cntGT + 1
+    Next i
+
+    If cntTH = 0 Or cntGT = 0 Then
+        ShowMsgCenter "Please select the data column", vbCritical
+        Exit Function
+    End If
+
+    If cntTH <> cntGT Then
+        ShowMsgCenter "The number of data columns in the source and target must be the same", vbExclamation
+        Exit Function
+    End If
+
+    ValidateInputForLink = True
+
+End Function
+
+
+
+'==============================
+' FORM ACTIVATE
+'==============================
+Private Sub UserForm_Activate()
+
+    Static UIloaded As Boolean
+
+    If UIloaded Then Exit Sub
+
+    isBusy = True
+
+    '===================================
+    ' LOAD INTERNAL SHEETS
+    '===================================
+    RefreshSheetCombos
+
+    cbSheetTH.ListIndex = -1
+    cbSheetGT.ListIndex = -1
+    UpdateSourceLabel
+
+    '===================================
+    ' LOAD IMAGES
+    ' NÂNG C?P: Image1..Image6 gi? là ?nh theo THEME (category
+    ' "Icons", resName = tên control), du?c ApplyTheme Me
+    ' (UserForm_Initialize) n?p t? d?ng qua modTheme.LoadControlImages
+    '===================================
+
+    isBusy = False
+
+    UIloaded = True
+
+End Sub
+
+
+'==============================
+' FORM INITIALIZE
+'==============================
+Private Sub UserForm_Initialize()
+    mHistorySession = Format$(Now, "yyyymmddhhnnss") & "-" & CStr(Timer)
+
+    isBusy = True
+    ApplyTheme Me
+    'UnregisterForm Me
+
+    '===================================
+    ' DETECT WORKBOOK C?A USER (file dang m? khi user g?i form)
+    '===================================
+    Set defaultWorkbook = GetUserWorkbook()
+
+    '===================================
+    ' WORKING DIRECTORY — dùng path c?a user workbook, không ph?i XLAM
+    '===================================
+    On Error Resume Next
+    If Not defaultWorkbook Is Nothing Then
+        ChDrive defaultWorkbook.path
+        ChDir defaultWorkbook.path
+    End If
+    On Error GoTo 0
+
+    '===================================
+    ' Bây gi? m?i b?t error handler chính
+    '===================================
+    On Error GoTo SAFE_EXIT
+
+    '===================================
+    ' RESET SOURCE CONTEXT
+    '===================================
+    Set srcWorkbook = Nothing
+    srcWbName = ""
+    srcWbPath = ""
+    isUsingExternalSource = False
+
+    UpdateSourceLabel
+
+    '===================================
+    ' CLEAR COMBO / LIST (KHÔNG LOAD)
+    '===================================
+    cbSheetTH.Clear
+    cbSheetGT.Clear
+    cbCotTenTH.Clear
+    cbCotTenGT.Clear
+    lbCotKL_TH.Clear
+    lbCotKL_GT.Clear
+
+SAFE_EXIT:
+    isBusy = False
+
+End Sub
+
+
+Private Function IsSourceWorkbookOpen() As Boolean
+
+    Dim wb As Workbook
+
+    If srcWbName = "" Then Exit Function
+
+    For Each wb In Application.Workbooks
+
+        If StrComp(wb.Name, srcWbName, vbTextCompare) = 0 Then
+            Set srcWorkbook = wb
+            IsSourceWorkbookOpen = True
+            Exit Function
+        End If
+
+    Next wb
+
+    ' source dã dóng
+    Set srcWorkbook = Nothing
+
+End Function
+
+Private Function CheckSourceOrReset() As Boolean
+
+    If srcWbName = "" Then
+        CheckSourceOrReset = True
+        Exit Function
+    End If
+
+    If Not IsSourceWorkbookOpen Then
+
+        srcWbName = ""
+        srcWbPath = ""
+
+        ShowMsgCenter "Source workbook has been closed.", vbExclamation
+
+        btnResetLink_Click
+        Exit Function
+
+    End If
+
+    CheckSourceOrReset = True
+
+End Function
+
+Private Sub cbSheetTH_AfterUpdate()
+    If isBusy Then Exit Sub
+
+    Dim ws As Worksheet
+    Dim wbSrc As Workbook
+
+    If Not CheckSourceOrReset Then Exit Sub
+
+    ' N?u có external source ? dùng nó, không thì dùng file user
+    If srcWorkbook Is Nothing Then
+        Set wbSrc = defaultWorkbook
+    Else
+        Set wbSrc = srcWorkbook
+    End If
+
+    If wbSrc Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set ws = wbSrc.Worksheets(cbSheetTH.value)
+    On Error GoTo 0
+
+    If ws Is Nothing Then Exit Sub
+
+    LoadColumns ws, cbCotTenTH, lbCotKL_TH, 1
+
+End Sub
+
+Private Sub cbSheetGT_AfterUpdate()
+    If isBusy Then Exit Sub
+
+    Dim ws As Worksheet
+
+    If defaultWorkbook Is Nothing Then Exit Sub
+
+    On Error Resume Next
+    Set ws = defaultWorkbook.Worksheets(cbSheetGT.value)
+    On Error GoTo 0
+
+    If ws Is Nothing Then Exit Sub
+
+    LoadColumns ws, cbCotTenGT, lbCotKL_GT, 1
+
+End Sub
+
+Private Sub cbSheetTH_DropButtonClick()
+
+    If Not CheckSourceOrReset Then Exit Sub
+
+End Sub
+
+Private Sub cbSheetGT_DropButtonClick()
+
+    If Not CheckSourceOrReset Then Exit Sub
+
+End Sub
+
+
+
+
+'==============================
+' LOAD COLUMNS (SAFE – NO TYPE ERROR)
+'==============================
+Private Sub LoadColumns(ws As Worksheet, cbo As Object, lb As Object, _
+                        Optional extraCols As Long = 0)
+
+    Dim i As Long
+    Dim lastCol As Long
+
+    cbo.Clear
+    lb.Clear
+    lb.MultiSelect = fmMultiSelectMulti
+
+    '=== TÌM C?T CU?I CÓ DATA (B?T K? ROW NÀO) ===
+    ' Dùng Find thay vì UsedRange (tránh th?a do ô có format không có value)
+    ' và thay vì End(xlToLeft) trên row 1 (b? sót khi row 1 tr?ng)
+    Dim lastCell As Range
+    On Error Resume Next
+    Set lastCell = ws.Cells.Find(What:="*", _
+                                 After:=ws.Cells(1, 1), _
+                                 LookIn:=xlFormulas, _
+                                 SearchOrder:=xlByColumns, _
+                                 SearchDirection:=xlPrevious)
+    On Error GoTo 0
+
+    If lastCell Is Nothing Then
+        If extraCols = 0 Then Exit Sub
+        lastCol = 0
+    Else
+        lastCol = lastCell.Column
+    End If
+
+    For i = 1 To lastCol + extraCols
+        cbo.AddItem ws.Cells(1, i).Address(False, False)
+        lb.AddItem ws.Cells(1, i).Address(False, False)
+    Next i
+
+End Sub
+
+
+Private Sub btnLink_Click()
+    On Error GoTo Failed
+    If isBusy Then Exit Sub
+    If Not ValidateInputForLink() Then Exit Sub
+    Dim plan As clsQSMLinkPlan
+    Set plan = CaptureLinkPlan()
+    isBusy = True
+    If plan.Execute(1, plan.LastTargetRow) Then RememberLinkSetup
+    isBusy = False
+    Exit Sub
+Failed:
+    isBusy = False
+    MsgBox "Cannot link: " & Err.Description, vbExclamation, "QSM Toolkit"
+End Sub
+
+
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If CloseMode = vbFormControlMenu Then
+        Unload Me
+    End If
+    UnregisterForm Me
+End Sub
+
+Private Sub ResetSheetSelection()
+
+    isBusy = True
+
+    ' reset sheet selection
+    cbSheetTH.ListIndex = -1
+    cbSheetGT.ListIndex = -1
+
+    ' clear column controls
+    cbCotTenTH.Clear
+    cbCotTenGT.Clear
+
+    lbCotKL_TH.Clear
+    lbCotKL_GT.Clear
+
+    isBusy = False
+
+End Sub
+
+
+Private Sub btnResetLink_Click()
+
+    Dim i As Long
+    isBusy = True
+
+    '==============================
+    ' CLEAR SOURCE WORKBOOK (FILE NGOÀI)
+    '==============================
+    Set srcWorkbook = Nothing
+    srcWbName = ""
+    srcWbPath = ""
+    isUsingExternalSource = False
+
+    '==============================
+    ' RELOAD SHEET LIST = THISWORKBOOK
+    '==============================
+    Call RefreshSheetCombos
+
+    '==============================
+    ' RESET SELECTION (KHÔNG CLEAR LIST)
+    '==============================
+    cbSheetTH.ListIndex = -1
+    cbSheetGT.ListIndex = -1
+
+    '==============================
+    ' CLEAR COLUMN COMBO
+    '==============================
+    cbCotTenTH.Clear
+    cbCotTenGT.Clear
+
+    '==============================
+    ' CLEAR KL LISTBOX
+    '==============================
+    lbCotKL_TH.Clear
+    lbCotKL_GT.Clear
+
+    '==============================
+    ' UPDATE SOURCE LABEL
+    '==============================
+    UpdateSourceLabel
+
+    isBusy = False
+
+End Sub
+
+
+
+
+Private Function IsExternalSourceAlive() As Boolean
+    Dim wb As Workbook
+
+    If srcWorkbook Is Nothing Then
+        IsExternalSourceAlive = True   ' internal source
+        Exit Function
+    End If
+
+    For Each wb In Application.Workbooks
+        If wb Is srcWorkbook Then
+            IsExternalSourceAlive = True
+            Exit Function
+        End If
+    Next wb
+
+    IsExternalSourceAlive = False
+End Function
+
+
+
+
+Private Function HasAnyContract(ws As Worksheet) As Boolean
+    Dim r As Long
+    For r = 2 To ws.Cells(ws.rows.count, 1).End(xlUp).Row
+        If Trim(ws.Cells(r, 1).value) <> "" _
+           And Left(ws.Cells(r, 1).value, 5) <> "GROUP" Then
+            HasAnyContract = True
+            Exit Function
+        End If
+    Next r
+    HasAnyContract = False
+End Function
+
+
+
+
+Public Sub SyncLedgerFromContract(contractID As String)
+
+    Dim wsLedger As Worksheet
+    Dim wsDB As Worksheet
+    Dim r As Long, lastRow As Long
+    Dim dbRow As Long
+
+    If Trim(contractID) = "" Then Exit Sub
+
+    Set wsLedger = EnsurePaymentLedger
+    Set wsDB = EnsureContractDB
+
+    ' === tìm contract trong DB ===
+    dbRow = FindContractRowByID(wsDB, contractID)
+    If dbRow = 0 Then Exit Sub
+
+    lastRow = wsLedger.Cells(wsLedger.rows.count, "C").End(xlUp).Row
+
+    ' === quét toàn b? ledger ===
+    For r = 2 To lastRow
+
+        ' ===== dúng contract family =====
+        If (Trim(wsLedger.Cells(r, "C").value) = contractID) And (Trim(wsLedger.Cells(r, "B").value) = "") Then
+
+            With wsLedger
+
+                ' ===== CORE INFO =====
+                Call WriteTextCell(.Cells(r, "D"), wsDB.Cells(dbRow, "B").value)
+                .Cells(r, "F").value = wsDB.Cells(dbRow, "K").value   ' Scope / ItemName
+
+                ' ===== FINANCIAL MASTER =====
+                .Cells(r, "G").value = wsDB.Cells(dbRow, "M").value   ' ExchangeRate
+                .Cells(r, "H").value = wsDB.Cells(dbRow, "N").value   ' EstimatedValue
+                .Cells(r, "I").value = wsDB.Cells(dbRow, "O").value   ' ContractValue
+
+            End With
+
+        End If
+
+    Next r
+
+End Sub
+
+
+
+
+
+Private Function LinkInputsReady() As Boolean
+    Dim i As Long, a As Long, b As Long
+    If cbSheetTH.ListIndex < 0 Or cbSheetGT.ListIndex < 0 Or cbCotTenTH.ListIndex < 0 Or cbCotTenGT.ListIndex < 0 Then Exit Function
+    For i = 0 To lbCotKL_TH.ListCount - 1
+        If lbCotKL_TH.Selected(i) Then a = a + 1
+    Next i
+    For i = 0 To lbCotKL_GT.ListCount - 1
+        If lbCotKL_GT.Selected(i) Then b = b + 1
+    Next i
+    LinkInputsReady = (a > 0 And a = b)
+End Function
+
+Private Function SelectedLinkColumns(ByVal lb As Object, ByVal ws As Worksheet) As String
+    Dim i As Long, result As String
+    For i = 0 To lb.ListCount - 1
+        If lb.Selected(i) Then
+            If result <> "" Then result = result & ","
+            result = result & ws.Range(CStr(lb.List(i))).Column
+        End If
+    Next i
+    SelectedLinkColumns = result
+End Function
+
+Private Function CaptureLinkPlan() As clsQSMLinkPlan
+    If Not LinkInputsReady() Then Err.Raise 5, , "Select both sheets, matching columns and the same number of link columns."
+    If Not IsExternalSourceAlive() Then Err.Raise 5, , "Source workbook has been closed."
+    Dim source As Worksheet, target As Worksheet, wb As Workbook, plan As clsQSMLinkPlan
+    If srcWorkbook Is Nothing Then Set wb = defaultWorkbook Else Set wb = srcWorkbook
+    Set source = wb.Worksheets(CStr(cbSheetTH.Value))
+    Set target = defaultWorkbook.Worksheets(CStr(cbSheetGT.Value))
+    Set plan = New clsQSMLinkPlan
+    plan.Configure source, target, source.Range(CStr(cbCotTenTH.Value)).Column, target.Range(CStr(cbCotTenGT.Value)).Column, _
+                   SelectedLinkColumns(lbCotKL_TH, source), SelectedLinkColumns(lbCotKL_GT, target)
+    Set CaptureLinkPlan = plan
+End Function
+
+Private Sub RememberLinkSetup()
+    ' Only UI configuration is stored; no worksheet contents or credentials.
+    Dim source As Workbook, record As String, token As String, i As Long, old As String
+    On Error GoTo Failed
+    If srcWorkbook Is Nothing Then Set source = defaultWorkbook Else Set source = srcWorkbook
+    If source.Path = "" Or defaultWorkbook.Path = "" Then token = mHistorySession
+    record = source.FullName & vbTab & defaultWorkbook.FullName & vbTab & CStr(cbSheetTH.Value) & vbTab & _
+        CStr(cbSheetGT.Value) & vbTab & CStr(cbCotTenTH.Value) & vbTab & CStr(cbCotTenGT.Value) & vbTab & _
+        SelectedLinkColumns(lbCotKL_TH, source.Worksheets(CStr(cbSheetTH.Value))) & vbTab & _
+        SelectedLinkColumns(lbCotKL_GT, defaultWorkbook.Worksheets(CStr(cbSheetGT.Value))) & vbTab & token
+    If token <> "" Then
+        If mUnsavedHistory Is Nothing Then Set mUnsavedHistory = CreateObject("Scripting.Dictionary")
+        Dim pair As Collection
+        Set pair = New Collection
+        pair.Add source
+        pair.Add defaultWorkbook
+        If mUnsavedHistory.Exists(record) Then mUnsavedHistory.Remove record
+        mUnsavedHistory.Add record, pair
+    End If
+    Dim records As Collection
+    Set records = New Collection
+    records.Add record
+    For i = 1 To 5
+        old = GetSetting("CPMS_QSMToolkit", "LinkHistoryV1", CStr(i), "")
+        If old <> "" And old <> record And records.Count < 5 Then records.Add old
+    Next i
+    For i = 1 To records.Count
+        SaveSetting "CPMS_QSMToolkit", "LinkHistoryV1", CStr(i), CStr(records(i))
+    Next i
+    Exit Sub
+Failed:
+    MsgBox "Preview/link can continue, but history could not be saved: " & Err.Description, vbExclamation, "QSM history"
+End Sub
+
+Private Function FindHistoryWorkbook(ByVal fullName As String) As Workbook
+    Dim wb As Workbook
+    For Each wb In Application.Workbooks
+        If StrComp(wb.FullName, fullName, vbTextCompare) = 0 Then
+            Set FindHistoryWorkbook = wb
+            Exit Function
+        End If
+    Next wb
+End Function
+
+Private Sub RestoreHistoryColumns(ByVal ws As Worksheet, ByVal cbo As Object, ByVal lb As Object, ByVal matchAddress As String, ByVal columns As String)
+    Dim parts As Variant, item As Variant, maxCol As Long, n As Long, i As Long
+    parts = Split(columns, ",")
+    maxCol = ws.Range(matchAddress).Column
+    For Each item In parts
+        n = CLng(item)
+        If n < 1 Or n > ws.Columns.Count Then Err.Raise 5, , "History contains an invalid column."
+        If n > maxCol Then maxCol = n
+    Next item
+    LoadColumns ws, cbo, lb, 1
+    For i = lb.ListCount + 1 To maxCol
+        cbo.AddItem ws.Cells(1, i).Address(False, False)
+        lb.AddItem ws.Cells(1, i).Address(False, False)
+    Next i
+    cbo.Value = matchAddress
+    For Each item In parts
+        lb.Selected(CLng(item) - 1) = True
+    Next item
+End Sub
+
+Private Function RestoreLinkHistory() As Boolean
+    Dim records As Collection, i As Long, record As String, fields As Variant
+    Dim menu As String, answer As Variant, idx As Long
+    Dim source As Workbook, target As Workbook, sourceSheet As Worksheet, targetSheet As Worksheet, ws As Worksheet
+    On Error GoTo Failed
+    Set records = New Collection
+    For i = 1 To 5
+        record = GetSetting("CPMS_QSMToolkit", "LinkHistoryV1", CStr(i), "")
+        If record <> "" Then
+            fields = Split(record, vbTab)
+            If UBound(fields) = 8 Then
+                records.Add record
+                menu = menu & records.Count & ". " & Left$(fields(2), 25) & " -> " & Left$(fields(3), 25) & _
+                    " [" & Left$(Mid$(fields(1), InStrRev(fields(1), "\") + 1), 30) & "]" & vbCrLf
+            End If
+        End If
+    Next i
+    If records.Count = 0 Then
+        MsgBox "No history yet. Select the sheets/columns manually once and open Preview or Link Data to save the setup.", vbInformation, "QSM history"
+        Exit Function
+    End If
+    answer = InputBox("Input is incomplete. Choose a saved setup by number:" & vbCrLf & menu, "QSM history")
+    If Len(Trim$(CStr(answer))) = 0 Then Exit Function
+    If Not IsNumeric(answer) Then Err.Raise 5, , "Enter a history number."
+    answer = CDbl(answer)
+    If answer < 1 Or answer > records.Count Or answer <> Fix(answer) Then Err.Raise 5, , "Invalid history number."
+    idx = CLng(answer)
+    fields = Split(CStr(records(idx)), vbTab)
+    If fields(8) <> "" And fields(8) <> mHistorySession Then Err.Raise 5, , "This setup used an unsaved workbook in an earlier session. Select the workbook manually."
+    Set source = FindHistoryWorkbook(CStr(fields(0)))
+    Set target = FindHistoryWorkbook(CStr(fields(1)))
+    If source Is Nothing Or target Is Nothing Then Err.Raise 5, , "Open the original source and target workbooks first:" & vbCrLf & fields(0) & vbCrLf & fields(1)
+    If fields(8) <> "" Then
+        If mUnsavedHistory Is Nothing Then Err.Raise 5, , "Unsaved workbook history is no longer available."
+        If Not mUnsavedHistory.Exists(CStr(records(idx))) Then Err.Raise 5, , "Unsaved workbook history is no longer available."
+        Dim originals As Collection, originalSource As Workbook, originalTarget As Workbook
+        Set originals = mUnsavedHistory(CStr(records(idx)))
+        Set originalSource = originals(1): Set originalTarget = originals(2)
+        If Not (source Is originalSource) Or Not (target Is originalTarget) Then Err.Raise 5, , "The original unsaved workbook was closed. Select the new workbook manually."
+    End If
+    Set sourceSheet = source.Worksheets(CStr(fields(2)))
+    Set targetSheet = target.Worksheets(CStr(fields(3)))
+    If sourceSheet.Visible <> xlSheetVisible Or targetSheet.Visible <> xlSheetVisible Then Err.Raise 5, , "A history worksheet is hidden. Show it before restoring."
+    isBusy = True
+    Set defaultWorkbook = target
+    Set srcWorkbook = Nothing
+    srcWbName = "": srcWbPath = "": isUsingExternalSource = False
+    If Not (source Is target) Then
+        Set srcWorkbook = source
+        srcWbName = source.Name: srcWbPath = source.FullName: isUsingExternalSource = True
+    End If
+    cbSheetTH.Clear: cbSheetGT.Clear
+    For Each ws In source.Worksheets
+        If ws.Visible = xlSheetVisible Then cbSheetTH.AddItem ws.Name
+    Next ws
+    For Each ws In target.Worksheets
+        If ws.Visible = xlSheetVisible Then cbSheetGT.AddItem ws.Name
+    Next ws
+    cbSheetTH.Value = sourceSheet.Name
+    cbSheetGT.Value = targetSheet.Name
+    RestoreHistoryColumns sourceSheet, cbCotTenTH, lbCotKL_TH, CStr(fields(4)), CStr(fields(6))
+    RestoreHistoryColumns targetSheet, cbCotTenGT, lbCotKL_GT, CStr(fields(5)), CStr(fields(7))
+    UpdateSourceLabel
+    isBusy = False
+    RestoreLinkHistory = LinkInputsReady()
+    Exit Function
+Failed:
+    isBusy = False
+    MsgBox "Cannot restore history: " & Err.Description, vbExclamation, "QSM history"
+End Function

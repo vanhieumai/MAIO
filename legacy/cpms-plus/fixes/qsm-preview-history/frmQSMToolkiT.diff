@@ -1,0 +1,594 @@
+--- current/frmQSMToolkiT
++++ fixed/frmQSMToolkiT
+@@ -12,6 +12,8 @@
+ Option Explicit
+ Private isBusy As Boolean
+ Private srcWorkbook As Workbook
++Private mHistorySession As String
++Private mUnsavedHistory As Object
+ 
+ 
+ Private Sub btnExpandRows_Click()
+@@ -264,140 +266,20 @@
+ 
+ 
+ Private Sub btnPreviewLink_Click()
+-
+-    Dim wsTH As Worksheet, wsGT As Worksheet
+-    Dim colTenTH As Long, colTenGT As Long
+-    Dim colKL_TH() As Long
+-    Dim rGT As Long, rTH As Long
+-    Dim i As Long, idx As Long, nKL As Long
+-    Dim firstRow As Long: firstRow = 1
+-    Dim lastRowGT As Long
+-
+-    '==============================
+-    ' CHECK SOURCE
+-    '==============================
+-    If Not IsExternalSourceAlive() Then
+-        ShowMsgCenter _
+-            "Source file has been closed" & vbCrLf & _
+-            "Please click RESET and select source again"
+-        Exit Sub
+-    End If
+-
+-    '==============================
+-    ' CHECK INPUT
+-    '==============================
+-    If cbSheetTH.value = "" Or cbSheetGT.value = "" _
+-        Or cbCotTenTH.value = "" Or cbCotTenGT.value = "" Then
+-        ShowMsgCenter "Please select all required sheets and columns before preview"
+-        Exit Sub
+-    End If
+-
+-    '==============================
+-    ' GET KL COLUMNS (MAX 4)
+-    '==============================
+-    nKL = -1
+-    For i = 0 To lbCotKL_TH.ListCount - 1
+-        If lbCotKL_TH.Selected(i) Then
+-            nKL = nKL + 1
+-            ReDim Preserve colKL_TH(nKL)
+-            colKL_TH(nKL) = wsColumnIndex(lbCotKL_TH.List(i))
+-            If nKL = 3 Then Exit For
+-        End If
+-    Next i
+-
+-    If nKL < 0 Then
+-        ShowMsgCenter "Please select at least one Quantity column"
+-        Exit Sub
+-    End If
+-
+-    '==============================
+-    ' SET WORKSHEETS
+-    '==============================
+-    Dim wbSrc As Workbook
+-    Set wbSrc = GetSourceWorkbook()
+-    If wbSrc Is Nothing Then
+-        ShowMsgCenter "Source file not available"
+-        Exit Sub
+-    End If
+-
+-    Set wsTH = wbSrc.Worksheets(cbSheetTH.value)
+-    Set wsGT = defaultWorkbook.Worksheets(cbSheetGT.value)
+-
+-    colTenTH = wsTH.Range(cbCotTenTH.value).Column
+-    colTenGT = wsGT.Range(cbCotTenGT.value).Column
+-
+-    lastRowGT = wsGT.Cells(wsGT.rows.count, colTenGT).End(xlUp).Row
+-
+-    '==============================
+-    ' CREATE PREVIEW FORM
+-    '==============================
+-    Dim f As frmPreviewLink
++    On Error GoTo Failed
++    If isBusy Then Exit Sub
++    If Not LinkInputsReady() Then
++        If Not RestoreLinkHistory() Then Exit Sub
++    End If
++    Dim plan As clsQSMLinkPlan, f As frmPreviewLink
++    Set plan = CaptureLinkPlan()
+     Set f = New frmPreviewLink
+-    f.SetSourceWorkbook wbSrc
+-
+-    With f.lbPreview
+-        .Clear
+-        .ColumnCount = 6
+-    End With
+-
+-    '==============================
+-    ' BUILD PREVIEW
+-    '==============================
+-    Dim arrSheet() As String
+-    Dim arrAddress() As String
+-    Dim p As Long: p = -1
+-
+-    For rGT = firstRow To lastRowGT
+-
+-        Dim itemName As String
+-        itemName = Trim(wsGT.Cells(rGT, colTenGT).value)
+-        If itemName = "" Then GoTo NextGT
+-
+-        rTH = FindMatchingRow(wsTH, wsGT, rGT, colTenTH, colTenGT)
+-
+-        p = p + 1
+-        ReDim Preserve arrSheet(p)
+-        ReDim Preserve arrAddress(p)
+-
+-        With f.lbPreview
+-            .AddItem itemName
+-
+-            If rTH > 0 Then
+-                arrSheet(p) = wsTH.Name
+-                arrAddress(p) = wsTH.Cells(rTH, colKL_TH(0)).Address
+-            Else
+-                arrSheet(p) = ""
+-                arrAddress(p) = ""
+-            End If
+-
+-            For idx = 0 To 3
+-                If idx <= nKL And rTH > 0 Then
+-                    .List(.ListCount - 1, idx + 1) = _
+-                        FormatPreviewValue(wsTH.Cells(rTH, colKL_TH(idx)).value)
+-                Else
+-                    .List(.ListCount - 1, idx + 1) = ""
+-                End If
+-            Next idx
+-
+-            .List(.ListCount - 1, 5) = IIf(rTH > 0, "OK", "Not Found")
+-        End With
+-
+-NextGT:
+-    Next rGT
+-
+-    If f.lbPreview.ListCount = 0 Then
+-        ShowMsgCenter "No data available for preview"
+-        Unload f
+-        Exit Sub
+-    End If
+-
+-    '==============================
+-    ' PASS DATA & SHOW
+-    '==============================
+-    f.SetPreviewSource arrSheet, arrAddress
++    f.Configure plan
++    RememberLinkSetup
+     f.Show vbModeless
+-    Set f = Nothing
+-
++    Exit Sub
++Failed:
++    MsgBox "Cannot open Preview: " & Err.Description, vbExclamation, "QSM Toolkit"
+ End Sub
+ 
+ 
+@@ -540,6 +422,7 @@
+ ' FORM INITIALIZE
+ '==============================
+ Private Sub UserForm_Initialize()
++    mHistorySession = Format$(Now, "yyyymmddhhnnss") & "-" & CStr(Timer)
+ 
+     isBusy = True
+     ApplyTheme Me
+@@ -636,6 +519,7 @@
+ End Function
+ 
+ Private Sub cbSheetTH_AfterUpdate()
++    If isBusy Then Exit Sub
+ 
+     Dim ws As Worksheet
+     Dim wbSrc As Workbook
+@@ -662,6 +546,7 @@
+ End Sub
+ 
+ Private Sub cbSheetGT_AfterUpdate()
++    If isBusy Then Exit Sub
+ 
+     Dim ws As Worksheet
+ 
+@@ -733,218 +618,18 @@
+ 
+ 
+ Private Sub btnLink_Click()
+-    Dim oldPath As String
+-    oldPath = CurDir
+-    ChDrive Environ$("TEMP")
+-    ChDir Environ$("TEMP")
+-
+-    If Not ValidateInputForLink Then Exit Sub
+-    If Not IsExternalSourceAlive() Then
+-        ShowMsgCenter "Source file has been closed." & vbCrLf & _
+-                      "Please click RESET and select source again."
+-        Exit Sub
+-    End If
+-
+-    Dim wsTH As Worksheet, wsGT As Worksheet
+-    Dim firstRow As Long: firstRow = 1
+-
+-    Dim colTenTH As Long, colTenGT As Long
+-    Dim lastRowTH As Long, lastRowGT As Long
+-
+-    Dim arrTH() As Long, arrGT() As Long
+-    Dim i As Long, j As Long, n As Long
+-
+-    Dim dict As Object, usedIdx As Object
+-
+-    Application.EnableEvents = False
+-    Application.DisplayAlerts = False
+-    Application.AskToUpdateLinks = False
+-
+-'====================================================
+-' SPEED MODE
+-'====================================================
+-    Application.ScreenUpdating = False
+-    Application.Calculation = xlCalculationManual
+-    On Error GoTo SafeExit
+-
+-'====================================================
+-' SHEETS
+-'====================================================
+-    If srcWorkbook Is Nothing Then
+-        Set wsTH = defaultWorkbook.Worksheets(cbSheetTH.value)
+-    Else
+-        Set wsTH = srcWorkbook.Worksheets(cbSheetTH.value)
+-    End If
+-    Set wsGT = defaultWorkbook.Worksheets(cbSheetGT.value)
+-
+-'====================================================
+-' KEY COLUMNS
+-'====================================================
+-    colTenTH = wsTH.Range(cbCotTenTH.value).Column
+-    colTenGT = wsGT.Range(cbCotTenGT.value).Column
+-
+-    lastRowTH = wsTH.Cells(wsTH.rows.count, colTenTH).End(xlUp).Row
+-    lastRowGT = wsGT.Cells(wsGT.rows.count, colTenGT).End(xlUp).Row
+-
+-'====================================================
+-' LOAD SELECTED LINK COLUMNS
+-'====================================================
+-    Dim ctH As Long, cGT As Long
+-
+-    ctH = -1
+-    For i = 0 To lbCotKL_TH.ListCount - 1
+-        If lbCotKL_TH.Selected(i) Then
+-            ctH = ctH + 1
+-            ReDim Preserve arrTH(ctH)
+-            arrTH(ctH) = wsTH.Range(lbCotKL_TH.List(i)).Column
+-        End If
+-    Next i
+-
+-    cGT = -1
+-    For i = 0 To lbCotKL_GT.ListCount - 1
+-        If lbCotKL_GT.Selected(i) Then
+-            cGT = cGT + 1
+-            ReDim Preserve arrGT(cGT)
+-            arrGT(cGT) = wsGT.Range(lbCotKL_GT.List(i)).Column
+-        End If
+-    Next i
+-
+-    If ctH <> cGT Then
+-        ShowMsgCenter "Source and Target column count mismatch", vbCritical
+-        GoTo SafeExit
+-    End If
+-
+-    n = ctH
+-
+-'====================================================
+-' LOAD KEY ARRAYS (FAST)
+-'====================================================
+-    Dim dataTH, dataGT
+-    dataTH = wsTH.Columns(colTenTH).value
+-    dataGT = wsGT.Columns(colTenGT).value
+-
+-'====================================================
+-' BUILD DICTIONARY (key -> rows)
+-'====================================================
+-    Set dict = CreateObject("Scripting.Dictionary")
+-
+-    Dim key As String
+-
+-    For i = firstRow To lastRowTH
+-
+-        key = Trim(dataTH(i, 1))
+-
+-        If key <> "" Then
+-            If Not dict.exists(key) Then
+-                dict.Add key, New Collection
+-            End If
+-            dict(key).Add i
+-        End If
+-
+-    Next i
+-
+-'====================================================
+-' LINK BY COLUMN (FAST + SAFE)
+-'====================================================
+-    Dim outArr() As Variant
+-    Dim colIdx As Long
+-    Dim rowList As Collection
+-    Dim rSource As Long
+-    Dim f As String
+-    Dim srcVal
+-
+-    If wsGT.AutoFilterMode Then
+-        If wsGT.filterMode Then wsGT.ShowAllData
+-    End If
+-
+-    For j = 0 To n
+-
+-        colIdx = arrGT(j)
+-
+-        ReDim outArr(1 To lastRowGT - firstRow + 1, 1 To 1)
+-
+-        Set usedIdx = CreateObject("Scripting.Dictionary")
+-
+-        For i = firstRow To lastRowGT
+-
+-            key = Trim(dataGT(i, 1))
+-
+-            If key <> "" Then
+-
+-                If dict.exists(key) Then
+-
+-                    Set rowList = dict(key)
+-
+-                    If Not usedIdx.exists(key) Then
+-                        usedIdx(key) = 1
+-                    Else
+-                        usedIdx(key) = usedIdx(key) + 1
+-                    End If
+-
+-                    If usedIdx(key) <= rowList.count Then
+-
+-                        rSource = rowList(usedIdx(key))
+-
+-                        Dim srcCell As Range
+-
+-                        Set srcCell = wsTH.Cells(rSource, arrTH(j))
+-                        srcVal = srcCell.value
+-
+-                        If Not IsError(srcVal) Then
+-
+-                            If Len(Trim(CStr(srcVal))) > 0 Then
+-
+-                                If wsTH.parent Is defaultWorkbook Then
+-
+-                                    f = "='" & wsTH.Name & "'!" & _
+-                                        srcCell.Address(False, False)
+-
+-                                Else
+-
+-                                    f = "='[" & wsTH.parent.Name & "]" & _
+-                                        wsTH.Name & "'!" & _
+-                                        srcCell.Address(False, False)
+-
+-                                End If
+-
+-                                outArr(i - firstRow + 1, 1) = f
+-
+-                            End If
+-
+-                        End If
+-
+-                    End If
+-
+-                End If
+-
+-            End If
+-
+-        Next i
+-
+-        wsGT.Range(wsGT.Cells(firstRow, colIdx), _
+-                   wsGT.Cells(lastRowGT, colIdx)).Formula = outArr
+-
+-    Next j
+-
+-
+-    'ResetSheetSelection
+-
+-    ChDrive oldPath
+-    ChDir oldPath
+-    Application.EnableEvents = True
+-    Application.DisplayAlerts = True
+-    Application.ScreenUpdating = True
+-    ShowMsgCenter "Link completed (Turbo Formula mode)", vbInformation
+-
+-'====================================================
+-' RESTORE
+-'====================================================
+-SafeExit:
+-    Application.EnableEvents = True
+-    Application.DisplayAlerts = True
+-    Application.ScreenUpdating = True
+-    Application.Calculation = xlCalculationAutomatic
+-
++    On Error GoTo Failed
++    If isBusy Then Exit Sub
++    If Not ValidateInputForLink() Then Exit Sub
++    Dim plan As clsQSMLinkPlan
++    Set plan = CaptureLinkPlan()
++    isBusy = True
++    If plan.Execute(1, plan.LastTargetRow) Then RememberLinkSetup
++    isBusy = False
++    Exit Sub
++Failed:
++    isBusy = False
++    MsgBox "Cannot link: " & Err.Description, vbExclamation, "QSM Toolkit"
+ End Sub
+ 
+ 
+@@ -1106,3 +791,174 @@
+ 
+ 
+ 
++
++Private Function LinkInputsReady() As Boolean
++    Dim i As Long, a As Long, b As Long
++    If cbSheetTH.ListIndex < 0 Or cbSheetGT.ListIndex < 0 Or cbCotTenTH.ListIndex < 0 Or cbCotTenGT.ListIndex < 0 Then Exit Function
++    For i = 0 To lbCotKL_TH.ListCount - 1
++        If lbCotKL_TH.Selected(i) Then a = a + 1
++    Next i
++    For i = 0 To lbCotKL_GT.ListCount - 1
++        If lbCotKL_GT.Selected(i) Then b = b + 1
++    Next i
++    LinkInputsReady = (a > 0 And a = b)
++End Function
++
++Private Function SelectedLinkColumns(ByVal lb As Object, ByVal ws As Worksheet) As String
++    Dim i As Long, result As String
++    For i = 0 To lb.ListCount - 1
++        If lb.Selected(i) Then
++            If result <> "" Then result = result & ","
++            result = result & ws.Range(CStr(lb.List(i))).Column
++        End If
++    Next i
++    SelectedLinkColumns = result
++End Function
++
++Private Function CaptureLinkPlan() As clsQSMLinkPlan
++    If Not LinkInputsReady() Then Err.Raise 5, , "Select both sheets, matching columns and the same number of link columns."
++    If Not IsExternalSourceAlive() Then Err.Raise 5, , "Source workbook has been closed."
++    Dim source As Worksheet, target As Worksheet, wb As Workbook, plan As clsQSMLinkPlan
++    If srcWorkbook Is Nothing Then Set wb = defaultWorkbook Else Set wb = srcWorkbook
++    Set source = wb.Worksheets(CStr(cbSheetTH.Value))
++    Set target = defaultWorkbook.Worksheets(CStr(cbSheetGT.Value))
++    Set plan = New clsQSMLinkPlan
++    plan.Configure source, target, source.Range(CStr(cbCotTenTH.Value)).Column, target.Range(CStr(cbCotTenGT.Value)).Column, _
++                   SelectedLinkColumns(lbCotKL_TH, source), SelectedLinkColumns(lbCotKL_GT, target)
++    Set CaptureLinkPlan = plan
++End Function
++
++Private Sub RememberLinkSetup()
++    ' Only UI configuration is stored; no worksheet contents or credentials.
++    Dim source As Workbook, record As String, token As String, i As Long, old As String
++    On Error GoTo Failed
++    If srcWorkbook Is Nothing Then Set source = defaultWorkbook Else Set source = srcWorkbook
++    If source.Path = "" Or defaultWorkbook.Path = "" Then token = mHistorySession
++    record = source.FullName & vbTab & defaultWorkbook.FullName & vbTab & CStr(cbSheetTH.Value) & vbTab & _
++        CStr(cbSheetGT.Value) & vbTab & CStr(cbCotTenTH.Value) & vbTab & CStr(cbCotTenGT.Value) & vbTab & _
++        SelectedLinkColumns(lbCotKL_TH, source.Worksheets(CStr(cbSheetTH.Value))) & vbTab & _
++        SelectedLinkColumns(lbCotKL_GT, defaultWorkbook.Worksheets(CStr(cbSheetGT.Value))) & vbTab & token
++    If token <> "" Then
++        If mUnsavedHistory Is Nothing Then Set mUnsavedHistory = CreateObject("Scripting.Dictionary")
++        Dim pair As Collection
++        Set pair = New Collection
++        pair.Add source
++        pair.Add defaultWorkbook
++        If mUnsavedHistory.Exists(record) Then mUnsavedHistory.Remove record
++        mUnsavedHistory.Add record, pair
++    End If
++    Dim records As Collection
++    Set records = New Collection
++    records.Add record
++    For i = 1 To 5
++        old = GetSetting("CPMS_QSMToolkit", "LinkHistoryV1", CStr(i), "")
++        If old <> "" And old <> record And records.Count < 5 Then records.Add old
++    Next i
++    For i = 1 To records.Count
++        SaveSetting "CPMS_QSMToolkit", "LinkHistoryV1", CStr(i), CStr(records(i))
++    Next i
++    Exit Sub
++Failed:
++    MsgBox "Preview/link can continue, but history could not be saved: " & Err.Description, vbExclamation, "QSM history"
++End Sub
++
++Private Function FindHistoryWorkbook(ByVal fullName As String) As Workbook
++    Dim wb As Workbook
++    For Each wb In Application.Workbooks
++        If StrComp(wb.FullName, fullName, vbTextCompare) = 0 Then
++            Set FindHistoryWorkbook = wb
++            Exit Function
++        End If
++    Next wb
++End Function
++
++Private Sub RestoreHistoryColumns(ByVal ws As Worksheet, ByVal cbo As Object, ByVal lb As Object, ByVal matchAddress As String, ByVal columns As String)
++    Dim parts As Variant, item As Variant, maxCol As Long, n As Long, i As Long
++    parts = Split(columns, ",")
++    maxCol = ws.Range(matchAddress).Column
++    For Each item In parts
++        n = CLng(item)
++        If n < 1 Or n > ws.Columns.Count Then Err.Raise 5, , "History contains an invalid column."
++        If n > maxCol Then maxCol = n
++    Next item
++    LoadColumns ws, cbo, lb, 1
++    For i = lb.ListCount + 1 To maxCol
++        cbo.AddItem ws.Cells(1, i).Address(False, False)
++        lb.AddItem ws.Cells(1, i).Address(False, False)
++    Next i
++    cbo.Value = matchAddress
++    For Each item In parts
++        lb.Selected(CLng(item) - 1) = True
++    Next item
++End Sub
++
++Private Function RestoreLinkHistory() As Boolean
++    Dim records As Collection, i As Long, record As String, fields As Variant
++    Dim menu As String, answer As Variant, idx As Long
++    Dim source As Workbook, target As Workbook, sourceSheet As Worksheet, targetSheet As Worksheet, ws As Worksheet
++    On Error GoTo Failed
++    Set records = New Collection
++    For i = 1 To 5
++        record = GetSetting("CPMS_QSMToolkit", "LinkHistoryV1", CStr(i), "")
++        If record <> "" Then
++            fields = Split(record, vbTab)
++            If UBound(fields) = 8 Then
++                records.Add record
++                menu = menu & records.Count & ". " & Left$(fields(2), 25) & " -> " & Left$(fields(3), 25) & _
++                    " [" & Left$(Mid$(fields(1), InStrRev(fields(1), "\") + 1), 30) & "]" & vbCrLf
++            End If
++        End If
++    Next i
++    If records.Count = 0 Then
++        MsgBox "No history yet. Select the sheets/columns manually once and open Preview or Link Data to save the setup.", vbInformation, "QSM history"
++        Exit Function
++    End If
++    answer = InputBox("Input is incomplete. Choose a saved setup by number:" & vbCrLf & menu, "QSM history")
++    If Len(Trim$(CStr(answer))) = 0 Then Exit Function
++    If Not IsNumeric(answer) Then Err.Raise 5, , "Enter a history number."
++    answer = CDbl(answer)
++    If answer < 1 Or answer > records.Count Or answer <> Fix(answer) Then Err.Raise 5, , "Invalid history number."
++    idx = CLng(answer)
++    fields = Split(CStr(records(idx)), vbTab)
++    If fields(8) <> "" And fields(8) <> mHistorySession Then Err.Raise 5, , "This setup used an unsaved workbook in an earlier session. Select the workbook manually."
++    Set source = FindHistoryWorkbook(CStr(fields(0)))
++    Set target = FindHistoryWorkbook(CStr(fields(1)))
++    If source Is Nothing Or target Is Nothing Then Err.Raise 5, , "Open the original source and target workbooks first:" & vbCrLf & fields(0) & vbCrLf & fields(1)
++    If fields(8) <> "" Then
++        If mUnsavedHistory Is Nothing Then Err.Raise 5, , "Unsaved workbook history is no longer available."
++        If Not mUnsavedHistory.Exists(CStr(records(idx))) Then Err.Raise 5, , "Unsaved workbook history is no longer available."
++        Dim originals As Collection, originalSource As Workbook, originalTarget As Workbook
++        Set originals = mUnsavedHistory(CStr(records(idx)))
++        Set originalSource = originals(1): Set originalTarget = originals(2)
++        If Not (source Is originalSource) Or Not (target Is originalTarget) Then Err.Raise 5, , "The original unsaved workbook was closed. Select the new workbook manually."
++    End If
++    Set sourceSheet = source.Worksheets(CStr(fields(2)))
++    Set targetSheet = target.Worksheets(CStr(fields(3)))
++    If sourceSheet.Visible <> xlSheetVisible Or targetSheet.Visible <> xlSheetVisible Then Err.Raise 5, , "A history worksheet is hidden. Show it before restoring."
++    isBusy = True
++    Set defaultWorkbook = target
++    Set srcWorkbook = Nothing
++    srcWbName = "": srcWbPath = "": isUsingExternalSource = False
++    If Not (source Is target) Then
++        Set srcWorkbook = source
++        srcWbName = source.Name: srcWbPath = source.FullName: isUsingExternalSource = True
++    End If
++    cbSheetTH.Clear: cbSheetGT.Clear
++    For Each ws In source.Worksheets
++        If ws.Visible = xlSheetVisible Then cbSheetTH.AddItem ws.Name
++    Next ws
++    For Each ws In target.Worksheets
++        If ws.Visible = xlSheetVisible Then cbSheetGT.AddItem ws.Name
++    Next ws
++    cbSheetTH.Value = sourceSheet.Name
++    cbSheetGT.Value = targetSheet.Name
++    RestoreHistoryColumns sourceSheet, cbCotTenTH, lbCotKL_TH, CStr(fields(4)), CStr(fields(6))
++    RestoreHistoryColumns targetSheet, cbCotTenGT, lbCotKL_GT, CStr(fields(5)), CStr(fields(7))
++    UpdateSourceLabel
++    isBusy = False
++    RestoreLinkHistory = LinkInputsReady()
++    Exit Function
++Failed:
++    isBusy = False
++    MsgBox "Cannot restore history: " & Err.Description, vbExclamation, "QSM history"
++End Function

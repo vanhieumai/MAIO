@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAIO — Hệ thống Quản lý Đa phân hệ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="css/main.css?v=2.5">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=2.5">
+  <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Site Header -->
+    <header class="site-header">
+      <a class="brand" href="#" id="brand-link">
+        <span class="brand-mark"><i class="fa-solid fa-cubes"></i></span>
+        <span class="brand-name">M<span>AIO</span></span>
+      </a>
+
+      <!-- Navigation Modules (3 Phân hệ chính + AI + Cài đặt Cloud) -->
+      <nav class="header-nav" aria-label="Điều hướng phân hệ">
+        <button class="nav-pill active" data-view="dashboard"><i class="fa-solid fa-chart-pie"></i> Tổng quan</button>
+        <button class="nav-pill" data-view="cpms"><i class="fa-solid fa-file-contract"></i> Quản lý Dự án (CPMS)</button>
+        <button class="nav-pill" data-view="office"><i class="fa-solid fa-laptop-file"></i> Quản lý Văn phòng</button>
+        <button class="nav-pill" data-view="finance"><i class="fa-solid fa-wallet"></i> Quản lý Chi tiêu</button>
+        <button class="nav-pill" data-view="ai"><i class="fa-solid fa-wand-magic-sparkles"></i> Ask AI</button>
+        <button class="nav-pill" data-view="settings"><i class="fa-solid fa-cloud"></i> Google Drive Cloud</button>
+      </nav>
+
+      <!-- Account & Actions -->
+      <div class="header-actions">
+        <!-- Khi chưa kết nối Google Drive -->
+        <button id="btn-gdrive-login" class="button button-google">
+          <i class="fa-brands fa-google" style="color: #4285F4;"></i>
+          <span>Kết nối Google Drive</span>
+        </button>
+
+        <!-- Khi đã kết nối Google Drive -->
+        <div id="user-profile" class="user-profile-pill hidden">
+          <img id="user-avatar" src="" alt="Avatar">
+          <span id="user-name">Người dùng</span>
+          <button id="btn-gdrive-logout" class="button button-outline" style="padding: 2px 8px; font-size: 0.75rem; border-radius: 9999px;" title="Ngắt kết nối">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Banner: Thông tin cơ bản Dự án đang mở (Trái) & Đồng bộ Đám mây thu gọn (Phải) -->
+      <section class="top-header-banner">
+        <!-- Vùng TRÁI: Thông tin cơ bản dự án đang mở (tên dự án & địa điểm từ sheet proj info) -->
+        <div class="top-project-basic">
+          <div class="top-project-icon">
+            <i class="fa-solid fa-city"></i>
+          </div>
+          <div class="top-project-info">
+            <div class="top-project-heading">
+              <span class="top-project-tag">DỰ ÁN ĐANG MỞ</span>
+              <h2 id="top-project-name" class="top-project-title">Dự án Nhà ở Chung cư Cao tầng Westlake Residential</h2>
+            </div>
+            <div class="top-project-meta">
+              <span><i class="fa-solid fa-location-dot" style="color: #ef4444;"></i> Địa điểm: <strong id="top-project-location">Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vùng PHẢI: Khối Đồng bộ Đám mây & Thư mục máy tính đã thu gọn -->
+        <div class="cloud-banner-compact">
+          <div class="cloud-info-compact">
+            <i class="fa-brands fa-google-drive cloud-icon-sm"></i>
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="cloud-title-sm">Đồng bộ Cloud & Máy tính</span>
+                <span id="cloud-badge" class="badge badge-warning" style="font-size: 0.7rem; padding: 2px 6px;">Cục bộ (Offline)</span>
+              </div>
+              <p id="cloud-status-text" class="cloud-subtext-sm">
+                Lưu trữ cục bộ an toàn (IndexedDB)
+              </p>
+            </div>
+          </div>
+          <button id="btn-sync-now" class="button button-primary button-sm hidden" style="padding: 4px 10px; font-size: 0.75rem; white-space: nowrap;">
+            <i class="fa-solid fa-rotate"></i> Đồng bộ ngay
+          </button>
+        </div>
+      </section>
+
+      <!-- 1. DASHBOARD VIEW -->
+      <div id="view-dashboard" class="view-panel">
+        <div class="page-title-row">
+          <div>
+            <h1 class="page-title">Bảng điều khiển Tổng quan</h1>
+            <p class="page-subtitle">Dự án hiện tại: <strong id="active-project-name">Dự án CHC1 (Thiết kế & Thi công)</strong></p>
+          </div>
+          <div style="display: flex; gap: 10px;">
+            <button id="btn-quick-to-cpms" class="button button-primary">
+              <i class="fa-solid fa-file-contract"></i> Vào Quản lý Hợp đồng (CPMS)
+            </button>
+            <button id="btn-export-backup" class="button button-outline">
+              <i class="fa-solid fa-file-export"></i> Xuất bản sao lưu JSON
+            </button>
+          </div>
+        </div>
+
+        <!-- PHÂN KHU TÁCH RÕ 2 NHÓM: BÊN A (CHỦ ĐẦU TƯ) VÀ BÊN B (THẦU PHỤ / NCC) -->
+        <div class="dashboard-ab-container">
+          <!-- KHỐI NHÓM A: HỢP ĐỒNG VỚI BÊN A -->
+          <div class="dash-ab-card group-a-panel">
+            <div class="dash-ab-header">
+              <div class="dash-ab-title">
+                <span class="badge badge-primary"><i class="fa-solid fa-landmark"></i> NHÓM A</span>
+                <h3>Hợp đồng với Bên A (Chủ đầu tư / Tổng thầu)</h3>
+              </div>
+              <span class="dash-ab-tag tag-income"><i class="fa-solid fa-arrow-down-left"></i> Dòng tiền Thu vào</span>
+            </div>
+            <div class="dash-ab-grid">
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Số lượng Hợp đồng</span>
+                <div class="dash-stat-num" id="stat-group-a-count">1 HĐ gốc (29 PL)</div>
+                <span class="dash-stat-sub">HĐ Gốc & Phụ lục</span>
+              </div>
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Tổng giá trị ký kết</span>
+                <div class="dash-stat-num text-primary" id="stat-group-a-val">1.200.000.000.000 ₫</div>
+                <span class="dash-stat-sub">Giá trị hợp đồng A</span>
+              </div>
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Bên A đã giải ngân</span>
+                <div class="dash-stat-num text-success" id="stat-group-a-paid">567.546.904.117 ₫</div>
+                <span class="dash-stat-sub" id="stat-group-a-rate">Đạt 47.3% giá trị HĐ</span>
+              </div>
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
+                <div class="dash-stat-num" id="stat-group-a-ipc">40 đợt</div>
+                <span class="dash-stat-sub">Hồ sơ thanh toán A</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- KHỐI NHÓM B: HỢP ĐỒNG VỚI BÊN B -->
+          <div class="dash-ab-card group-b-panel">
+            <div class="dash-ab-header">
+              <div class="dash-ab-title">
+                <span class="badge badge-warning"><i class="fa-solid fa-handshake"></i> NHÓM B</span>
+                <h3>Hợp đồng với Bên B (Nhà thầu phụ / Nhà cung cấp)</h3>
+              </div>
+              <span class="dash-ab-tag tag-expense"><i class="fa-solid fa-arrow-up-right"></i> Dòng tiền Chi ra</span>
+            </div>
+            <div class="dash-ab-grid">
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Số lượng Hợp đồng</span>
+                <div class="dash-stat-num" id="stat-group-b-count">61 HĐ gốc (5 PL)</div>
+                <span class="dash-stat-sub">HĐ Thầu phụ & NCC</span>
+              </div>
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Tổng giá trị giao thầu</span>
+                <div class="dash-stat-num text-indigo" id="stat-group-b-val">1.920.047.119.800 ₫</div>
+                <span class="dash-stat-sub">Giá trị giao thầu B</span>
+              </div>
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Giải ngân cho bên B</span>
+                <div class="dash-stat-num text-cyan" id="stat-group-b-paid">491.122.530.718 ₫</div>
+                <span class="dash-stat-sub" id="stat-group-b-rate">Đã thanh toán thầu phụ</span>
+              </div>
+              <div class="dash-ab-stat">
+                <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
+                <div class="dash-stat-num" id="stat-group-b-ipc">303 đợt</div>
+                <span class="dash-stat-sub">Giao dịch thực trả B</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- HÀNG THỐNG KÊ CÂN ĐỐI DÒNG TIỀN & HỒ SƠ DỰ ÁN -->
+        <div class="grid-3" style="margin-bottom: 20px;">
+          <div class="stat-box">
+            <div class="stat-label">Cân đối Dòng tiền (A Thu - B Chi)</div>
+            <div class="stat-value" id="stat-cashflow-diff" style="color: var(--success);">
+              +76.424.373.399 ₫
+            </div>
+            <div class="stat-note">Thặng dư dòng tiền dự án</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Tổng số Hồ sơ & Công văn</div>
+            <div class="stat-value" id="stat-docs-count">220</div>
+            <div class="stat-note">Đang theo dõi tiến độ</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-label">Tổng số Đợt thanh toán (IPC)</div>
+            <div class="stat-value" id="stat-payments-count">343 đợt</div>
+            <div class="stat-note">Toàn bộ giao dịch dự án</div>
+          </div>
+        </div>
+
+        <!-- Cây cấu trúc 3 Trụ cột -->
+        <div class="grid-2">
+          <div class="card">
+            <h2 class="card-title"><i class="fa-solid fa-folder-tree" style="color: var(--primary);"></i> Cây Thư mục 3 Trụ cột Chuẩn hóa</h2>
+            <p class="card-desc">Cấu trúc đồng bộ tự động giữa thư mục máy tính và Google Drive của bạn:</p>
+            <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 16px; font-family: monospace; font-size: 0.85rem; line-height: 1.8;">
+              📁 <strong>MAIO_Data /</strong><br>
+              ├── 📁 <strong>01_QuanLy_DuAn /</strong> (Đa dự án: CHC1, Cầu Mỹ Thuận...)<br>
+              │&nbsp;&nbsp;&nbsp;└── 📁 <strong>DuAn_CHC1 /</strong> (Hợp đồng gốc ➔ Phụ lục ➔ IPC ➔ File)<br>
+              ├── 📁 <strong>02_QuanLy_VanPhong /</strong> (Tài sản thiết bị, Tài liệu, VPP)<br>
+              └── 📁 <strong>03_QuanLy_ChiTieu /</strong> (Tách biệt Cá nhân & Quỹ chung)
+            </div>
+          </div>
+
+          <div class="card">
+            <h2 class="card-title"><i class="fa-solid fa-shield-halved" style="color: var(--success);"></i> Trạng thái Đồng bộ & An toàn</h2>
+            <p class="card-desc">Ứng dụng hoạt động theo triết lý bảo vệ quyền sở hữu của người dùng:</p>
+            <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.8;">
+              <li><strong>Sở hữu 100% dữ liệu:</strong> Toàn bộ dữ liệu nằm trên máy tính và Google Drive cá nhân của bạn.</li>
+              <li><strong>Bảo vệ chống ghi đè:</strong> Tự động phát hiện và đánh dấu xung đột (Conflict) nếu sửa cùng lúc.</li>
+              <li><strong>Làm việc đa thiết bị:</strong> Mở máy tính làm việc offline, mở điện thoại xem và duyệt file tức thì.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. PHÂN HỆ QUẢN LÝ DỰ ÁN & HỢP ĐỒNG (CPMS CORE) -->
+      <div id="view-cpms" class="view-panel hidden">
+        <div class="page-title-row" style="margin-bottom: 8px;">
+          <div>
+            <h1 class="page-title">Quản lý Dự án & Hợp đồng (CPMS)</h1>
+            <p class="page-subtitle">Quản lý cây Hợp đồng gốc, Phụ lục và các đợt thanh toán (IPC)</p>
+          </div>
+        </div>
+
+        <!-- Thanh công cụ Dự án 1 hàng ngang tối ưu -->
+        <div class="cpms-toolbar-row" style="margin-bottom: 10px;">
+          <div class="cpms-toolbar-left">
+            <select id="project-selector" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 600; font-family: inherit; font-size: 0.85rem;">
+              <option value="CHC1" selected>📁 Dự án CHC1 (Thiết kế & Thi công)</option>
+              <option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>
+            </select>
+            <button id="btn-clone-project" class="button button-outline" title="Sao chép toàn bộ dự án hiện tại thành dự án mới">
+              <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép dự án
+            </button>
+            <button id="btn-import-project" class="button button-outline" title="Nhập dữ liệu dự án từ file CPMS (.cpms / .xlsx)">
+              <i class="fa-solid fa-file-arrow-up" style="color: var(--primary);"></i> Nhập dữ liệu CPMS
+            </button>
+            <button id="btn-export-cpms" class="button button-outline" title="Xuất toàn bộ dữ liệu dự án ra file .xlsx / .cpms">
+              <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất CPMS
+            </button>
+            <button id="btn-delete-project" class="button button-outline" style="color: var(--danger); border-color: #fca5a5;" title="Xóa toàn bộ dữ liệu của dự án hiện tại">
+              <i class="fa-solid fa-trash-can"></i> Xóa dự án
+            </button>
+          </div>
+          <div class="cpms-toolbar-right">
+            <button id="btn-add-contract" class="button button-primary">
+              <i class="fa-solid fa-plus"></i> Thêm HĐ gốc
+            </button>
+          </div>
+        </div>
+
+        <!-- Khung hiển thị thông tin dự án (Project Info) -->
+        <div id="project-info-bar" class="project-info-bar">
+          <!-- Render tự động bởi contracts.js -->
+        </div>
+
+        <div class="cpms-container">
+          <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) -->
+          <div class="tab-nav">
+            <button class="tab-btn active group-tab-btn" data-group="A">
+              <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Chủ đầu tư / Tổng thầu
+            </button>
+            <button class="tab-btn group-tab-btn" data-group="B">
+              <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
+            </button>
+          </div>
+
+          <!-- Bộ lọc & Tìm kiếm -->
+          <div class="filter-row">
+            <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
+            <input type="text" id="contract-search-input" class="search-input" placeholder="Tìm theo số hợp đồng, tên nhà thầu, nội dung gói thầu...">
+            <span style="font-size: 0.85rem; color: var(--text-muted);">Bấm vào từng hợp đồng để xem chi tiết Phụ lục & Đợt thanh toán (IPC)</span>
+          </div>
+
+          <!-- Danh sách Hợp đồng gốc -->
+          <div id="contracts-list-container" class="contract-list">
+            <!-- Được render tự động qua contracts.js -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. PHÂN HỆ QUẢN LÝ VĂN PHÒNG -->
+      <div id="view-office" class="view-panel hidden">
+        <div class="page-title-row">
+          <div>
+            <h1 class="page-title">Quản lý Văn phòng</h1>
+            <p class="page-subtitle">Quản lý tài sản thiết bị, kho tài liệu mẫu và văn phòng phẩm</p>
+          </div>
+        </div>
+
+        <div class="tab-nav">
+          <button class="tab-btn active"><i class="fa-solid fa-desktop"></i> 01. Tài sản & Thiết bị</button>
+          <button class="tab-btn"><i class="fa-solid fa-folder-closed"></i> 02. Tài liệu & Biểu mẫu</button>
+          <button class="tab-btn"><i class="fa-solid fa-boxes-packing"></i> 03. Văn phòng phẩm</button>
+        </div>
+
+        <div class="card" style="text-align: center; padding: 48px;">
+          <i class="fa-solid fa-laptop-file" style="font-size: 3rem; color: var(--primary); margin-bottom: 16px;"></i>
+          <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 8px;">Phân hệ Quản lý Văn phòng đang sẵn sàng</h2>
+          <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 20px;">
+            Đã chuẩn bị sẵn schema và thư mục lưu trữ độc lập tại <code>MAIO_Data/02_QuanLy_VanPhong/</code>. Sẽ tổ chức phát triển chuyên sâu sau khi hoàn thiện phần Hợp đồng & IPC.
+          </p>
+        </div>
+      </div>
+
+      <!-- 4. PHÂN HỆ QUẢN LÝ CHI TIÊU & QUỸ -->
+      <div id="view-finance" class="view-panel hidden">
+        <div class="page-title-row">
+          <div>
+            <h1 class="page-title">Quản lý Chi tiêu & Sổ quỹ</h1>
+            <p class="page-subtitle">Minh bạch dòng tiền, tách bạch rõ ràng giữa Ví cá nhân và Quỹ chung</p>
+          </div>
+        </div>
+
+        <div class="tab-nav">
+          <button class="tab-btn active"><i class="fa-solid fa-user-lock"></i> 01. Chi tiêu Cá nhân</button>
+          <button class="tab-btn"><i class="fa-solid fa-building-columns"></i> 02. Quỹ chung Công ty / Dự án</button>
+        </div>
+
+        <div class="card" style="text-align: center; padding: 48px;">
+          <i class="fa-solid fa-wallet" style="font-size: 3rem; color: var(--success); margin-bottom: 16px;"></i>
+          <h2 style="font-size: 1.3rem; font-weight: 700; margin-bottom: 8px;">Phân hệ Quản lý Chi tiêu sẵn sàng</h2>
+          <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto 20px;">
+            Đã thiết lập cấu trúc độc lập tại <code>MAIO_Data/03_QuanLy_ChiTieu/</code> (tách biệt <code>01_CaNhan</code> và <code>02_QuyChung</code>). Sẽ triển khai chi tiết sau phần CPMS Core.
+          </p>
+        </div>
+      </div>
+
+      <!-- 5. ASK AI -->
+      <div id="view-ai" class="view-panel hidden">
+        <div class="page-title-row">
+          <div>
+            <h1 class="page-title">MAIO AI Assistant (Ask AI)</h1>
+            <p class="page-subtitle">Trợ lý AI tra cứu thông tin hợp đồng, hỏi đáp tài chính và tóm tắt tiến độ</p>
+          </div>
+        </div>
+
+        <div class="card" style="padding: 24px;">
+          <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+            <input type="text" class="search-input" placeholder="Hỏi AI bất kỳ điều gì: 'Tổng số tiền đã trả cho HĐ thiết kế?', 'Còn nợ nhà thầu Hòa Phát bao nhiêu?'...">
+            <button class="button button-primary"><i class="fa-solid fa-paper-plane"></i> Gửi câu hỏi</button>
+          </div>
+          <div style="background: var(--bg-card-subtle); border-radius: var(--radius-md); padding: 24px; min-height: 200px; color: var(--text-muted); display: flex; align-items: center; justify-content: center;">
+            <span><i class="fa-solid fa-wand-magic-sparkles"></i> Sẵn sàng kết nối Gemini API để phân tích dữ liệu dự án của bạn.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6. SETTINGS & GOOGLE DRIVE VIEW -->
+      <div id="view-settings" class="view-panel hidden">
+        <div class="page-title-row">
+          <div>
+            <h1 class="page-title">Cài đặt Đồng bộ Cloud & Thư mục máy tính</h1>
+            <p class="page-subtitle">Thiết lập kết nối Google Drive và chọn thư mục làm việc trên máy tính</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h2 class="card-title"><i class="fa-brands fa-google-drive"></i> Kết nối Google Drive</h2>
+            <p class="card-desc">Đăng nhập tài khoản Google để tự động đồng bộ lên Google Drive của bạn.</p>
+
+            <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 16px;">
+              <div style="margin-bottom: 8px;"><strong>Client ID:</strong> <code id="cfg-client-id" style="color: var(--primary);">Đã thiết lập</code></div>
+              <div><strong>Thư mục gốc Cloud:</strong> <code>MAIO_Data</code></div>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+              <button id="btn-settings-login" class="button button-google">
+                <i class="fa-brands fa-google"></i> Đăng nhập Google
+              </button>
+              <button id="btn-test-sync" class="button button-outline" disabled>
+                <i class="fa-solid fa-cloud-arrow-up"></i> Kiểm tra Tải file lên Drive
+              </button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2 class="card-title"><i class="fa-solid fa-laptop"></i> Thư mục Làm việc trên Máy tính (Local)</h2>
+            <p class="card-desc">Chọn thư mục trên ổ cứng (ví dụ: <code>D:\MAIO_Projects\</code>) để làm việc offline và tự động đồng bộ hai chiều như OneDrive.</p>
+
+            <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 14px; margin-bottom: 16px;">
+              <div><strong>Đường dẫn Local:</strong> <code id="local-folder-path">Chưa chọn thư mục</code></div>
+            </div>
+
+            <button id="btn-pick-local-folder" class="button button-primary">
+              <i class="fa-solid fa-folder-open"></i> Chọn thư mục trên máy tính
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Google Identity Services Script -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  
+  <!-- File cấu hình Google Drive -->
+  <script src="gdrive-config.js"></script>
+  
+  <!-- File khởi tạo ứng dụng -->
+  <script type="module" src="js/app.js?v=2.5"></script>
+</body>
+</html>

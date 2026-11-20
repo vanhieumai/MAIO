@@ -1,0 +1,132 @@
+--- original/frmContractSearch
++++ fixed/frmContractSearch
+@@ -1273,6 +1273,7 @@
+ ' [MOD] LoadPaymentTab: Thay chkPaySelectAll bang chkPayAllA + chkPayAllB
+ '================================================================
+ Public Sub LoadPaymentTab(ByVal contractID As String)
++    Erase mPayRowContractID  ' Discard mappings from the previous All A/B list.
+     On Error Resume Next
+     lstPayment.Clear
+     ClearPayDetail
+@@ -2484,7 +2485,7 @@
+         contractID = ResolvePayRowContractID(idx)
+         If contractID <> "" Then
+             If Left$(UCase$(contractID), 4) <> "GRP-" Then
+-                SelectContract contractID
++                SelectContract contractID, False
+             End If
+         End If
+     End If
+@@ -3635,10 +3636,6 @@
+         If autoContractID <> "" Then
+             LoadContractDetail autoContractID
+             If tabMain.value = 1 Then LoadDocumentList autoContractID
+-            If tabMain.value = 4 Then
+-                RefreshLibraryMeta
+-                RefreshAllLibraryLabels
+-            End If
+         End If
+     End If
+ 
+@@ -3736,33 +3733,33 @@
+ '================================================================
+ ' LOAD CONTRACT DETAIL (Tab Contract)
+ '================================================================
+-Private Sub LoadContractDetail(ByVal contractID As String)
+-
++Private Sub LoadContractDetail(ByVal contractID As String, _
++                               Optional ByVal refreshActiveTab As Boolean = True)
+     gCurrentContractID = contractID
+     LoadSummaryBox ""
+ 
+     Dim r As Long
+-
+     If gDictContract Is Nothing Then Exit Sub
+     If Not gDictContract.Exists(contractID) Then Exit Sub
+-
+     r = gDictContract(contractID)
+ 
+-
+     ClearInfoDetail
+-
+-
+-    ' --- Fill txtInfoDetail ---
+     DrawInfoDetail r
+-
+     LoadSummaryBox contractID
+ 
+-    On Error Resume Next
+-    If tabMain.value = 2 Then LoadPaymentTab contractID
+-    If tabMain.value = 3 Then UpdateExportPreview
+-    If tabMain.value = 3 Then RefreshAllLibraryLabels
+-    On Error GoTo 0
+-
++    ' A payment-row click must not rebuild its own ListBox.
++    If Not refreshActiveTab Then Exit Sub
++
++    ' Actual page order: Information, Document, Library, Payment,
++    ' Progress, Export. MultiPage indexes start at zero.
++    Select Case tabMain.Value
++        Case 2
++            LoadLibraryPage
++        Case 3
++            LoadPaymentTab contractID
++        Case 5
++            UpdateExportPreview
++    End Select
+ End Sub
+ 
+ 
+@@ -5380,7 +5377,7 @@
+         GoTo SAFE_EXIT
+     End If
+     gCurrentContractID = contractID
+-    LoadContractDetail contractID
++    LoadContractDetail contractID, False
+     'If tabMain.value = 1 Then
+     '    If optPDR.value Then LoadDocTypeComboCS contractID
+     '    LoadDocumentList contractID
+@@ -5794,26 +5791,31 @@
+ '================================================================
+ ' PUBLIC: Jump to a specific contract in the list
+ '================================================================
+-Public Sub SelectContract(ByVal contractID As String)
+-
+-    If Trim(contractID) = "" Then Exit Sub
++Public Sub SelectContract(ByVal contractID As String, _
++                          Optional ByVal refreshActiveTab As Boolean = True)
++    contractID = Trim$(contractID)
++    If contractID = "" Or contractID = "0" Then Exit Sub
+     If lstResult.ListCount = 0 Then Exit Sub
+ 
++    Dim previousSuppress As Boolean
++    previousSuppress = suppressListClick
++    On Error GoTo SelectFailed
++
+     Dim i As Long
+-    Dim found As Boolean
+-    found = False
+-
+     For i = 0 To lstResult.ListCount - 1
+-        If CStr(lstResult.List(i, 0)) = Trim(contractID) Then
++        If CStr(lstResult.List(i, 0)) = contractID Then
+             suppressListClick = True
+             lstResult.ListIndex = i
+-            suppressListClick = False
+-            LoadContractDetail contractID
+-            found = True
+-            Exit For
++            suppressListClick = previousSuppress
++            LoadContractDetail contractID, refreshActiveTab
++            Exit Sub
+         End If
+     Next i
+-
++    Exit Sub
++
++SelectFailed:
++    suppressListClick = previousSuppress
++    MsgBox "SelectContract: " & Err.Description, vbExclamation, "CPMS"
+ End Sub
+ 
+ '================================================================

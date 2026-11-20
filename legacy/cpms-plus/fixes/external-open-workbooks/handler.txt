@@ -1,0 +1,95 @@
+Private Sub btnExternalSource_Click()
+    On Error GoTo EH
+    Dim fd As FileDialog, wbSrc As Workbook, wbTarget As Workbook, wb As Workbook
+    Dim selectedPath As String, candidates As Collection
+    Dim picker As frmQSMSourcePicker, answer As VbMsgBoxResult
+    Dim oldScreen As Boolean, oldLinks As Boolean, settingsChanged As Boolean
+    Set wbTarget = defaultWorkbook
+    If wbTarget Is Nothing Then
+        ShowMsgCenter "No target workbook loaded.", vbExclamation
+        Exit Sub
+    End If
+    Set candidates = New Collection
+    For Each wb In Application.Workbooks
+        If Not (wb Is wbTarget) Then
+            If Not wb.IsAddin And UCase$(wb.Name) <> "PERSONAL.XLSB" Then
+                If wb.Windows.Count > 0 Then
+                    If wb.Windows(1).Visible Then candidates.Add wb
+                End If
+            End If
+        End If
+    Next wb
+    If candidates.Count > 0 Then
+        answer = MsgBox("Load Source data from an Excel workbook already open?" & vbCrLf & _
+                        "Yes: use an open workbook. No: browse for a file.", _
+                        vbYesNoCancel + vbQuestion, "Load External")
+        If answer = vbCancel Then Exit Sub
+        If answer = vbYes Then
+            If candidates.Count = 1 Then
+                Set wbSrc = candidates(1)
+            Else
+                Set picker = New frmQSMSourcePicker
+                picker.Configure candidates
+                picker.Show vbModal
+                Set wbSrc = picker.SelectedWorkbook
+                Unload picker
+                Set picker = Nothing
+                If wbSrc Is Nothing Then Exit Sub
+            End If
+        End If
+    End If
+    If wbSrc Is Nothing Then
+        Set fd = Application.FileDialog(msoFileDialogFilePicker)
+        With fd
+            .Title = "Select source Excel file"
+            .Filters.Clear
+            .Filters.Add "Excel Files", "*.xlsx; *.xlsm"
+            .AllowMultiSelect = False
+            If .Show <> -1 Then Exit Sub
+        End With
+        selectedPath = fd.SelectedItems(1)
+        For Each wb In Application.Workbooks
+            If StrComp(wb.FullName, selectedPath, vbTextCompare) = 0 Then
+                Set wbSrc = wb
+                Exit For
+            End If
+        Next wb
+        If wbSrc Is Nothing Then
+            oldScreen = Application.ScreenUpdating
+            oldLinks = Application.AskToUpdateLinks
+            settingsChanged = True
+            Application.ScreenUpdating = False
+            Application.AskToUpdateLinks = False
+            Set wbSrc = Workbooks.Open(Filename:=selectedPath, UpdateLinks:=0, _
+                         ReadOnly:=True, IgnoreReadOnlyRecommended:=True, AddToMru:=False)
+            Application.AskToUpdateLinks = oldLinks
+            Application.ScreenUpdating = oldScreen
+            settingsChanged = False
+        End If
+    End If
+    If wbSrc Is wbTarget Then
+        ShowMsgCenter "Please choose a Source workbook different from the Target.", vbExclamation
+        Exit Sub
+    End If
+    Set srcWorkbook = wbSrc
+    srcWbName = wbSrc.Name
+    srcWbPath = wbSrc.FullName
+    isUsingExternalSource = True
+    cbCotTenTH.Clear
+    lbCotKL_TH.Clear
+    LoadSourceSheets
+    UpdateSourceLabel
+    wbTarget.Activate
+    ShowMsgCenter "External file loaded as Source: " & wbSrc.Name
+    Exit Sub
+EH:
+    Dim message As String
+    message = Err.Description
+    On Error Resume Next
+    If settingsChanged Then
+        Application.AskToUpdateLinks = oldLinks
+        Application.ScreenUpdating = oldScreen
+    End If
+    If Not picker Is Nothing Then Unload picker
+    ShowMsgCenter "Cannot load source file: " & message, vbExclamation
+End Sub

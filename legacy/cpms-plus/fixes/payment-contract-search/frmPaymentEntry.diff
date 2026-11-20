@@ -1,0 +1,365 @@
+--- 
++++ 
+@@ -8,6 +8,9 @@
+ Attribute VB_Customizable = False
+ 'frmPaymentEhtry
+ Option Explicit
++Private mContractKeyword As String
++Private mContractRightCount As Long
++Private mContractRightTime As Double
+ 
+ Private editingRow As Long   ' DÒNG ÐANG S?A
+ Private isEditMode As Boolean
+@@ -609,129 +612,110 @@
+         "0 pt;25 pt;150 pt;80 pt;80 pt;80 pt;80 pt;80 pt;50 pt"
+ 
+     End With
+-    LoadContractNoToComboFast
++    
++    ApplyTheme Me
+     BuildContractComboAll
+-    
+-    ApplyTheme Me
+     'UnregisterForm Me
+ End Sub
+ 
+-Private Sub BuildContractComboAll()
+-
+-    Dim i As Long
+-
+-    Dim ws As Worksheet
+-    Dim lastRow As Long
+-    Dim r As Long
+-
+-    Dim contractID As String
+-    Dim contractNo As String
+-
+-    Dim dictAdded As Object
+-
+-    Set dictAdded = CreateObject("Scripting.Dictionary")
+-
++Private Sub BuildContractComboAll(Optional ByVal selectFirst As Boolean = True)
++    Dim previousSuppress As Boolean
++    previousSuppress = suppressContractChange
++    On Error GoTo Failed
+     suppressContractChange = True
+-
++    If Not gContractLoaded Then BuildGlobalContractCache
++    If Not gPaymentEntryLoaded Then BuildPaymentEntryCache
++    ClearFilteredContractDetails
+     cboContractNo.Clear
+-
+-    '========================
+-    ' NORMAL CONTRACT
+-    '========================
+-    For i = 1 To UBound(gArrContract, 1)
+-
+-        contractID = _
+-            Trim$(CStr(gArrContract(i, 1)))
+-
+-        contractNo = _
+-            Trim$(CStr(gArrContract(i, 2)))
+-
+-        If contractID <> "" Then
+-
+-            cboContractNo.AddItem contractNo
+-
+-            cboContractNo.List( _
+-                cboContractNo.ListCount - 1, 1) = contractID
+-
+-            dictAdded(contractID) = True
+-
++    cboContractNo.ColumnCount = 2
++    cboContractNo.ColumnWidths = "150 pt;0 pt"
++    cboContractNo.Style = fmStyleDropDownList
++    Dim added As Object, i As Long, field As Variant
++    Dim cid As String, number As String, matched As Boolean
++    Set added = CreateObject("Scripting.Dictionary")
++    If Not IsEmpty(gArrContract) Then
++        For i = 1 To UBound(gArrContract, 1)
++            cid = Trim$(CStr(gArrContract(i, 1)))
++            If cid <> "" And cid <> "0" And UCase$(Left$(cid, 6)) <> "GROUP-" Then
++                matched = (mContractKeyword = "")
++                For Each field In Array(1, 2, 7, 8, 11, 24)
++                    If InStr(1, ContractSearchText(gArrContract(i, CLng(field))), mContractKeyword, vbBinaryCompare) > 0 Then matched = True
++                Next field
++                If matched And Not added.Exists(cid) Then
++                    number = Trim$(CStr(gArrContract(i, 2)))
++                    If number = "" Then number = cid
++                    cboContractNo.AddItem number
++                    cboContractNo.List(cboContractNo.ListCount - 1, 1) = cid
++                    added.Add cid, True
++                End If
++            End If
++        Next i
++    End If
++    Dim ws As Worksheet, lastRow As Long, r As Long, haystack As String
++    Set ws = EnsurePaymentLedger
++    lastRow = ws.Cells(ws.Rows.Count, "C").End(xlUp).Row
++    For r = 2 To lastRow
++        If Trim$(CStr(ws.Cells(r, "B").Value)) = "" Then
++            cid = Trim$(CStr(ws.Cells(r, "C").Value))
++            If Left$(cid, 6) = "B-CPB-" Then
++                If Not added.Exists(cid) Then
++                    number = Trim$(CStr(ws.Cells(r, "D").Value))
++                    haystack = ContractSearchText(cid & " " & number & " " & CStr(ws.Cells(r, "F").Value) & " Internal Cost")
++                    If mContractKeyword = "" Or InStr(1, haystack, mContractKeyword, vbBinaryCompare) > 0 Then
++                        If number = "" Then number = cid
++                        cboContractNo.AddItem number
++                        cboContractNo.List(cboContractNo.ListCount - 1, 1) = cid
++                        added.Add cid, True
++                    End If
++                End If
++            End If
+         End If
+-
++    Next r
++    txtSearch.ControlTipText = "Enter: filter contracts; Esc / double right-click: clear. Contracts: " & cboContractNo.ListCount
++    If selectFirst And cboContractNo.ListCount > 0 Then
++        cboContractNo.ListIndex = 0
++        cid = CStr(cboContractNo.List(0, 1))
++        suppressContractChange = previousSuppress
++        InitFromContractFast cid
++    Else
++        suppressContractChange = previousSuppress
++    End If
++    Exit Sub
++Failed:
++    suppressContractChange = previousSuppress
++    MsgBox "Cannot filter contracts: " & Err.Description, vbExclamation, "Payment Entry"
++End Sub
++
++Public Sub InitFromContractFast(contractID As String)
++    Dim i As Long, found As Boolean, previousSuppress As Boolean
++    previousSuppress = suppressContractChange
++    On Error GoTo Failed
++    For i = 0 To cboContractNo.ListCount - 1
++        If CStr(cboContractNo.List(i, 1)) = contractID Then found = True: Exit For
+     Next i
+-
+-    '========================
+-    ' CPB CONTRACT
+-    '========================
+-    Set ws = EnsurePaymentLedger
+-
+-    lastRow = _
+-        ws.Cells(ws.rows.count, "C").End(xlUp).Row
+-
+-    For r = 2 To lastRow
+-
+-        '====================
+-        ' HEADER ROW ONLY
+-        '====================
+-        If Trim$(ws.Cells(r, "B").value) = "" Then
+-
+-            contractID = _
+-                Trim$(ws.Cells(r, "C").value)
+-
+-            If Left$(contractID, 6) = "B-CPB-" Then
+-
+-                If Not dictAdded.exists(contractID) Then
+-
+-                    contractNo = _
+-                        Trim$(ws.Cells(r, "D").value)
+-
+-                    cboContractNo.AddItem contractNo
+-
+-                    cboContractNo.List( _
+-                        cboContractNo.ListCount - 1, 1) = contractID
+-
+-                    dictAdded(contractID) = True
+-
+-                End If
+-
+-            End If
+-
+-        End If
+-
+-    Next r
+-
+-    suppressContractChange = False
+-
+-End Sub
+-
+-Public Sub InitFromContractFast( _
+-    contractID As String)
+-
+-    Dim i As Long
+-
++    ' An external caller may request a contract outside the active filter.
++    If Not found Then
++        mContractKeyword = ""
++        txtSearch.Value = ""
++        BuildContractComboAll False
++        For i = 0 To cboContractNo.ListCount - 1
++            If CStr(cboContractNo.List(i, 1)) = contractID Then found = True: Exit For
++        Next i
++    End If
++    ClearFilteredContractDetails
++    If Not found Then Exit Sub
+     LoadUnifiedSourceFast contractID
+-
+     LoadPaymentHistoryFast contractID
+-
+     LoadLedgerSummaryFast contractID
+-
+-    '========================
+-    ' SELECT COMBO
+-    '========================
+     suppressContractChange = True
+-    
+-    For i = 0 To cboContractNo.ListCount - 1
+-    
+-        If cboContractNo.List(i, 1) = contractID Then
+-    
+-            cboContractNo.ListIndex = i
+-            Exit For
+-    
+-        End If
+-    
+-    Next i
+-    
+-    suppressContractChange = False
+-
++    cboContractNo.ListIndex = i
++    btnSave.Enabled = True
++    suppressContractChange = previousSuppress
++    Exit Sub
++Failed:
++    suppressContractChange = previousSuppress
++    btnSave.Enabled = False
++    MsgBox "Cannot load contract: " & Err.Description, vbExclamation, "Payment Entry"
+ End Sub
+ 
+ Private Sub LoadUnifiedSourceFast( _
+@@ -991,7 +975,7 @@
+ Private Sub InitPlaceholders()
+     Dim c As Control
+     For Each c In Me.Controls
+-        If TypeName(c) = "TextBox" Then
++        If TypeName(c) = "TextBox" And c.Name <> "txtSearch" Then
+             If Trim(c.Tag) <> "" Then
+                 c.value = c.Tag
+                 c.ForeColor = RGB(0, 0, 0)
+@@ -1435,57 +1419,7 @@
+ 
+ 
+ Public Sub LoadContractNoToComboFast()
+-
+-    Dim arrList() As Variant
+-    Dim total As Long
+-    Dim i As Long
+-
+-    cboContractNo.Clear
+-
+-    cboContractNo.ColumnCount = 2
+-    cboContractNo.ColumnWidths = "150 pt;0 pt"
+-
+-    If IsEmpty(gArrContract) Then Exit Sub
+-
+-    ReDim arrList(0 To UBound(gArrContract, 1), 0 To 1)
+-
+-    total = 0
+-
+-    For i = 1 To UBound(gArrContract, 1)
+-
+-        If Trim(CStr(gArrContract(i, 1))) <> "" Then
+-
+-            arrList(total, 0) = _
+-                gArrContract(i, 2)
+-
+-            arrList(total, 1) = _
+-                gArrContract(i, 1)
+-
+-            total = total + 1
+-
+-        End If
+-
+-    Next i
+-
+-    If total > 0 Then
+-
+-        Dim finalArr() As Variant
+-        Dim r As Long
+-        Dim c As Long
+-
+-        ReDim finalArr(0 To total - 1, 0 To 1)
+-
+-        For r = 0 To total - 1
+-        
+-            finalArr(r, 0) = arrList(r, 0)
+-            finalArr(r, 1) = arrList(r, 1)
+-        
+-        Next r
+-
+-        cboContractNo.List = finalArr
+-
+-    End If
+-
++    BuildContractComboAll
+ End Sub
+ 
+ '========================================
+@@ -1614,3 +1548,62 @@
+ 
+     IsValidDDMMYYYY = True
+ End Function
++
++Private Function ContractSearchText(ByVal value As Variant) As String
++    If IsError(value) Or IsNull(value) Or IsEmpty(value) Then Exit Function
++    ContractSearchText = LCase$(VN_NoSign(Trim$(CStr(value))))
++End Function
++
++Private Sub ClearFilteredContractDetails()
++    Dim oldSuppress As Boolean, ctrl As Object
++    oldSuppress = suppressPaymentSelect
++    suppressPaymentSelect = True
++    lstPayment.Clear
++    editingRow = 0: selectedLedgerRow = 0: lastPaymentIndex = -1
++    isEditMode = False
++    chkEditPayment.Value = False
++    btnUpdatePayment.Enabled = False
++    btnDeletePayment.Enabled = False
++    btnSave.Enabled = False
++    lblContractID.Caption = "": lblLedgerID.Caption = ""
++    lblCompany2.Caption = "": lblItemName.Caption = "": lblContractValue.Caption = ""
++    lblSumJ.Caption = "0": lblSumK.Caption = "0": lblSumL.Caption = "0"
++    lblSumM.Caption = "0": lblSumN.Caption = "0"
++    For Each ctrl In Me.Controls
++        If TypeName(ctrl) = "TextBox" Then
++            If ctrl.Name <> "txtSearch" Then ctrl.Value = ""
++        End If
++    Next ctrl
++    InitPlaceholders
++    suppressPaymentSelect = oldSuppress
++End Sub
++
++Private Sub txtSearch_KeyDown(ByVal KeyCode As MSForms.ReturnInteger, ByVal Shift As Integer)
++    If KeyCode = vbKeyReturn Then
++        KeyCode = 0
++        mContractKeyword = ContractSearchText(txtSearch.Value)
++        BuildContractComboAll
++    ElseIf KeyCode = vbKeyEscape Then
++        KeyCode = 0
++        txtSearch.Value = ""
++        mContractKeyword = ""
++        BuildContractComboAll
++    End If
++End Sub
++
++Private Sub txtSearch_MouseDown(ByVal Button As Integer, ByVal Shift As Integer, ByVal X As Single, ByVal Y As Single)
++    If Button <> 2 Then Exit Sub
++    Dim nowTime As Double, elapsed As Double
++    nowTime = Timer
++    elapsed = nowTime - mContractRightTime
++    If elapsed < 0 Then elapsed = elapsed + 86400
++    If mContractRightCount > 0 And elapsed < 0.5 Then
++        mContractRightCount = 0
++        txtSearch.Value = ""
++        mContractKeyword = ""
++        BuildContractComboAll
++    Else
++        mContractRightCount = 1
++        mContractRightTime = nowTime
++    End If
++End Sub

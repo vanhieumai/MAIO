@@ -1,0 +1,1549 @@
+'frmMergeSheets
+Option Explicit
+Private mOriginal1 As String
+Private mOriginal2 As String
+Private mSourceCopies As Collection
+
+' ===========================================================
+' frmMergeSheets — Form module  (v2 — redesigned)
+'
+' REQUIRED CONTROLS ON THE FORM:
+'   [OptionButton] optCopyToCurrent     "Copy to the current workbook"  — default
+'   [OptionButton] optMerge2External    "Merge 2 external workbooks"
+'
+'   [Frame]        fraWB1               "Workbook 1"
+'     [Label]        lblWB1Path         (displays selected file name)
+'     [ListBox]      lbSheets1          MultiSelect = fmMultiSelectExtended
+'     [CommandButton] btnBrowse1        "Browse"
+'     [CheckBox]     chkShowHidden1     "Show hidden sheets"
+'     [CheckBox]     chkDeleteAll1      "Delete all sheets in the target workbook"
+'     [CheckBox]     chkSelectAll1      "Select All"
+'     [CheckBox]     chkDontCopyNames1  "Don't copy Name Manager"
+'
+'   [Frame]        fraWB2               "Workbook 2"
+'     [Label]        lblWB2Path         (displays selected file name)
+'     [ListBox]      lbSheets2          MultiSelect = fmMultiSelectExtended
+'     [CommandButton] btnBrowse2        "Browse"
+'     [CheckBox]     chkShowHidden2     "Show hidden sheets"
+'     [CheckBox]     chkSelectAll2      "Select All"
+'     [CheckBox]     chkDontCopyNames2  "Don't copy Name Manager"
+'
+'   [Frame]        fraProgress          (thin frame, no caption)
+'     [Label]        lblProgressBar     BackColor = solid colour, Width starts at 0
+'     [Label]        lblPercent         "0%"
+'
+'   [CommandButton] btnMerge            "Merge"
+'
+' NOTE: Both OptionButtons must be in the same GroupName (or on the
+'       form surface without a Frame) so they behave as a radio pair.
+' ===========================================================
+
+' -- Windows API --------------------------------------------
+#If VBA7 Then
+    Private Declare PtrSafe Function FindWindow Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, ByVal lpWindowName As String) As LongPtr
+    Private Declare PtrSafe Function SetWindowPos Lib "user32" ( _
+        ByVal hwnd As LongPtr, ByVal hWndInsertAfter As LongPtr, _
+        ByVal X As Long, ByVal y As Long, _
+        ByVal cx As Long, ByVal cy As Long, _
+        ByVal wFlags As Long) As Long
+#Else
+    Private Declare Function FindWindow Lib "user32" Alias "FindWindowA" ( _
+        ByVal lpClassName As String, ByVal lpWindowName As String) As Long
+    Private Declare Function SetWindowPos Lib "user32" ( _
+        ByVal hwnd As Long, ByVal hWndInsertAfter As Long, _
+        ByVal X As Long, ByVal Y As Long, _
+        ByVal cx As Long, ByVal cy As Long, _
+        ByVal wFlags As Long) As Long
+#End If
+
+Private Const HWND_TOPMOST   As Long = -1
+Private Const HWND_NOTOPMOST As Long = -2
+Private Const SWP_NOMOVE     As Long = &H2
+Private Const SWP_NOSIZE     As Long = &H1
+Private Const SWP_NOACTIVATE As Long = &H10
+
+' -- Module-level state -------------------------------------
+Private mWB1         As Workbook
+Private mWB2         As Workbook
+Private mWB1Visible  As Boolean
+Private mWB2Visible  As Boolean
+Private mBulkUpd1    As Boolean
+Private mBulkUpd2    As Boolean
+Private Function PickMergeSource(ByVal slot As Long, ByRef displayPath As String) As Workbook
+    Dim candidates As Collection, wb As Workbook, selected As Workbook
+    Dim picker As frmSelectWorkbook, answer As VbMsgBoxResult
+    Dim path As String, otherPath As String, ext As String, tempPath As String
+    Set candidates = New Collection
+    If slot = 1 Then otherPath = mOriginal2 Else otherPath = mOriginal1
+    For Each wb In Application.Workbooks
+        If MergeSourceAllowed(wb, otherPath) Then candidates.Add wb
+    Next wb
+    If candidates.count > 0 Then
+        answer = MsgBox("Use an open workbook as Workbook " & slot & "?" & vbCrLf & _
+                 "Yes: select an open workbook. No: browse for a file.", vbYesNoCancel + vbQuestion, "Workbook Manager")
+        If answer = vbCancel Then Exit Function
+        If answer = vbYes Then
+            Set picker = New frmSelectWorkbook
+            picker.Configure candidates
+            picker.Show vbModal
+            Set selected = picker.SelectedWorkbook
+            Unload picker
+            If selected Is Nothing Then Exit Function
+        End If
+    End If
+    If selected Is Nothing Then
+        path = PickExcelFile("Select source workbook (Workbook " & slot & ")")
+        If Len(path) = 0 Then Exit Function
+        If StrComp(path, ThisWorkbook.fullName, vbTextCompare) = 0 Then
+            MsgBox "Please select a different workbook from the tool file.", vbExclamation
+            Exit Function
+        End If
+        If optCopyToCurrent.value Then
+            If Not defaultWorkbook Is Nothing Then
+                If StrComp(path, defaultWorkbook.fullName, vbTextCompare) = 0 Then
+                    MsgBox "Source must be different from the current target workbook.", vbExclamation
+                    Exit Function
+                End If
+            End If
+        ElseIf StrComp(path, otherPath, vbTextCompare) = 0 Then
+            MsgBox "Please select two different source workbooks.", vbExclamation
+            Exit Function
+        End If
+        For Each wb In Application.Workbooks
+            If StrComp(wb.fullName, path, vbTextCompare) = 0 Then
+                Set selected = wb
+                Exit For
+            End If
+        Next wb
+    End If
+    If Not selected Is Nothing Then
+        displayPath = selected.fullName
+        Select Case selected.fileFormat
+            Case 50: ext = ".xlsb"
+            Case 52: ext = ".xlsm"
+            Case 56, -4143: ext = ".xls"
+            Case Else: ext = ".xlsx"
+        End Select
+        tempPath = Environ$("TEMP") & "\CPMS_merge_" & Replace(CreateObject("Scripting.FileSystemObject").GetTempName, ".tmp", ext)
+        selected.SaveCopyAs tempPath
+        If mSourceCopies Is Nothing Then Set mSourceCopies = New Collection
+        mSourceCopies.Add tempPath, LCase$(tempPath)
+        path = tempPath
+    Else
+        displayPath = path
+    End If
+    Set PickMergeSource = OpenWBForMove(path)
+End Function
+Private Function MergeSourceAllowed(ByVal wb As Workbook, ByVal otherPath As String) As Boolean
+    If wb Is ThisWorkbook Then Exit Function
+    If wb.IsAddin Or UCase$(wb.Name) = "PERSONAL.XLSB" Then Exit Function
+    If wb.Windows.count = 0 Then Exit Function
+    If Not wb.Windows(1).Visible Then Exit Function
+    If Not mWB1 Is Nothing Then
+        If wb Is mWB1 Then Exit Function
+    End If
+    If Not mWB2 Is Nothing Then
+        If wb Is mWB2 Then Exit Function
+    End If
+    If optCopyToCurrent.value Then
+        If Not defaultWorkbook Is Nothing Then
+            If wb Is defaultWorkbook Then Exit Function
+        End If
+    Else
+        If StrComp(wb.fullName, otherPath, vbTextCompare) = 0 Then Exit Function
+    End If
+    MergeSourceAllowed = True
+End Function
+
+
+Private Sub btnFixNameManager_Click()
+    Call FixCorruptNames_Standalone
+End Sub
+
+Public Sub FixCorruptNames_Standalone()
+
+    Dim fd As FileDialog
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+
+    Dim targetPath As String
+    With fd
+        .title = "Chon file Excel can xoa Name Manager"
+        .Filters.Clear
+        .Filters.Add "Excel Files", "*.xlsx; *.xlsm; *.xls"
+        .AllowMultiSelect = False
+        If mLastBrowseDir <> "" Then
+            .InitialFileName = mLastBrowseDir & "\"
+        Else
+            .InitialFileName = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\"
+        End If
+        If .Show <> -1 Then Exit Sub
+        targetPath = .SelectedItems(1)
+    End With
+
+    If LCase(targetPath) = LCase(ThisWorkbook.fullName) Then
+        MsgBox "Cannot process this tool file itself." & vbCrLf & _
+               "Please select a different workbook."
+        Exit Sub
+    End If
+
+    Application.StatusBar = "Stripping Name Manager..."
+    Dim cleanedPath As String
+    cleanedPath = StripNamesToFile(targetPath)
+    Application.StatusBar = False
+
+    If cleanedPath = "" Then
+        MsgBox "Failed to create cleaned file." & vbCrLf & _
+               "Check that the source file is not open and you have write permissions.", _
+               vbCritical, "Fix Corrupt Names"
+        Exit Sub
+    End If
+
+    Dim resp As VbMsgBoxResult
+    resp = MsgBox("Done! Cleaned file:" & vbCrLf & vbCrLf & _
+                  cleanedPath & vbCrLf & vbCrLf & _
+                  "Open now?", _
+                  vbYesNo + vbInformation, "Fix Corrupt Names")
+
+    If resp = vbYes Then
+        Application.ScreenUpdating = True
+        Application.Wait Now + TimeValue("00:00:01")
+        Dim wbOpened As Workbook
+        Dim openErr  As Long
+        Dim t        As Integer
+        For t = 1 To 3
+            On Error Resume Next
+            Set wbOpened = Workbooks.Open(fileName:=cleanedPath, UpdateLinks:=0)
+            openErr = Err.number
+            On Error GoTo 0
+            If openErr = 0 And Not wbOpened Is Nothing Then Exit For
+            If t < 3 Then
+                Application.Wait Now + TimeValue("00:00:01")
+            Else
+                MsgBox "Cannot open file after 3 attempts." & vbCrLf & _
+                       "Please open manually:" & vbCrLf & cleanedPath, _
+                       vbExclamation, "Open Failed"
+            End If
+        Next t
+    End If
+
+End Sub
+
+' ===========================================================
+' FORM INIT
+' ===========================================================
+Private Sub UserForm_Initialize()
+    ApplyTheme Me
+    
+    With lblProgressBar
+        .AutoSize = False
+        .BackStyle = fmBackStyleOpaque
+        .BackColor = RGB(0, 153, 255)   ' màu xanh n?i b?t, khác n?n fraProgress
+        .Caption = ""                    ' không hi?n th? text trên chính thanh fill
+        '.ZOrder 0                        ' d?m b?o nó n?m TRÊN n?n fraProgress, không b? che
+    End With
+    ' Ð?m b?o defaultWorkbook dã du?c set (phòng form m? d?c l?p)
+    If defaultWorkbook Is Nothing Then
+        Set defaultWorkbook = GetUserWorkbook()
+    End If
+
+    optCopyToCurrent.value = True
+
+    With lblWB1Path
+        .Caption = "(not selected)"
+        .ForeColor = RGB(0, 102, 204)
+        .WordWrap = True
+    End With
+    With lblWB2Path
+        .Caption = "(not selected)"
+        .ForeColor = RGB(0, 102, 204)
+        .WordWrap = True
+    End With
+
+    lblPercent.Caption = "0%"
+    lblProgressBar.Width = 0
+    UpdateWB2State
+End Sub
+
+' ===========================================================
+' RADIO BUTTONS
+' ===========================================================
+Private Sub optCopyToCurrent_Click()
+    UpdateWB2State
+End Sub
+
+Private Sub optMerge2External_Click()
+    UpdateWB2State
+End Sub
+
+Private Sub UpdateWB2State()
+    Dim en As Boolean
+    en = optMerge2External.value
+
+    ' Grey-out / restore every control inside fraWB2
+    Dim ctl As MSForms.Control
+    For Each ctl In fraWB2.Controls
+        On Error Resume Next
+        ctl.Enabled = en
+        On Error GoTo 0
+    Next ctl
+    fraWB2.Enabled = en
+
+    ' "Delete all sheets" makes no sense when merging to a brand-new file
+    ' — disable it on both frames in Mode 2, restore in Mode 1
+    chkDeleteAll1.Enabled = Not en
+End Sub
+Private Sub btnBrowse1_Click()
+    On Error GoTo EH
+
+    Dim chosen As Workbook, displayPath As String, oldScreen As Boolean
+    oldScreen = Application.ScreenUpdating
+    Set chosen = PickMergeSource(1, displayPath)
+    If chosen Is Nothing Then Exit Sub
+    CloseWB mWB1, mWB1Visible
+    Set mWB1 = chosen
+    mOriginal1 = displayPath
+    Application.ScreenUpdating = False
+    mWB1Visible = mWB1.Windows(1).Visible
+    mWB1.Windows(1).Visible = False
+    lblWB1Path.Caption = displayPath
+    lblWB1Path.ControlTipText = displayPath
+    LoadSheetsToLB mWB1, lbSheets1, chkShowHidden1, chkSelectAll1, mWB1Visible
+    Application.ScreenUpdating = oldScreen
+    Exit Sub
+EH:
+    Application.ScreenUpdating = oldScreen
+    MsgBox "Cannot load source workbook: " & Err.Description, vbExclamation, "Browse"
+End Sub
+Private Sub btnBrowse2_Click()
+    On Error GoTo EH
+    If Not optMerge2External.value Then Exit Sub
+    Dim chosen As Workbook, displayPath As String, oldScreen As Boolean
+    oldScreen = Application.ScreenUpdating
+    Set chosen = PickMergeSource(2, displayPath)
+    If chosen Is Nothing Then Exit Sub
+    CloseWB mWB2, mWB2Visible
+    Set mWB2 = chosen
+    mOriginal2 = displayPath
+    Application.ScreenUpdating = False
+    mWB2Visible = mWB2.Windows(1).Visible
+    mWB2.Windows(1).Visible = False
+    lblWB2Path.Caption = displayPath
+    lblWB2Path.ControlTipText = displayPath
+    LoadSheetsToLB mWB2, lbSheets2, chkShowHidden2, chkSelectAll2, mWB2Visible
+    Application.ScreenUpdating = oldScreen
+    Exit Sub
+EH:
+    Application.ScreenUpdating = oldScreen
+    MsgBox "Cannot load source workbook: " & Err.Description, vbExclamation, "Browse"
+End Sub
+
+' ===========================================================
+' LOAD SHEET LISTS
+' ===========================================================
+Private Sub LoadSheetsToLB(wb As Workbook, _
+                             lb As MSForms.ListBox, _
+                             chkHidden As MSForms.CheckBox, _
+                             chkAll As MSForms.CheckBox, _
+                             ByRef wasVisible As Boolean)
+    lb.Clear
+    If wb Is Nothing Then Exit Sub
+
+    ' Window already hidden by the Browse handler before ScreenUpdating was restored.
+    ' wasVisible was also captured there; nothing to do here.
+
+    Dim ws As Worksheet
+    For Each ws In wb.Worksheets
+        If chkHidden.value = False Then
+            If ws.Visible = xlSheetVisible Then lb.AddItem ws.Name
+        Else
+            lb.AddItem ws.Name
+        End If
+    Next ws
+
+    chkAll.value = False
+End Sub
+
+Private Sub chkShowHidden1_Click()
+    Application.ScreenUpdating = False
+    LoadSheetsToLB mWB1, lbSheets1, chkShowHidden1, chkSelectAll1, mWB1Visible
+    Application.ScreenUpdating = True
+End Sub
+
+Private Sub chkShowHidden2_Click()
+    Application.ScreenUpdating = False
+    LoadSheetsToLB mWB2, lbSheets2, chkShowHidden2, chkSelectAll2, mWB2Visible
+    Application.ScreenUpdating = True
+End Sub
+
+' ===========================================================
+' SELECT ALL
+' ===========================================================
+Private Sub chkSelectAll1_Click()
+    Dim i As Long
+    mBulkUpd1 = True
+    For i = 0 To lbSheets1.ListCount - 1
+        lbSheets1.selected(i) = chkSelectAll1.value
+    Next i
+    mBulkUpd1 = False
+End Sub
+
+Private Sub chkSelectAll2_Click()
+    Dim i As Long
+    mBulkUpd2 = True
+    For i = 0 To lbSheets2.ListCount - 1
+        lbSheets2.selected(i) = chkSelectAll2.value
+    Next i
+    mBulkUpd2 = False
+End Sub
+
+Private Sub lbSheets1_Click()
+    If mBulkUpd1 Then Exit Sub
+    Dim i As Long, allChk As Boolean: allChk = True
+    For i = 0 To lbSheets1.ListCount - 1
+        If Not lbSheets1.selected(i) Then allChk = False: Exit For
+    Next i
+    chkSelectAll1.value = allChk
+End Sub
+
+Private Sub lbSheets2_Click()
+    If mBulkUpd2 Then Exit Sub
+    Dim i As Long, allChk As Boolean: allChk = True
+    For i = 0 To lbSheets2.ListCount - 1
+        If Not lbSheets2.selected(i) Then allChk = False: Exit For
+    Next i
+    chkSelectAll2.value = allChk
+End Sub
+
+' ===========================================================
+' MERGE BUTTON — dispatcher
+' ===========================================================
+Private Sub btnMerge_Click()
+    If optCopyToCurrent.value Then
+        MergeMode1_CopyToCurrent
+    Else
+        MergeMode2_ExternalFiles
+    End If
+End Sub
+
+' ===========================================================
+' MODE 1 — Copy selected sheets from WB1 ? ThisWorkbook
+' ===========================================================
+Private Sub MergeMode1_CopyToCurrent()
+
+    If mWB1 Is Nothing Then
+        MsgBox "Please select a source workbook first (Browse).", vbExclamation, "Merge"
+        Exit Sub
+    End If
+
+    Dim total As Long, i As Long
+    For i = 0 To lbSheets1.ListCount - 1
+        If lbSheets1.selected(i) Then total = total + 1
+    Next i
+    If total = 0 Then
+        MsgBox "Please select at least one sheet from Workbook 1.", vbExclamation, "Merge"
+        Exit Sub
+    End If
+
+    Dim wbTarget As Workbook
+    If defaultWorkbook Is Nothing Then
+        MsgBox "No user workbook detected. Please open a workbook first.", vbExclamation, "Merge"
+        Exit Sub
+    End If
+    Set wbTarget = defaultWorkbook
+
+    ' Duplicate check
+    Dim dupList As String
+    If Not chkDeleteAll1.value Then
+        If HasDuplicateSheets(wbTarget, mWB1, lbSheets1, dupList) Then
+            Dim resp As VbMsgBoxResult
+            resp = MsgBox("Duplicate sheet names found:" & vbCrLf & vbCrLf & dupList & vbCrLf & _
+                          "Auto-rename conflicting sheets?" & vbCrLf & vbCrLf & _
+                          "Yes = auto-rename and continue" & vbCrLf & _
+                          "No  = cancel", _
+                          vbYesNo + vbExclamation, "Duplicate Sheet Names")
+            If resp = vbNo Then Exit Sub
+        End If
+    End If
+
+    Dim SrcName As String: SrcName = mWB1.Name
+    Dim startTime As Double: startTime = Timer
+
+    ' -- Pre-strip Name Manager BEFORE screen freeze ------------------
+    Dim wbSrc1    As Workbook
+    Dim cleanSrc1 As String: cleanSrc1 = ""
+
+    If chkDontCopyNames1.value Then
+        Application.StatusBar = "Stripping Name Manager from source..."
+        Set wbSrc1 = OpenAndStripNames(mWB1)
+        If wbSrc1 Is Nothing Then
+            Set wbSrc1 = mWB1     ' fallback: copy without stripping
+        Else
+            cleanSrc1 = wbSrc1.fullName
+        End If
+    Else
+        Set wbSrc1 = mWB1
+    End If
+    
+    SetFormTopMost True
+    SetMergeUIBusy True
+    lblProgressBar.Width = 0
+    lblPercent.Caption = "0%"
+    Me.Repaint
+
+    With Application
+        .ScreenUpdating = False
+        .EnableEvents = False
+        .Calculation = xlCalculationManual
+        .DisplayAlerts = False
+    End With
+
+    ' Unhide data sheets so sheet names are accessible during move
+    ' (prevents "name already taken" errors).  Re-hidden in cleanup.
+    'UnhideAllDataSheets
+
+    Dim mergeError As Boolean
+    Dim errMsg As String
+
+    On Error GoTo M1_Err
+
+    ' Delete all existing sheets if requested
+    If chkDeleteAll1.value Then
+        Dim tmpWS As Worksheet
+        Dim tmpSheetName As String
+        Set tmpWS = wbTarget.Worksheets.Add
+        tmpSheetName = GetAvailableSheetName(wbTarget, "__TEMP__")
+        tmpWS.Name = tmpSheetName
+        Dim delWS As Worksheet
+        Dim di As Long
+        For di = wbTarget.Worksheets.count To 1 Step -1
+            If wbTarget.Worksheets(di).Name <> tmpSheetName Then
+                Set delWS = wbTarget.Worksheets(di)
+                If delWS.Visible = xlSheetVeryHidden Then delWS.Visible = xlSheetVisible
+                delWS.Delete
+            End If
+        Next di
+    End If
+
+    ' Move sheets to the target workbook.
+    ' The source is opened writable temporarily and receives a spare sheet
+    ' before Move. This prevents Excel's Automation error when the last
+    ' selected source sheet is moved. The source is always closed without
+    ' saving, so the original file is not modified.
+    If Not AddSpareSheet(wbSrc1) Then
+        Err.Raise vbObjectError + 2101, "Merge", _
+                  "The source workbook is read-only or protected and cannot be moved."
+    End If
+
+    Dim namesArr() As String, destNamesArr() As String
+    ReDim namesArr(0 To total - 1)
+    ReDim destNamesArr(0 To total - 1)
+    Dim k As Long: k = 0
+    Dim lastDE As Double: lastDE = Timer
+    Dim ws As Worksheet
+    Dim destWS As Worksheet
+    Dim destAnchor As Object
+    Dim movedSheet As Object
+
+    For i = 0 To lbSheets1.ListCount - 1
+        If lbSheets1.selected(i) Then
+            Set ws = Nothing
+            Set ws = wbSrc1.Worksheets(lbSheets1.List(i))
+            If ws Is Nothing Then
+                Err.Raise vbObjectError + 2105, "Merge", _
+                          "Source worksheet '" & lbSheets1.List(i) & "' could not be found."
+            End If
+
+            ' Store the source name before moving.
+            Dim origName As String: origName = ws.Name
+            k = k + 1
+
+            Dim sv As Long: sv = ws.Visible
+            If sv = xlSheetVeryHidden Then ws.Visible = xlSheetVisible
+
+            ' Keep an anchor to the target's last sheet. After Move, the
+            ' last item in the target's Sheets collection is the sheet that
+            ' was moved. Use Sheets (not Worksheets), because the target may
+            ' contain hidden sheets or chart sheets.
+            Set destAnchor = wbTarget.sheets(wbTarget.sheets.count)
+
+            ' Move without assigning Worksheet.Name before or after.
+            ' The source sheet's name is never changed by this code.
+            ws.Move After:=destAnchor
+            ' After Move, Excel can invalidate the original worksheet
+            ' object. Reacquire the moved sheet from the destination.
+            Set movedSheet = Nothing
+            Set movedSheet = wbTarget.sheets(wbTarget.sheets.count)
+            If movedSheet Is Nothing Then
+                Err.Raise vbObjectError + 2103, "Merge", _
+                          "The moved worksheet could not be found in the target workbook."
+            End If
+            If TypeName(movedSheet) <> "Worksheet" Then
+                Err.Raise vbObjectError + 2106, "Merge", _
+                          "Excel returned a non-worksheet object after moving the sheet."
+            End If
+            Set destWS = movedSheet
+
+            ' namesArr keeps the source name for cleaning
+            ' [SourceWorkbook]Sheet! references.
+            namesArr(k - 1) = origName
+            destNamesArr(k - 1) = destWS.Name
+
+            ' Restore visibility only on the moved sheet. Do not touch any
+            ' pre-existing hidden sheet in the target workbook.
+            If sv <> xlSheetVisible Then
+                On Error Resume Next
+                destWS.Visible = sv
+                Err.Clear
+                On Error GoTo M1_Err
+            End If
+
+            UpdateProgress k, total
+            If Timer - lastDE >= 2 Then DoEvents: lastDE = Timer
+        End If
+    Next i
+
+    ' Clean external link references còn sót trong công th?c cell
+    Application.StatusBar = "Cleaning external links..."
+    FastReplaceLinks_ByNameArray wbTarget, SrcName, namesArr, destNamesArr
+
+    ' FIX: lu?i an toàn — phá n?t link còn sót ngoài công th?c cell
+    'BreakResidualLinks wbTarget, SrcName
+
+    ' Remove temp sheet
+    If chkDeleteAll1.value Then
+        On Error Resume Next
+        wbTarget.Worksheets(tmpSheetName).Delete
+        On Error GoTo M1_Err
+    End If
+
+    GoTo M1_Done
+M1_Err:
+    mergeError = True: errMsg = Err.Description: Err.Clear
+
+M1_Done:
+    If cleanSrc1 <> "" Then
+        On Error Resume Next
+        If Not wbSrc1 Is Nothing Then wbSrc1.Close False
+        Kill cleanSrc1
+        On Error GoTo 0
+    End If
+    'RehideAllDataSheets   ' always re-hide, even on error
+    SetFormTopMost False
+    SetMergeUIBusy False
+    With Application
+        .ScreenUpdating = True
+        .EnableEvents = True
+        .Calculation = xlCalculationAutomatic
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+
+    ' Close source workbook before showing result
+    CloseWB mWB1, mWB1Visible
+
+    Dim elapsed As Double: elapsed = Timer - startTime
+    If elapsed < 0 Then elapsed = elapsed + 86400
+
+    If mergeError Then
+        lblPercent.Caption = "Error"
+        MsgBox "Merge failed!" & vbCrLf & "Error: " & errMsg, vbCritical, "Merge"
+    Else
+        lblPercent.Caption = "Done"
+        Dim sum1 As String
+        sum1 = "Merge completed!" & vbCrLf & _
+               "Sheets merged : " & k & vbCrLf & _
+               "Time          : " & Format(elapsed, "0.0") & " sec"
+        If chkDontCopyNames1.value Then
+            sum1 = sum1 & vbCrLf & vbCrLf & _
+                   "Name Manager stripped from source before copy."
+        End If
+        MsgBox sum1, vbInformation, "Merge"
+        Unload Me
+    End If
+
+End Sub
+
+' ===========================================================
+' MODE 2 — Merge WB1 + WB2 sheets ? new file (auto-saved)
+' Save location : Documents\CPMS_Exports
+' File name     : Merged_YYYYMMDD_HHMMSS.xlsm
+' ===========================================================
+Private Sub MergeMode2_ExternalFiles()
+
+    If mWB1 Is Nothing Then
+        MsgBox "Please select Workbook 1 first.", vbExclamation, "Merge"
+        Exit Sub
+    End If
+    If mWB2 Is Nothing Then
+        MsgBox "Please select Workbook 2 first.", vbExclamation, "Merge"
+        Exit Sub
+    End If
+
+    Dim total1 As Long, total2 As Long, i As Long
+    For i = 0 To lbSheets1.ListCount - 1
+        If lbSheets1.selected(i) Then total1 = total1 + 1
+    Next i
+    For i = 0 To lbSheets2.ListCount - 1
+        If lbSheets2.selected(i) Then total2 = total2 + 1
+    Next i
+
+    Dim totalAll As Long: totalAll = total1 + total2
+    If totalAll = 0 Then
+        MsgBox "Please select at least one sheet from either workbook.", vbExclamation, "Merge"
+        Exit Sub
+    End If
+
+    ' Save to Documents\CPMS_Export — works even if Documents is linked elsewhere
+    Dim saveDir As String
+    saveDir = CreateObject("WScript.Shell").SpecialFolders("MyDocuments") & "\CPMS_Exports"
+    If Dir(saveDir, vbDirectory) = "" Then MkDir saveDir
+    Dim SavePath As String
+    SavePath = saveDir & "\Merged_" & Format(Now, "yyyymmdd_hhmmss") & ".xlsm"
+
+    ' -- Pre-strip Name Manager BEFORE screen freeze ------------------
+    Dim wbSrc1M2 As Workbook: Dim cleanSrc1M2 As String: cleanSrc1M2 = ""
+    Dim wbSrc2M2 As Workbook: Dim cleanSrc2M2 As String: cleanSrc2M2 = ""
+
+    If chkDontCopyNames1.value Then
+        Application.StatusBar = "Stripping Name Manager from WB1..."
+        Set wbSrc1M2 = OpenAndStripNames(mWB1)
+        If wbSrc1M2 Is Nothing Then
+            Set wbSrc1M2 = mWB1
+        Else
+            cleanSrc1M2 = wbSrc1M2.fullName
+        End If
+    Else
+        Set wbSrc1M2 = mWB1
+    End If
+
+    If chkDontCopyNames2.value Then
+        Application.StatusBar = "Stripping Name Manager from WB2..."
+        Set wbSrc2M2 = OpenAndStripNames(mWB2)
+        If wbSrc2M2 Is Nothing Then
+            Set wbSrc2M2 = mWB2
+        Else
+            cleanSrc2M2 = wbSrc2M2.fullName
+        End If
+    Else
+        Set wbSrc2M2 = mWB2
+    End If
+    
+    Dim startTime As Double: startTime = Timer
+    SetFormTopMost True
+    SetMergeUIBusy True
+    lblProgressBar.Width = 0
+    lblPercent.Caption = "0%"
+    Me.Repaint
+
+    With Application
+        .ScreenUpdating = False
+        .EnableEvents = False
+        .Calculation = xlCalculationManual
+        .DisplayAlerts = False
+    End With
+
+    Dim mergeError As Boolean
+    Dim errMsg As String
+    Dim wbNew As Workbook
+
+    On Error GoTo M2_Err
+
+    ' Move requires each source workbook to retain at least one sheet.
+    ' These temporary sheets are discarded because the sources are closed
+    ' with SaveChanges:=False.
+    If Not AddSpareSheet(wbSrc1M2) Then
+        Err.Raise vbObjectError + 2101, "Merge", _
+                  "Workbook 1 is read-only or protected and cannot be moved."
+    End If
+    If Not AddSpareSheet(wbSrc2M2) Then
+        Err.Raise vbObjectError + 2102, "Merge", _
+                  "Workbook 2 is read-only or protected and cannot be moved."
+    End If
+
+    ' Create new workbook and remove default sheets
+    Set wbNew = Workbooks.Add
+    Dim phWS As Worksheet: Set phWS = wbNew.Worksheets.Add
+    Dim placeholderName As String
+    placeholderName = GetAvailableSheetName(wbNew, "__TEMP_PH__")
+    phWS.Name = placeholderName
+    Dim wsD As Worksheet
+    For Each wsD In wbNew.Worksheets
+        If wsD.Name <> placeholderName Then wsD.Delete
+    Next wsD
+
+    Dim names1() As String, names2() As String
+    Dim destNames1() As String, destNames2() As String
+    ReDim names1(0 To IIf(total1 > 0, total1 - 1, 0))
+    ReDim names2(0 To IIf(total2 > 0, total2 - 1, 0))
+    ReDim destNames1(0 To IIf(total1 > 0, total1 - 1, 0))
+    ReDim destNames2(0 To IIf(total2 > 0, total2 - 1, 0))
+    Dim k1 As Long: k1 = 0
+    Dim k2 As Long: k2 = 0
+    Dim stepDone As Long: stepDone = 0
+    Dim lastDE As Double: lastDE = Timer
+    Dim ws As Worksheet
+
+    ' -- Move from WB1 ----------------------------------------------------------
+    ' A spare sheet was added to the source before moving any sheets.
+    Dim destWS As Worksheet
+    Dim destAnchor As Object
+    Dim movedSheet As Object
+    For i = 0 To lbSheets1.ListCount - 1
+        If lbSheets1.selected(i) Then
+            Set ws = Nothing
+            Set ws = wbSrc1M2.Worksheets(lbSheets1.List(i))
+            If ws Is Nothing Then
+                Err.Raise vbObjectError + 2105, "Merge", _
+                          "Workbook 1 worksheet '" & lbSheets1.List(i) & "' could not be found."
+            End If
+            Dim origName1 As String: origName1 = ws.Name
+            k1 = k1 + 1: stepDone = stepDone + 1
+
+            Dim sv1 As Long: sv1 = ws.Visible
+            If sv1 = xlSheetVeryHidden Then ws.Visible = xlSheetVisible
+
+            Set destAnchor = wbNew.sheets(wbNew.sheets.count)
+            ws.Move After:=destAnchor
+
+            ' Do not assign Worksheet.Name. Excel keeps the source name
+            ' unless it must resolve a duplicate in the destination.
+            names1(k1 - 1) = origName1
+            ' Reacquire the moved sheet from the destination workbook;
+            ' the source worksheet object may no longer be valid after Move.
+            Set movedSheet = Nothing
+            Set movedSheet = wbNew.sheets(wbNew.sheets.count)
+            If movedSheet Is Nothing Then
+                Err.Raise vbObjectError + 2103, "Merge", _
+                          "The moved worksheet from Workbook 1 could not be found."
+            End If
+            If TypeName(movedSheet) <> "Worksheet" Then
+                Err.Raise vbObjectError + 2106, "Merge", _
+                          "Excel returned a non-worksheet object after moving Workbook 1."
+            End If
+            Set destWS = movedSheet
+            destNames1(k1 - 1) = destWS.Name
+            If sv1 <> xlSheetVisible Then
+                On Error Resume Next
+                destWS.Visible = sv1
+                Err.Clear
+                On Error GoTo M2_Err
+            End If
+
+            UpdateProgress stepDone, totalAll
+            If Timer - lastDE >= 2 Then DoEvents: lastDE = Timer
+        End If
+    Next i
+
+    ' -- Move from WB2 ----------------------------------------------------------
+    For i = 0 To lbSheets2.ListCount - 1
+        If lbSheets2.selected(i) Then
+            Set ws = Nothing
+            Set ws = wbSrc2M2.Worksheets(lbSheets2.List(i))
+            If ws Is Nothing Then
+                Err.Raise vbObjectError + 2107, "Merge", _
+                          "Workbook 2 worksheet '" & lbSheets2.List(i) & "' could not be found."
+            End If
+            Dim origName2 As String: origName2 = ws.Name
+            k2 = k2 + 1: stepDone = stepDone + 1
+
+            Dim sv2 As Long: sv2 = ws.Visible
+            If sv2 = xlSheetVeryHidden Then ws.Visible = xlSheetVisible
+
+            Set destAnchor = wbNew.sheets(wbNew.sheets.count)
+            ws.Move After:=destAnchor
+
+            ' Use the actual destination name generated by Excel.
+            names2(k2 - 1) = origName2
+            ' Reacquire the moved sheet from the destination workbook;
+            ' the source worksheet object may no longer be valid after Move.
+            Set movedSheet = Nothing
+            Set movedSheet = wbNew.sheets(wbNew.sheets.count)
+            If movedSheet Is Nothing Then
+                Err.Raise vbObjectError + 2104, "Merge", _
+                          "The moved worksheet from Workbook 2 could not be found."
+            End If
+            If TypeName(movedSheet) <> "Worksheet" Then
+                Err.Raise vbObjectError + 2108, "Merge", _
+                          "Excel returned a non-worksheet object after moving Workbook 2."
+            End If
+            Set destWS = movedSheet
+            destNames2(k2 - 1) = destWS.Name
+            If sv2 <> xlSheetVisible Then
+                On Error Resume Next
+                destWS.Visible = sv2
+                Err.Clear
+                On Error GoTo M2_Err
+            End If
+
+            UpdateProgress stepDone, totalAll
+            If Timer - lastDE >= 2 Then DoEvents: lastDE = Timer
+        End If
+    Next i
+
+    ' Remove placeholder
+    On Error Resume Next: wbNew.Worksheets(placeholderName).Delete: On Error GoTo M2_Err
+
+    ' Clean external link references trong công th?c cell
+    Application.StatusBar = "Cleaning links from WB1..."
+    If k1 > 0 Then FastReplaceLinks_ByNameArray _
+                            wbNew, mWB1.Name, names1, destNames1
+    Application.StatusBar = "Cleaning links from WB2..."
+    If k2 > 0 Then FastReplaceLinks_ByNameArray _
+                            wbNew, mWB2.Name, names2, destNames2
+
+    ' FIX: lu?i an toàn — phá n?t link còn sót ngoài công th?c cell
+    'BreakResidualLinks wbNew, mWB1.Name, mWB2.Name
+
+    ' Save new file
+    Application.StatusBar = "Saving: " & SavePath
+    Application.DisplayAlerts = False
+    wbNew.SaveAs fileName:=SavePath, fileFormat:=xlOpenXMLWorkbookMacroEnabled
+    Application.DisplayAlerts = True
+    GoTo M2_Done
+
+M2_Err:
+    mergeError = True: errMsg = Err.Description: Err.Clear
+
+M2_Done:
+    If cleanSrc1M2 <> "" Then
+        On Error Resume Next
+        If Not wbSrc1M2 Is Nothing Then wbSrc1M2.Close False
+        Kill cleanSrc1M2
+        On Error GoTo 0
+    End If
+    If cleanSrc2M2 <> "" Then
+        On Error Resume Next
+        If Not wbSrc2M2 Is Nothing Then wbSrc2M2.Close False
+        Kill cleanSrc2M2
+        On Error GoTo 0
+    End If
+    SetFormTopMost False
+    SetMergeUIBusy False
+    With Application
+        .ScreenUpdating = True
+        .EnableEvents = True
+        .Calculation = xlCalculationAutomatic
+        .DisplayAlerts = True
+        .StatusBar = False
+    End With
+
+    ' Close source workbooks before showing result
+    CloseWB mWB1, mWB1Visible
+    CloseWB mWB2, mWB2Visible
+
+    Dim elapsed As Double: elapsed = Timer - startTime
+    If elapsed < 0 Then elapsed = elapsed + 86400
+
+    If mergeError Then
+        lblPercent.Caption = "Error"
+        If Not wbNew Is Nothing Then
+            On Error Resume Next: wbNew.Close False: On Error GoTo 0
+        End If
+        MsgBox "Merge failed!" & vbCrLf & "Error: " & errMsg, vbCritical, "Merge"
+    Else
+        lblPercent.Caption = "Done"
+        Dim sum2 As String
+        sum2 = "Merge completed!" & vbCrLf & _
+               "Sheets from WB1 : " & k1 & vbCrLf & _
+               "Sheets from WB2 : " & k2 & vbCrLf & _
+               "Time            : " & Format(elapsed, "0.0") & " sec" & vbCrLf & vbCrLf & _
+               "Saved to:" & vbCrLf & SavePath
+        MsgBox sum2, vbInformation, "Merge"
+        Unload Me
+    End If
+
+End Sub
+Private Function StripNamesPS_Only(ByVal srcPath As String) As String
+
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+
+    Dim folder  As String: folder = fso.GetParentFolderName(srcPath) & "\"
+    Dim base    As String: base = fso.GetBaseName(srcPath)
+    Dim ext     As String: ext = "." & fso.GetExtensionName(srcPath)
+    Dim outPath As String: outPath = folder & base & "_NoNames" & ext
+
+    On Error Resume Next
+    If fso.FileExists(outPath) Then fso.DeleteFile outPath, True
+    On Error GoTo 0
+    If fso.FileExists(outPath) Then Exit Function   ' still locked
+
+    fso.CopyFile srcPath, outPath
+    If Not fso.FileExists(outPath) Then Exit Function
+
+    ' PowerShell: strip <definedNames> block from workbook.xml
+    ' and from individual sheet XMLs inside the ZIP.
+    Dim s As String
+    s = "Add-Type -AssemblyName System.IO.Compression.FileSystem" & vbCrLf
+    s = s & "$p = '" & Replace(outPath, "'", "''") & "'" & vbCrLf
+    s = s & "$z = $null" & vbCrLf
+    s = s & "try {" & vbCrLf
+    s = s & "    $z = [System.IO.Compression.ZipFile]::Open($p, 'Update')" & vbCrLf
+    s = s & "    $e = $z.GetEntry('xl/workbook.xml')" & vbCrLf
+    s = s & "    if ($e) {" & vbCrLf
+    s = s & "        $sr = [System.IO.StreamReader]::new($e.Open(), [System.Text.Encoding]::UTF8)" & vbCrLf
+    s = s & "        $c  = $sr.ReadToEnd(); $sr.Dispose()" & vbCrLf
+    s = s & "        $c  = [System.Text.RegularExpressions.Regex]::Replace($c, '<definedNames>[\s\S]*?</definedNames>', '')" & vbCrLf
+    s = s & "        $e.Delete()" & vbCrLf
+    s = s & "        $ne = $z.CreateEntry('xl/workbook.xml')" & vbCrLf
+    s = s & "        $sw = [System.IO.StreamWriter]::new($ne.Open(), [System.Text.UTF8Encoding]::new($false))" & vbCrLf
+    s = s & "        $sw.Write($c); $sw.Dispose()" & vbCrLf
+    s = s & "    }" & vbCrLf
+    s = s & "    $sheets = @($z.Entries | Where-Object { $_.FullName -match '^xl/worksheets/sheet\d+\.xml$' })" & vbCrLf
+    s = s & "    foreach ($se in $sheets) {" & vbCrLf
+    s = s & "        $sr2 = [System.IO.StreamReader]::new($se.Open(), [System.Text.Encoding]::UTF8)" & vbCrLf
+    s = s & "        $sc  = $sr2.ReadToEnd(); $sr2.Dispose()" & vbCrLf
+    s = s & "        if ($sc -match '<definedNames>') {" & vbCrLf
+    s = s & "            $sc  = [System.Text.RegularExpressions.Regex]::Replace($sc, '<definedNames>[\s\S]*?</definedNames>', '')" & vbCrLf
+    s = s & "            $sn  = $se.FullName; $se.Delete()" & vbCrLf
+    s = s & "            $ne2 = $z.CreateEntry($sn)" & vbCrLf
+    s = s & "            $sw2 = [System.IO.StreamWriter]::new($ne2.Open(), [System.Text.UTF8Encoding]::new($false))" & vbCrLf
+    s = s & "            $sw2.Write($sc); $sw2.Dispose()" & vbCrLf
+    s = s & "        }" & vbCrLf
+    s = s & "    }" & vbCrLf
+    s = s & "} finally {" & vbCrLf
+    s = s & "    if ($z) { $z.Dispose() }" & vbCrLf
+    s = s & "}" & vbCrLf
+
+    Dim psFile As String
+    psFile = Environ("TEMP") & "\strip_names_" & Format(Now, "yyyymmddHHmmss") & ".ps1"
+    Dim fn As Integer: fn = FreeFile
+    Open psFile For Output As #fn
+    Print #fn, s
+    Close #fn
+
+    Dim wsh As Object: Set wsh = CreateObject("WScript.Shell")
+    wsh.Run "powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File " & Chr(34) & psFile & Chr(34), 0, True
+    On Error Resume Next: Kill psFile: On Error GoTo 0
+
+    Application.Wait Now + TimeValue("00:00:02")
+
+    If Not fso.FileExists(outPath) Then Exit Function
+
+    StripNamesPS_Only = outPath
+
+End Function
+' ===========================================================
+' CORE HELPER — Strip all Name Manager entries from a file.
+' Step 1: PowerShell removes <definedNames> from raw ZIP XML
+'         (handles files too corrupt for Excel to open).
+' Step 2: Excel object model deletes any surviving names
+'         (handles normal names that PS regex cannot see).
+' Returns the _NoNames output path on success, "" on failure.
+' The caller owns the returned file and must Kill it when done.
+' ===========================================================
+Private Function StripNamesToFile(ByVal srcPath As String) As String
+
+    ' ----------------------------------------------------------
+    ' Step 1: Read print areas from the ORIGINAL source file
+    ' BEFORE PowerShell strips anything.
+    ' Print_Area lives inside <definedNames> in workbook.xml;
+    ' once PS removes that block the info is gone and
+    ' PageSetup.PrintArea returns "" on the cleaned copy.
+    ' ----------------------------------------------------------
+    Dim paWsName()  As String
+    Dim paAddress() As String
+    Dim paCount     As Long: paCount = 0
+
+    Dim wbOrig  As Workbook
+    Dim origErr As Long
+    Application.ScreenUpdating = False
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    Application.EnableEvents = False
+    Set wbOrig = Workbooks.Open(srcPath, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False)
+    origErr = Err.number
+    Application.DisplayAlerts = True
+    Application.EnableEvents = True
+    On Error GoTo 0
+
+    If origErr = 0 And Not wbOrig Is Nothing Then
+        On Error Resume Next
+        wbOrig.Windows(1).Visible = False   ' hide immediately
+        On Error GoTo 0
+        Dim wsPa As Worksheet
+        For Each wsPa In wbOrig.Worksheets
+            Dim paAddr As String: paAddr = ""
+            On Error Resume Next
+            paAddr = wsPa.PageSetup.PrintArea
+            On Error GoTo 0
+            If paAddr <> "" Then
+                ReDim Preserve paWsName(0 To paCount)
+                ReDim Preserve paAddress(0 To paCount)
+                paWsName(paCount) = wsPa.Name
+                paAddress(paCount) = paAddr
+                paCount = paCount + 1
+            End If
+        Next wsPa
+        On Error Resume Next
+        wbOrig.Close False
+        On Error GoTo 0
+        Set wbOrig = Nothing
+    End If
+    Application.ScreenUpdating = True
+
+    ' ----------------------------------------------------------
+    ' Step 2: PowerShell strips <definedNames> from the ZIP XML.
+    ' ----------------------------------------------------------
+    Application.StatusBar = "Stripping Name Manager (PowerShell)..."
+    Dim outPath As String
+    outPath = StripNamesPS_Only(srcPath)
+    If outPath = "" Then Exit Function
+
+    ' ----------------------------------------------------------
+    ' Step 3: Excel VBA deletes any names PS regex couldn't reach.
+    ' ----------------------------------------------------------
+    Dim wbC     As Workbook
+    Dim openErr As Long
+    Dim t       As Integer
+    Application.ScreenUpdating = False
+    For t = 1 To 3
+        On Error Resume Next
+        Application.DisplayAlerts = False
+        Application.EnableEvents = False
+        Set wbC = Workbooks.Open(outPath, UpdateLinks:=0, ReadOnly:=False, AddToMru:=False)
+        openErr = Err.number
+        Application.DisplayAlerts = True
+        Application.EnableEvents = True
+        On Error GoTo 0
+        If openErr = 0 And Not wbC Is Nothing Then Exit For
+        If t < 3 Then Application.Wait Now + TimeValue("00:00:01")
+    Next t
+
+    If wbC Is Nothing Then
+        Application.ScreenUpdating = True
+        Exit Function
+    End If
+
+    Application.Calculation = xlCalculationManual
+
+    On Error Resume Next
+    wbC.Unprotect
+    Dim ws As Worksheet
+    For Each ws In wbC.Worksheets
+        ws.Unprotect
+    Next ws
+    On Error GoTo 0
+
+    Dim i As Long
+    For i = wbC.names.count To 1 Step -1
+        On Error Resume Next
+        wbC.names(i).Delete
+        On Error GoTo 0
+    Next i
+
+    Dim j As Long
+    For Each ws In wbC.Worksheets
+        For j = ws.names.count To 1 Step -1
+            On Error Resume Next
+            ws.names(j).Delete
+            On Error GoTo 0
+        Next j
+    Next ws
+
+    ' ----------------------------------------------------------
+    ' Step 4: Restore print areas collected from the original.
+    ' PageSetup.PrintArea rebuilds the Print_Area name internally;
+    ' it never becomes an external reference.
+    ' ----------------------------------------------------------
+    If paCount > 0 Then
+        Dim k As Long
+        For k = 0 To paCount - 1
+            On Error Resume Next
+            wbC.Worksheets(paWsName(k)).PageSetup.PrintArea = paAddress(k)
+            On Error GoTo 0
+        Next k
+    End If
+
+    Application.Calculation = xlCalculationAutomatic
+    Application.ScreenUpdating = True   ' restore BEFORE Save so window state is visible
+    On Error Resume Next
+    wbC.Close SaveChanges:=True
+    On Error GoTo 0
+
+    StripNamesToFile = outPath
+
+End Function
+
+
+' ===========================================================
+' Opens a COPY of wb with all names stripped EXCEPT Print_Area.
+'
+' Strategy — purely VBA, no PS changes (PS is proven stable):
+'   1. Read every Print_Area name (+ RefersTo) from wb BEFORE
+'      stripping, while wb is already open and safe to read.
+'   2. Call StripNamesToFile — PS + VBA wipe ALL names from copy.
+'   3. Open the cleaned copy, re-add the saved Print_Area names,
+'      save, and return the open (hidden) workbook.
+'
+' Caller must: wbClean.Close False  +  Kill wbClean.FullName
+' ===========================================================
+Private Function OpenAndStripNames(ByVal wb As Workbook) As Workbook
+
+    ' ----------------------------------------------------------
+    ' Step A: Collect print-area addresses from the source wb.
+    ' wb is already open read-only — safe to read PageSetup.
+    '
+    ' We store only (wsName, plainAddress) pairs.
+    ' PageSetup.PrintArea returns e.g. "$A$1:$Z$30" — no filename,
+    ' no sheet prefix, no "=" — safe to re-apply to the copy.
+    ' ----------------------------------------------------------
+    Dim paWsName()  As String
+    Dim paAddress() As String
+    Dim paCount     As Long: paCount = 0
+
+    Dim ws As Worksheet
+    For Each ws In wb.Worksheets
+        Dim addr As String
+        On Error Resume Next
+        addr = ws.PageSetup.PrintArea   ' "" if no print area set
+        On Error GoTo 0
+        If addr <> "" Then
+            ReDim Preserve paWsName(0 To paCount)
+            ReDim Preserve paAddress(0 To paCount)
+            paWsName(paCount) = ws.Name
+            paAddress(paCount) = addr
+            paCount = paCount + 1
+        End If
+    Next ws
+
+    ' ----------------------------------------------------------
+    ' Step B: PowerShell strips <definedNames> from ZIP XML.
+    ' Returns path of the cleaned copy; wb itself is untouched.
+    ' ----------------------------------------------------------
+    Dim cleaned As String
+    cleaned = StripNamesPS_Only(wb.fullName)
+    If cleaned = "" Then Exit Function
+
+    ' ----------------------------------------------------------
+    ' Step C: Open the cleaned copy ONCE.
+    ' Keep ScreenUpdating=False throughout so Excel never redraws
+    ' the window. We hide it only AFTER Save (at the end) to avoid
+    ' PageSetup / Save failures that occur on a prematurely-hidden
+    ' window.
+    ' ----------------------------------------------------------
+    DoEvents
+    Dim wbC     As Workbook
+    Dim openErr As Long
+    Application.ScreenUpdating = False
+    On Error Resume Next
+    Application.DisplayAlerts = False
+    Set wbC = Workbooks.Open(cleaned, UpdateLinks:=0, ReadOnly:=False, AddToMru:=False)
+    openErr = Err.number
+    Application.DisplayAlerts = True
+    On Error GoTo 0
+
+    If openErr <> 0 Or wbC Is Nothing Then
+        Application.ScreenUpdating = True
+        On Error Resume Next: Kill cleaned: On Error GoTo 0
+        Exit Function
+    End If
+
+    Application.Calculation = xlCalculationManual
+
+    ' Unprotect everything so name/pagesetup edits are not blocked.
+    On Error Resume Next
+    wbC.Unprotect
+    For Each ws In wbC.Worksheets
+        ws.Unprotect
+    Next ws
+    On Error GoTo 0
+
+    ' Delete ALL remaining names (PS may have missed some).
+    Dim i As Long
+    For i = wbC.names.count To 1 Step -1
+        On Error Resume Next
+        wbC.names(i).Delete
+        On Error GoTo 0
+    Next i
+
+    Dim j As Long
+    For Each ws In wbC.Worksheets
+        For j = ws.names.count To 1 Step -1
+            On Error Resume Next
+            ws.names(j).Delete
+            On Error GoTo 0
+        Next j
+    Next ws
+
+    ' ----------------------------------------------------------
+    ' Step D: Restore print areas via PageSetup — NOT Names.Add.
+    ' Excel creates the Print_Area name internally from PageSetup;
+    ' it never becomes an external reference.
+    ' ----------------------------------------------------------
+    If paCount > 0 Then
+        Dim k As Long
+        For k = 0 To paCount - 1
+            If paAddress(k) <> "" Then
+                On Error Resume Next
+                wbC.Worksheets(paWsName(k)).PageSetup.PrintArea = paAddress(k)
+                On Error GoTo 0
+            End If
+        Next k
+    End If
+
+    Application.Calculation = xlCalculationAutomatic
+
+    On Error Resume Next
+    wbC.Save
+    wbC.Windows(1).Visible = False
+    Application.ScreenUpdating = True
+    On Error GoTo 0
+
+    Set OpenAndStripNames = wbC
+
+End Function
+
+
+Private Function OpenWBForMove(ByVal path As String) As Workbook
+    ' ScreenUpdating is managed by the calling Browse handler
+    ' so the freeze covers open + window-hide in one shot.
+    Dim wb As Workbook
+    With Application
+        .EnableEvents = False
+        .DisplayAlerts = False
+        .Calculation = xlCalculationManual
+    End With
+    On Error Resume Next
+    ' Move requires write access while the workbook is open. The caller
+    ' always closes it with SaveChanges:=False, so the original file remains
+    ' unchanged.
+    Set wb = Workbooks.Open(path, UpdateLinks:=0, ReadOnly:=False, AddToMru:=False)
+    On Error GoTo 0
+    With Application
+        .EnableEvents = True
+        .DisplayAlerts = True
+        .Calculation = xlCalculationAutomatic
+    End With
+    Set OpenWBForMove = wb
+End Function
+Private Sub CloseWB(ByRef wb As Workbook, ByVal wasVisible As Boolean)
+    If wb Is Nothing Then Exit Sub
+    On Error Resume Next
+    Dim path As String, copyPath As String
+    path = wb.fullName
+    wb.Windows(1).Visible = wasVisible
+    wb.Close SaveChanges:=False
+    Set wb = Nothing
+    If Not mSourceCopies Is Nothing Then
+        Err.Clear
+        copyPath = mSourceCopies(LCase$(path))
+        If Err.number = 0 Then
+            Kill copyPath
+            mSourceCopies.Remove LCase$(path)
+        End If
+    End If
+    On Error GoTo 0
+End Sub
+'================================================================
+' Khóa/m? các nút có th? gây xung d?t khi DoEvents cho phép
+' user click trong lúc dang merge (Browse, Merge, d?i radio...).
+' Không khóa toàn b? form d? progress bar/label v?n c?p nh?t du?c.
+'================================================================
+Private Sub SetMergeUIBusy(busy As Boolean)
+    On Error Resume Next
+    btnMerge.Enabled = Not busy
+    btnBrowse1.Enabled = Not busy
+    btnBrowse2.Enabled = Not busy
+    optCopyToCurrent.Enabled = Not busy
+    optMerge2External.Enabled = Not busy
+    btnFixNameManager.Enabled = Not busy
+    On Error GoTo 0
+End Sub
+
+Private Sub UpdateProgress(curStep As Long, totalStep As Long)
+    If totalStep <= 0 Then Exit Sub
+    Dim pct As Double: pct = curStep / totalStep
+    lblProgressBar.Width = fraProgress.Width * pct
+    lblPercent.Caption = Format(pct, "0%")
+    Me.Repaint
+    DoEvents          ' FIX: bom message queue d? flush WM_PAINT ngay l?p t?c,
+                       ' không ph? thu?c throttle 2s bên ngoài (v?n không k?p
+                       ' kích ho?t khi Move ch?y nhanh hon Copy r?t nhi?u)
+End Sub
+
+Private Sub SetFormTopMost(bTopMost As Boolean)
+    On Error Resume Next
+    #If VBA7 Then
+        Dim hwnd As LongPtr
+        Dim ins As LongPtr
+    #Else
+        Dim hwnd As Long
+        Dim ins As Long
+    #End If
+    ins = IIf(bTopMost, HWND_TOPMOST, HWND_NOTOPMOST)
+    hwnd = FindWindow("ThunderRT6DFrame", Me.Caption)
+    If hwnd = 0 Then hwnd = FindWindow("ThunderDFrame", Me.Caption)
+    If hwnd = 0 Then Exit Sub
+    SetWindowPos hwnd, ins, 0, 0, 0, 0, SWP_NOMOVE Or SWP_NOSIZE Or SWP_NOACTIVATE
+    On Error GoTo 0
+End Sub
+
+' ===========================================================
+' FORM LIFECYCLE
+' ===========================================================
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    ' Close browsed workbooks while form window is still alive.
+    ' This fires BEFORE Terminate, so mWB1/mWB2 are valid here.
+    On Error Resume Next
+    CloseWB mWB1, mWB1Visible
+    CloseWB mWB2, mWB2Visible
+    On Error GoTo 0
+    'ApplyTheme Me
+    UnregisterForm Me    ' Allow the close to proceed (Cancel = 0 is the default)
+End Sub
+
+Private Sub UserForm_Terminate()
+    ' Restore Application state only.
+    ' DO NOT call SetFormTopMost, CloseWB, or access Me.Caption here.
+    ' For a modeless form the window handle is already invalid when
+    ' Terminate fires — any Windows API call here will crash Excel.
+    On Error Resume Next
+    Application.ScreenUpdating = True
+    Application.EnableEvents = True
+    Application.Calculation = xlCalculationAutomatic
+    Application.DisplayAlerts = True
+    Application.StatusBar = False
+    On Error GoTo 0
+End Sub
+
+Public Sub FastReplaceLinks_ByNameArray( _
+        wbTarget As Workbook, _
+        wbSourceName As String, _
+        namesArr() As String, _
+        destNamesArr() As String)
+
+    Dim ws As Worksheet
+    Dim shName As String
+    Dim destName As String
+    Dim j As Long
+    Dim fileTag As String
+
+    fileTag = "[" & wbSourceName & "]"
+
+    For Each ws In wbTarget.Worksheets
+
+        For j = LBound(namesArr) To UBound(namesArr)
+            shName = namesArr(j)
+            destName = destNamesArr(j)
+
+            ' Pattern 1: =[file]SheetName!  (no apostrophe)
+            ws.UsedRange.Replace _
+                What:=fileTag & shName & "!", _
+                Replacement:=destName & "!", _
+                LookAt:=xlPart, _
+                SearchOrder:=xlByRows, _
+                MatchCase:=False
+
+            ' Pattern 2: ='[file]Sheet Name'!  (with apostrophe)
+            ws.UsedRange.Replace _
+                What:=fileTag & shName & "'", _
+                Replacement:=destName & "'", _
+                LookAt:=xlPart, _
+                SearchOrder:=xlByRows, _
+                MatchCase:=False
+
+        Next j
+
+        DoEvents
+
+    Next ws
+
+End Sub
+
+'================================================================
+' Thêm 1 sheet t?m vào workbook ngu?n TRU?C khi Move hàng lo?t.
+' Lý do: Move s? XÓA sheet kh?i ngu?n. N?u move h?t m?i sheet dã
+' ch?n, Excel báo l?i "workbook ph?i có ít nh?t 1 sheet hi?n th?".
+' Không c?n quan tâm sheet t?m này vì workbook ngu?n luôn du?c
+' dóng KHÔNG LUU (ho?c là file t?m s? b? Kill) ngay sau dó.
+'================================================================
+Private Function AddSpareSheet(ByVal wb As Workbook) As Boolean
+    AddSpareSheet = False
+    If wb Is Nothing Then Exit Function
+    If wb.ReadOnly Then Exit Function
+
+    On Error Resume Next
+    Dim sp As Worksheet
+    Set sp = wb.Worksheets.Add(After:=wb.sheets(wb.sheets.count))
+    If Not sp Is Nothing Then
+        sp.Name = GetAvailableSheetName(wb, "__SPARE__")
+        If Err.number = 0 Then AddSpareSheet = True
+    End If
+    On Error GoTo 0
+End Function
+
+Private Function GetAvailableSheetName(ByVal wb As Workbook, _
+                                       ByVal baseName As String) As String
+    ' Tr? v? tên sheet h?p l? và chua t?n t?i trong wb.
+    ' Dùng cho các sheet t?m. Sheet ngu?n du?c Move nguyên tr?ng;
+    ' Excel t? x? lý tên trùng c?a sheet d? li?u.
+    If wb Is Nothing Then Exit Function
+
+    Dim root As String
+    Dim candidate As String
+    Dim suffix As Long
+
+    root = Trim$(baseName)
+    If Len(root) = 0 Then root = "__TEMP__"
+    If Len(root) > 31 Then root = Left$(root, 31)
+
+    candidate = root
+    suffix = 1
+    Do While SheetExistsByName(candidate, wb)
+        suffix = suffix + 1
+        candidate = Left$(root, 31 - Len(CStr(suffix)) - 1) & _
+                    "_" & CStr(suffix)
+    Loop
+
+    GetAvailableSheetName = candidate
+End Function
+
+Private Function SheetExistsByName(ByVal sheetName As String, _
+                                   ByVal wb As Workbook) As Boolean
+    If wb Is Nothing Then Exit Function
+
+    Dim candidate As Object
+    On Error Resume Next
+    Set candidate = wb.sheets(sheetName)
+    On Error GoTo 0
+    SheetExistsByName = Not (candidate Is Nothing)
+End Function
+
+'================================================================
+' Lu?i an toàn th? 2: sau khi dã Move + FastReplaceLinks, quét
+' Edit Links c?a wbTarget và phá n?t link nào còn tr? v? file
+' ngu?n (link không n?m trong công th?c cell — ví d? sót l?i t?
+' Name Manager, chart source, data validation...).
+'================================================================
+Private Sub BreakResidualLinks(wbTarget As Workbook, ParamArray srcBaseNames() As Variant)
+    Dim links As Variant
+    On Error Resume Next
+    links = wbTarget.LinkSources(xlExcelLinks)
+    On Error GoTo 0
+    If Not IsArray(links) Then Exit Sub
+
+    Dim i As Long, j As Long
+    For i = LBound(links) To UBound(links)
+        Dim lp As String: lp = CStr(links(i))
+        Dim isSrc As Boolean: isSrc = False
+        For j = LBound(srcBaseNames) To UBound(srcBaseNames)
+            If Len(CStr(srcBaseNames(j))) > 0 Then
+                If InStr(1, lp, CStr(srcBaseNames(j)), vbTextCompare) > 0 Then
+                    isSrc = True: Exit For
+                End If
+            End If
+        Next j
+        If isSrc Then
+            On Error Resume Next
+            wbTarget.BreakLink Name:=lp, Type:=xlLinkTypeExcelLinks
+            On Error GoTo 0
+        End If
+    Next i
+End Sub
+
+
+
+
+
