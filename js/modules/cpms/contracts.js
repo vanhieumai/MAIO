@@ -297,10 +297,10 @@ export class ContractsManager {
 
     if (contract.group === 'A') {
       if (isMain) {
-        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cleanNo(contract.contract_no)} / HopDong_Goc /`;
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cleanNo(contract.contract_no)} / HopDong_PhuLuc / HopDong_Goc /`;
       } else {
         const parentNo = parent ? cleanNo(parent.contract_no) : cleanNo(contract.parent_id);
-        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${parentNo} / PhuLuc_${cleanNo(contract.contract_no)} /`;
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${parentNo} / HopDong_PhuLuc / PhuLuc_${cleanNo(contract.contract_no)} /`;
       }
     } else {
       // Nhóm B: Phân theo 8 nhóm (Construction, Procurement, Consultancy, Design, Equipment, Service, Maintenance, Rental)
@@ -314,11 +314,11 @@ export class ContractsManager {
 
       if (isMain) {
         const partnerName = cleanNo(contract.company_b || 'NCC');
-        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${cleanNo(contract.contract_no)}_${partnerName} / HopDong_Goc /`;
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${cleanNo(contract.contract_no)}_${partnerName} / HopDong_PhuLuc / HopDong_Goc /`;
       } else {
         const rootMain = parent && parent.parent_id ? this.contracts.find((c) => c.id === parent.parent_id) || parent : parent;
         const parentNo = rootMain ? cleanNo(rootMain.contract_no) : cleanNo(contract.parent_id);
-        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${parentNo} / PhuLuc_${cleanNo(contract.contract_no)} /`;
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${parentNo} / HopDong_PhuLuc / PhuLuc_${cleanNo(contract.contract_no)} /`;
       }
     }
   }

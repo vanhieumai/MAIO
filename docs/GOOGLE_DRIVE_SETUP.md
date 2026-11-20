@@ -82,10 +82,11 @@ MAIO tự động thiết lập và quản trị cây thư mục theo mô hình 
 │   └── 📁 DuAn_{MaDA}/                          # Thư mục riêng cho từng Dự án (VD: DuAn_CHC1)
 │       ├── 📁 01_Nhom_A_ChuDauTu/               # Hợp đồng với Chủ đầu tư / Tổng thầu
 │       │   └── 📁 {SoHieuHD}/                   # Thư mục cho từng hợp đồng A
-│       │       ├── 📁 HopDong_Goc/              # Chứa các file scan hợp đồng gốc, biên bản đàm phán (nhiều file)
-│       │       ├── 📁 PhuLuc_01/                # Thư mục riêng cho Phụ lục số 01 (file scan & tài liệu)
-│       │       ├── 📁 PhuLuc_02/                # Thư mục riêng cho Phụ lục số 02
-│       │       └── 📁 HoSo_NghiemThu_ThanhToan/ # Các đợt IPC, nghiệm thu, thanh toán
+│       │       ├── 📁 HopDong_PhuLuc/           # 📌 Thư mục "Hợp đồng, Phụ lục"
+│       │       │   ├── 📁 HopDong_Goc/          # Chứa các file scan hợp đồng gốc, biên bản đàm phán (nhiều file)
+│       │       │   ├── 📁 PhuLuc_01/            # Thư mục riêng cho Phụ lục số 01 (file scan & tài liệu)
+│       │       │   └── 📁 PhuLuc_02/            # Thư mục riêng cho Phụ lục số 02
+│       │       └── 📁 ThanhToan/                # 📌 Thư mục "Thanh toán" (Các đợt IPC, nghiệm thu, thanh toán)
 │       │
 │       └── 📁 02_Nhom_B_ThauPhu_NCC/            # Hợp đồng Nhà thầu phụ & Nhà cung cấp
 │           │                                    # Phân loại thành 8 nhóm chuyên biệt:
@@ -99,10 +100,11 @@ MAIO tự động thiết lập và quản trị cây thư mục theo mô hình 
 │           └── 📁 Rental/                       # Thuê máy móc, cẩu tháp, giàn giáo, cốp pha
 │               │
 │               └── 📁 {SoHieuHD}_{TenDoiTac}/   # Thư mục cụ thể của hợp đồng B
-│                   ├── 📁 HopDong_Goc/          # Chứa các file scan hợp đồng chính (nhiều file scan)
-│                   ├── 📁 PhuLuc_01/            # Thư mục riêng phụ lục 01 (file scan & dự toán phụ lục)
-│                   ├── 📁 PhuLuc_02/            # Thư mục riêng phụ lục 02
-│                   └── 📁 ThanhToan_NghiemThu/  # Hồ sơ thanh quyết toán đợt
+│                   ├── 📁 HopDong_PhuLuc/       # 📌 Thư mục "Hợp đồng, Phụ lục"
+│                   │   ├── 📁 HopDong_Goc/      # Chứa các file scan hợp đồng chính (nhiều file scan)
+│                   │   ├── 📁 PhuLuc_01/        # Thư mục riêng phụ lục 01 (file scan & dự toán phụ lục)
+│                   │   └── 📁 PhuLuc_02/        # Thư mục riêng phụ lục 02
+│                   └── 📁 ThanhToan/            # 📌 Thư mục "Thanh toán" (Hồ sơ thanh quyết toán đợt)
 │
 ├── 📁 02_QuanLy_VanPhong/                       # Quản lý văn phòng & Hành chính
 │   ├── 📁 01_TaiSan_TrangThietBi/               # Danh mục tài sản, biên bản bàn giao thiết bị
