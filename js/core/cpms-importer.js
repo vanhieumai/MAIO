@@ -110,58 +110,135 @@ export class CPMSImporterExporter {
 
     console.log('Các sheet tìm thấy trong file .cpms:', workbook.SheetNames);
 
-    // 1. Quét thông tin dự án từ PROJECT_SETTINGS, project info, SYS_INFO...
-    let projectId = 'PRJ_' + Date.now();
-    let projectName = file.name.replace(/\.[^/.]+$/, '');
-    let clientName = 'Chủ đầu tư';
+    // 1. Quét thông tin dự án từ các sheet có thể chứa cài đặt / thông tin dự án (PROJECT_SETTINGS, SYS_INFO, SETTINGS, v.v.)
+    let projectId = '';
+    let projectName = '';
+    let clientName = '';
     let location = '';
     let contractor = '';
 
-    const infoSheetName = workbook.SheetNames.find((s) => {
+    // Thu thập các sheet theo thứ tự ưu tiên
+    const candidateSheets = [];
+    workbook.SheetNames.forEach((s) => {
       const lower = s.toLowerCase().trim();
-      return (
-        lower === 'project_settings' ||
-        lower === 'project info' ||
-        lower === 'project_info' ||
-        lower === 'projectinfo' ||
-        lower === 'proj info' ||
-        lower === 'proj_info' ||
-        lower === 'projinfo' ||
-        lower === 'thông tin dự án' ||
+      if (
+        lower.includes('project_setting') ||
+        lower.includes('project setting') ||
+        lower.includes('project_info') ||
+        lower.includes('project info') ||
+        lower.includes('thông tin dự án') ||
+        lower.includes('thong tin du an') ||
+        lower.includes('thông tin công trình')
+      ) {
+        candidateSheets.unshift(s); // Ưu tiên hàng đầu
+      } else if (
         lower === 'sys_info' ||
-        (lower.includes('proj') && lower.includes('info'))
-      );
+        lower === 'sys info' ||
+        lower === 'sysinfo' ||
+        lower === 'settings' ||
+        lower === 'setting' ||
+        lower === 'cpms' ||
+        lower === 'thông tin' ||
+        lower.includes('info')
+      ) {
+        candidateSheets.push(s); // Ưu tiên tiếp theo
+      }
     });
 
-    if (infoSheetName) {
-      const ws = workbook.Sheets[infoSheetName];
+    for (const sheetName of candidateSheets) {
+      const ws = workbook.Sheets[sheetName];
+      if (!ws) continue;
       const data = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
-      // 1. Quét theo dạng Key - Value 2 cột dọc
+      if (!data || data.length === 0) continue;
+
+      // Quét 1: Dạng Key - Value 2 cột dọc (Row [Key, Value])
       for (const row of data) {
         if (!row || row.length < 2) continue;
-        const key = String(row[0]).toLowerCase().trim();
-        const val = String(row[1]).trim();
-        if (key.includes('projectid') || key.includes('mã dự án') || key === 'proj') projectId = val;
-        if (key.includes('projectname') || key.includes('tên dự án') || key === 'proj_name' || key === 'name') projectName = val;
-        if (key.includes('client') || key.includes('chủ đầu tư') || key.includes('bên a')) clientName = val;
-        if (key.includes('location') || key.includes('địa điểm') || key.includes('địa chỉ')) location = val;
-        if (key.includes('contractor') || key.includes('tổng thầu') || key.includes('nhà thầu') || key.includes('bên b')) contractor = val;
+        const key = String(row[0] || '').toLowerCase().trim();
+        const rawVal = row[1];
+        if (rawVal === undefined || rawVal === null) continue;
+        const val = String(rawVal).trim();
+        if (!val) continue;
+
+        if (!projectId && (key.includes('projectid') || key.includes('mã dự án') || key === 'proj' || key.includes('mã da'))) {
+          projectId = val;
+        }
+        if (!projectName && (key.includes('projectname') || key.includes('tên dự án') || key === 'proj_name' || key.includes('tên công trình') || key === 'project_name')) {
+          projectName = val;
+        }
+        if (!clientName && (key.includes('client') || key.includes('chủ đầu tư') || key.includes('bên a'))) {
+          clientName = val;
+        }
+        if (!location && (key.includes('location') || key.includes('địa điểm') || key.includes('địa chỉ') || key.includes('dia diem'))) {
+          location = val;
+        }
+        if (!contractor && (key.includes('contractor') || key.includes('tổng thầu') || key.includes('nhà thầu') || key.includes('bên b') || key === 'maincon')) {
+          contractor = val;
+        }
       }
-      // 2. Quét theo dạng bảng ngang (Row 0 là Headers, Row 1 là Values)
+
+      // Quét 2: Dạng bảng ngang (Row 0 là Headers, Row 1 là Values)
       if (data.length >= 2 && Array.isArray(data[0])) {
         const headers = data[0].map((h) => String(h || '').toLowerCase().trim());
         const values = data[1] || [];
         headers.forEach((h, idx) => {
-          const val = String(values[idx] || '').trim();
+          const rawVal = values[idx];
+          if (rawVal === undefined || rawVal === null) return;
+          const val = String(rawVal).trim();
           if (!val) return;
-          if (h.includes('projectid') || h.includes('mã dự án') || h === 'proj') projectId = val;
-          if (h.includes('projectname') || h.includes('tên dự án') || h === 'proj_name') projectName = val;
-          if (h.includes('client') || h.includes('chủ đầu tư') || h.includes('bên a')) clientName = val;
-          if (h.includes('location') || h.includes('địa điểm') || h.includes('địa chỉ')) location = val;
-          if (h.includes('contractor') || h.includes('tổng thầu') || h.includes('nhà thầu') || h.includes('bên b')) contractor = val;
+
+          if (!projectId && (h.includes('projectid') || h.includes('mã dự án') || h === 'proj' || h.includes('mã da'))) {
+            projectId = val;
+          }
+          if (!projectName && (h.includes('projectname') || h.includes('tên dự án') || h === 'proj_name' || h.includes('tên công trình') || h === 'project_name')) {
+            projectName = val;
+          }
+          if (!clientName && (h.includes('client') || h.includes('chủ đầu tư') || h.includes('bên a'))) {
+            clientName = val;
+          }
+          if (!location && (h.includes('location') || h.includes('địa điểm') || h.includes('địa chỉ') || h.includes('dia diem'))) {
+            location = val;
+          }
+          if (!contractor && (h.includes('contractor') || h.includes('tổng thầu') || h.includes('nhà thầu') || h.includes('bên b') || h === 'maincon')) {
+            contractor = val;
+          }
         });
       }
+
+      // Nếu đã trích xuất được cả projectName và location thì dừng quét
+      if (projectName && location) break;
     }
+
+    // Quét bổ sung: Nếu vẫn chưa có projectName hoặc location, quét tìm trong toàn bộ các ô cell của các candidateSheets
+    if (!projectName || !location) {
+      for (const sheetName of candidateSheets) {
+        const ws = workbook.Sheets[sheetName];
+        if (!ws) continue;
+        const data = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
+        for (let r = 0; r < data.length; r++) {
+          const row = data[r];
+          if (!row || !Array.isArray(row)) continue;
+          for (let c = 0; c < row.length; c++) {
+            const cellText = String(row[c] || '').toLowerCase().trim();
+            if (!projectName && (cellText === 'tên dự án:' || cellText === 'tên dự án' || cellText === 'dự án:' || cellText === 'tên công trình:')) {
+              const nextVal = row[c + 1] || (data[r + 1] ? data[r + 1][c] : '');
+              if (nextVal && String(nextVal).trim()) projectName = String(nextVal).trim();
+            }
+            if (!location && (cellText === 'địa điểm:' || cellText === 'địa điểm' || cellText === 'địa chỉ:' || cellText === 'địa chỉ')) {
+              const nextVal = row[c + 1] || (data[r + 1] ? data[r + 1][c] : '');
+              if (nextVal && String(nextVal).trim()) location = String(nextVal).trim();
+            }
+          }
+        }
+        if (projectName && location) break;
+      }
+    }
+
+    // Fallback: Chỉ dùng tên file khi thực sự không tìm thấy tên dự án trong bất kỳ sheet nào
+    if (!projectId) projectId = 'PRJ_' + Date.now();
+    if (!projectName) projectName = file.name.replace(/\.[^/.]+$/, '');
+    if (!clientName) clientName = 'Chủ đầu tư';
+    if (!location) location = '';
 
     // 2. CONTRACT_DB
     const contracts = [];
@@ -533,8 +610,15 @@ export class CPMSImporterExporter {
     });
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(docRows), 'DOCUMENT_TRACKER');
 
-    // 5. Sheet SYS_INFO
+    // 5. Sheet SYS_INFO (Chứa metadata hệ thống và thông tin dự án đồng bộ)
     const sysInfoData = [
+      ['Key', 'Value'],
+      ['ProjectID', prjCode],
+      ['PROJ', prjCode],
+      ['PROJ_NAME', prjName],
+      ['ProjectName', prjName],
+      ['Location', prjLoc],
+      ['Client', prjClient],
       ['System', 'MAIO Web Management System'],
       ['Version', '2.0_Strict_Hierarchy'],
       ['Engine', 'CPMS Plus Compatible Importer/Exporter'],

@@ -67,35 +67,45 @@
 .top-project-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
+  flex: 1;
 }
 
 .top-project-heading {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  max-width: 100%;
 }
 
-.top-project-tag {
-  font-size: 0.625rem;
-  font-weight: 700;
-  color: var(--primary);
-  background: var(--primary-subtle);
-  padding: 1px 5px;
-  border-radius: 4px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.top-project-title {
+.top-project-select {
+  font-family: inherit;
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-main);
-  line-height: 1.35;
-  margin: 0;
-  word-break: break-word;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+  max-width: 480px;
+  width: auto;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-project-select:hover {
+  border-color: var(--primary);
+  background: #f8fafc;
+}
+
+.top-project-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-subtle);
 }
 
 .top-project-meta {
@@ -109,6 +119,49 @@
 
 .top-project-meta strong {
   color: var(--text-main);
+}
+
+.top-header-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.project-action-icons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-banner-action {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 0.85rem !important;
+  flex-shrink: 0;
+  background: #ffffff !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-main) !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.btn-banner-action:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  transform: translateY(-1px);
+}
+
+.top-banner-separator {
+  width: 1px;
+  height: 22px;
+  background-color: var(--border-color);
+  flex-shrink: 0;
 }
 
 .cloud-banner-compact {
@@ -726,18 +779,33 @@
   }
 
   .top-header-banner {
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: space-between !important;
-    gap: 8px !important;
-    padding: 6px 10px !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
   }
   .top-project-basic {
-    flex: 1;
+    width: 100% !important;
+    flex: none !important;
     min-width: 0;
   }
   .top-project-info {
     min-width: 0;
+    flex: 1;
+  }
+  .top-project-select {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 0.875rem !important;
+  }
+  .top-header-actions-group {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    gap: 8px !important;
+    padding-top: 8px !important;
+    border-top: 1px dashed var(--border-color) !important;
   }
   .cloud-banner-compact {
     width: auto !important;
@@ -1048,8 +1116,27 @@
   font-weight: 700;
 }
 
-/* Toolbar dự án trên mobile */
+/* Banner và toolbar dự án trên mobile & tablet */
 @media (max-width: 768px) {
+  .top-header-banner {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .top-project-basic {
+    width: 100%;
+  }
+  .top-project-select {
+    max-width: 100%;
+    width: 100%;
+  }
+  .top-header-actions-group {
+    justify-content: space-between;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-color);
+  }
   .cpms-toolbar-row {
     flex-direction: column;
     align-items: stretch;
@@ -1060,10 +1147,6 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-  }
-  .cpms-toolbar-left select,
-  #project-selector {
-    width: 100% !important;
   }
   .cpms-toolbar-right {
     width: 100%;

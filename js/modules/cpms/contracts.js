@@ -209,11 +209,21 @@ export class ContractsManager {
 
     optionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
     selector.innerHTML = optionsHtml;
+    selector.value = this.currentProjectId;
+
+    const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
+    const topProjLoc = document.getElementById('top-project-location');
+    if (topProjLoc) {
+      topProjLoc.textContent = (curPrj && curPrj.location && String(curPrj.location).trim()) ? String(curPrj.location).trim() : '—';
+    }
+    const topProjName = document.getElementById('top-project-name');
+    if (topProjName) {
+      topProjName.textContent = curPrj ? (curPrj.name || curPrj.id) : 'Chưa có dự án nào';
+    }
 
     // Cập nhật tên dự án trên Dashboard nếu có
     const activePrjName = document.getElementById('active-project-name');
     if (activePrjName) {
-      const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
       if (curPrj) activePrjName.textContent = curPrj.name || curPrj.id;
     }
   }
@@ -660,6 +670,10 @@ export class ContractsManager {
     const clientName = curPrj.client || sampleContract.company_a || 'Chủ đầu tư';
 
     // 1. Cập nhật thông tin cơ bản trên Top Banner (Vùng hiển thị cơ bản phía trên)
+    const projectSelector = document.getElementById('project-selector');
+    if (projectSelector && projectSelector.value !== curPrj.id) {
+      projectSelector.value = curPrj.id;
+    }
     const topProjName = document.getElementById('top-project-name');
     const topProjLoc = document.getElementById('top-project-location');
     if (topProjName) topProjName.textContent = curPrj.name || curPrj.id;

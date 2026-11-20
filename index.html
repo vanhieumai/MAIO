@@ -175,17 +175,20 @@
         </button>
       </div>
 
-      <!-- Top Banner: Thông tin cơ bản Dự án đang mở (Trái) & Icon Push/Pull Cloud thu gọn (Phải) -->
+      <!-- Top Banner: Thông tin cơ bản Dự án đang mở (Trái) & Nút Thao tác Dự án + Icon Push/Pull Cloud (Phải) -->
       <section class="top-header-banner">
-        <!-- Vùng TRÁI: Thông tin cơ bản dự án đang mở (tên dự án & địa điểm từ sheet proj info) -->
+        <!-- Vùng TRÁI: Dropdown chọn dự án (thay thế tên dự án) & Địa điểm -->
         <div class="top-project-basic">
           <div class="top-project-icon">
             <i class="fa-solid fa-city"></i>
           </div>
           <div class="top-project-info">
             <div class="top-project-heading">
-              <span class="top-project-tag">DỰ ÁN ĐANG MỞ</span>
-              <h2 id="top-project-name" class="top-project-title">Chưa có dự án nào</h2>
+              <select id="project-selector" class="top-project-select" title="Chọn dự án đang làm việc">
+                <option value="" disabled selected>-- Chọn dự án --</option>
+                <option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>
+              </select>
+              <span id="top-project-name" class="hidden">Chưa có dự án nào</span>
             </div>
             <div class="top-project-meta">
               <span><i class="fa-solid fa-location-dot" style="color: #ef4444;"></i> Địa điểm: <strong id="top-project-location">—</strong></span>
@@ -193,16 +196,37 @@
           </div>
         </div>
 
-        <!-- Vùng PHẢI: Khối Đồng bộ Đám mây tinh gọn (Chỉ Icon Drive + Icon Push & Pull) -->
-        <div class="cloud-banner-compact">
-          <i class="fa-brands fa-google-drive cloud-drive-icon" title="Google Drive Cloud"></i>
-          <div class="cloud-sync-actions">
-            <button id="btn-sync-to-drive" class="button button-primary button-sm btn-sync-icon" title="Đồng bộ dữ liệu từ máy tính lên Google Drive (Push)">
-              <i class="fa-solid fa-cloud-arrow-up"></i>
+        <!-- Vùng PHẢI: Cụm Nút Thao tác Dự án (Icon Only) + Khối Đồng bộ Google Drive -->
+        <div class="top-header-actions-group">
+          <!-- Cụm Icon Thao tác Dự án (Sao chép, Nhập file, Xuất CPMS, Xóa) luôn hiện trên cả 3 tab -->
+          <div class="project-action-icons">
+            <button id="btn-clone-project" class="button button-outline btn-banner-action" title="Sao chép toàn bộ dự án hiện tại thành dự án mới">
+              <i class="fa-solid fa-copy" style="color: #6366f1;"></i>
             </button>
-            <button id="btn-sync-from-drive" class="button button-outline button-sm btn-sync-icon" title="Tải dữ liệu từ Google Drive về máy tính (Pull)">
-              <i class="fa-solid fa-cloud-arrow-down"></i>
+            <button id="btn-import-project" class="button button-outline btn-banner-action" title="Nhập dữ liệu CPMS (Dẫn file Local từ máy tính)">
+              <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i>
             </button>
+            <button id="btn-export-cpms" class="button button-outline btn-banner-action" title="Xuất toàn bộ dữ liệu dự án ra file .xlsx / .cpms">
+              <i class="fa-solid fa-file-excel" style="color: #10b981;"></i>
+            </button>
+            <button id="btn-delete-project" class="button button-outline btn-banner-action" style="color: var(--danger); border-color: #fca5a5;" title="Xóa toàn bộ dữ liệu của dự án hiện tại">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </div>
+
+          <div class="top-banner-separator"></div>
+
+          <!-- Khối Đồng bộ Đám mây tinh gọn (Chỉ Icon Drive + Icon Push & Pull) -->
+          <div class="cloud-banner-compact">
+            <i class="fa-brands fa-google-drive cloud-drive-icon" title="Google Drive Cloud"></i>
+            <div class="cloud-sync-actions">
+              <button id="btn-sync-to-drive" class="button button-primary button-sm btn-sync-icon" title="Đồng bộ dữ liệu từ máy tính lên Google Drive (Push)">
+                <i class="fa-solid fa-cloud-arrow-up"></i>
+              </button>
+              <button id="btn-sync-from-drive" class="button button-outline button-sm btn-sync-icon" title="Tải dữ liệu từ Google Drive về máy tính (Pull)">
+                <i class="fa-solid fa-cloud-arrow-down"></i>
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -352,46 +376,24 @@
 
         <!-- SUB-TAB 2: CÂY HỢP ĐỒNG & PHỤ LỤC -->
         <div id="cpms-tab-contracts" class="cpms-tab-pane hidden">
-          <!-- Thanh công cụ Dự án 1 hàng ngang tối ưu -->
-          <div class="cpms-toolbar-row" style="margin-bottom: 10px;">
-            <div class="cpms-toolbar-left">
-              <select id="project-selector" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 600; font-family: inherit; font-size: 0.85rem;">
-                <option value="" disabled selected>-- Chọn dự án --</option>
-                <option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>
-              </select>
-              <button id="btn-clone-project" class="button button-outline" title="Sao chép toàn bộ dự án hiện tại thành dự án mới">
-                <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép dự án
-              </button>
-              <button id="btn-import-project" class="button button-outline" title="Dẫn link và nạp dữ liệu từ file CPMS trên máy tính (.cpms / .xlsx)">
-                <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i> Nhập dữ liệu CPMS (Dẫn file Local)
-              </button>
-              <button id="btn-export-cpms" class="button button-outline" title="Xuất toàn bộ dữ liệu dự án ra file .xlsx / .cpms">
-                <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất CPMS
-              </button>
-              <button id="btn-delete-project" class="button button-outline" style="color: var(--danger); border-color: #fca5a5;" title="Xóa toàn bộ dữ liệu của dự án hiện tại">
-                <i class="fa-solid fa-trash-can"></i> Xóa dự án
-              </button>
-            </div>
-            <div class="cpms-toolbar-right">
-              <button id="btn-add-contract" class="button button-primary">
-                <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
-              </button>
-            </div>
-          </div>
-
-          <!-- Khung hiển thị thông tin dự án (Project Info) -->
+          <!-- Khung hiển thị thông tin chi tiết dự án (Project Info Meta) -->
           <div id="project-info-bar" class="project-info-bar">
             <!-- Render tự động bởi contracts.js -->
           </div>
 
           <div class="cpms-container">
-            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) -->
-            <div class="tab-nav">
-              <button class="tab-btn active group-tab-btn" data-group="A">
-                <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Chủ đầu tư / Tổng thầu
-              </button>
-              <button class="tab-btn group-tab-btn" data-group="B">
-                <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
+            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) + Nút Thêm Hợp đồng -->
+            <div class="tab-nav" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="tab-btn active group-tab-btn" data-group="A">
+                  <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Chủ đầu tư / Tổng thầu
+                </button>
+                <button class="tab-btn group-tab-btn" data-group="B">
+                  <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
+                </button>
+              </div>
+              <button id="btn-add-contract" class="button button-primary button-sm" style="font-weight: 600; white-space: nowrap;">
+                <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
               </button>
             </div>
 
