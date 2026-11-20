@@ -215,15 +215,30 @@ class DatabaseEngine {
   }
 
   /**
-   * Đồng bộ lên Google Drive
+   * Đồng bộ lên Google Drive theo cấu trúc thư mục chuẩn
    */
   async syncToGoogleDrive() {
     if (!gdrive.isSignedIn()) {
       throw new Error('Vui lòng kết nối Google Drive trước khi đồng bộ.');
     }
     const snapshot = await this.exportSnapshot();
-    const fileName = `MAIO_Project_${this.activeProjectId || 'Default'}.json`;
-    return await gdrive.saveJsonFile(fileName, snapshot);
+    const curPrjId = this.activeProjectId || 'CHC1';
+
+    let cpmsFolderId = null;
+    try {
+      // 1. Đảm bảo cấu trúc thư mục dự án và data CPMS
+      cpmsFolderId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'CPMS_Data']);
+
+      // 2. Tạo sẵn 3 thư mục phân loại hồ sơ scan theo chuẩn
+      await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'HopDong_PhuLuc']);
+      await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'Doc']);
+      await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'ThanhToan']);
+    } catch (e) {
+      console.warn('Lỗi tạo cấu trúc thư mục phân cấp, lưu tại thư mục gốc MAIO_Data:', e);
+    }
+
+    const fileName = `MAIO_CPMS_Snapshot_${curPrjId}.json`;
+    return await gdrive.saveJsonFile(fileName, snapshot, cpmsFolderId);
   }
 
   /**

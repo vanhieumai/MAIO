@@ -245,13 +245,84 @@ export class GoogleDriveService {
   }
 
   /**
-   * Danh sách các file dự án lưu trong thư mục MAIO_Data
+   * Tìm một thư mục con theo tên trong thư mục cha
    */
-  async listProjectFiles() {
-    await this.ensureAppFolder();
-    if (!this.appFolderId) return [];
+  async findFolder(folderName, parentFolderId) {
+    if (!this.accessToken) return null;
+    const parentId = parentFolderId || this.appFolderId;
+    const query = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${parentId}' in parents and trashed=false`;
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
+        { headers: { Authorization: `Bearer ${this.accessToken}` } }
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.files && data.files.length > 0 ? data.files[0].id : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
-    const query = `'${this.appFolderId}' in parents and trashed=false`;
+  /**
+   * Tạo một thư mục con trong thư mục cha
+   */
+  async createFolder(folderName, parentFolderId) {
+    if (!this.accessToken) return null;
+    const parentId = parentFolderId || this.appFolderId;
+    try {
+      const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: folderName,
+          mimeType: 'application/vnd.google-apps.folder',
+          parents: [parentId],
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Không thể tạo thư mục "${folderName}" [${res.status}]`);
+      }
+      const data = await res.json();
+      return data.id;
+    } catch (e) {
+      console.warn('Lỗi tạo thư mục Drive:', e);
+      throw e;
+    }
+  }
+
+  /**
+   * Đảm bảo một chuỗi thư mục lồng nhau tồn tại trên Google Drive
+   * Vd: ['01_QuanLy_DuAn', 'DuAn_CHC1', 'CPMS_Data']
+   */
+  async ensureFolderPath(pathSegments, rootFolderId = null) {
+    await this.ensureAppFolder();
+    let currentParent = rootFolderId || this.appFolderId;
+    if (!currentParent) return null;
+
+    for (const segment of pathSegments) {
+      if (!segment) continue;
+      let folderId = await this.findFolder(segment, currentParent);
+      if (!folderId) {
+        folderId = await this.createFolder(segment, currentParent);
+      }
+      currentParent = folderId;
+    }
+    return currentParent;
+  }
+
+  /**
+   * Danh sách các file dự án lưu trong thư mục MAIO_Data hoặc thư mục chỉ định
+   */
+  async listProjectFiles(targetFolderId = null) {
+    await this.ensureAppFolder();
+    const parentId = targetFolderId || this.appFolderId;
+    if (!parentId) return [];
+
+    const query = `'${parentId}' in parents and trashed=false`;
     const res = await fetch(
       `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(
         query
@@ -297,17 +368,18 @@ export class GoogleDriveService {
   }
 
   /**
-   * Lưu hoặc ghi đè file JSON lên thư mục MAIO_Data
+   * Lưu hoặc ghi đè file JSON lên thư mục MAIO_Data hoặc targetFolderId
    */
-  async saveJsonFile(fileName, dataObj) {
+  async saveJsonFile(fileName, dataObj, targetFolderId = null) {
     await this.ensureAppFolder();
-    const files = await this.listProjectFiles();
+    const parentId = targetFolderId || this.appFolderId;
+    const files = await this.listProjectFiles(parentId);
     const existingFile = files.find((f) => f.name === fileName);
 
     const metadata = {
       name: fileName,
       mimeType: 'application/json',
-      ...(!existingFile && { parents: [this.appFolderId] }),
+      ...(!existingFile && { parents: [parentId] }),
     };
 
     const fileContent = JSON.stringify(dataObj, null, 2);

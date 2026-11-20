@@ -60,6 +60,13 @@ export class ContractsManager {
     );
   }
 
+  getBaseName(path) {
+    if (!path) return '';
+    const clean = String(path).replace(/[/\\]+$/, '');
+    const parts = clean.split(/[/\\]/);
+    return parts[parts.length - 1] || clean;
+  }
+
   updateProjectSelectorUI() {
     const selector = document.getElementById('project-selector');
     if (!selector) return;
@@ -68,7 +75,7 @@ export class ContractsManager {
       this.currentProjectId = null;
       selector.innerHTML = `
         <option value="" disabled selected>-- Chưa có dự án nào --</option>
-        <option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>
+        <option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>
       `;
       const activePrjName = document.getElementById('active-project-name');
       if (activePrjName) activePrjName.textContent = 'Chưa có dự án nào';
@@ -86,7 +93,7 @@ export class ContractsManager {
       optionsHtml += `<option value="${p.id}" ${isSel}>📁 ${p.name || p.id}</option>`;
     });
 
-    optionsHtml += `<option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>`;
+    optionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
     selector.innerHTML = optionsHtml;
 
     // Cập nhật tên dự án trên Dashboard nếu có
@@ -467,16 +474,22 @@ export class ContractsManager {
       const topProjName = document.getElementById('top-project-name');
       const topProjLoc = document.getElementById('top-project-location');
       if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
-      if (topProjLoc) topProjLoc.textContent = 'Vui lòng thêm dự án mới hoặc nhập dữ liệu CPMS';
+      if (topProjLoc) topProjLoc.textContent = 'Vui lòng dẫn link file CPMS máy tính hoặc thêm dự án mới';
 
       infoContainer.innerHTML = `
-        <div style="padding: 10px 16px; background: #f8fafc; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; width: 100%;">
-          <span><i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> Tài khoản của bạn hiện chưa có dự án nào. Bấm <strong>"Nhập dữ liệu CPMS"</strong> để tải file lên hoặc nạp mẫu để thử nghiệm.</span>
-          <button id="btn-seed-sample-chc1" class="button button-outline" style="font-size: 0.78rem; padding: 4px 12px; color: var(--primary); border-color: #93c5fd; background: #fff;">
-            <i class="fa-solid fa-cloud-arrow-down"></i> Nạp Dự án mẫu CHC1
-          </button>
+        <div style="padding: 12px 18px; background: #f8fafc; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; width: 100%; border: 1px dashed var(--border-color);">
+          <span><i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> Tài khoản của bạn hiện chưa liên kết dự án nào. Bấm <strong>"Nhập dữ liệu CPMS (Dẫn file Local)"</strong> để đọc dữ liệu từ máy tính của bạn.</span>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-empty-import" class="button button-primary" style="font-size: 0.8rem; padding: 5px 14px;">
+              <i class="fa-solid fa-laptop-file"></i> Dẫn file CPMS Local
+            </button>
+            <button id="btn-seed-sample-chc1" class="button button-outline" style="font-size: 0.78rem; padding: 5px 12px; color: var(--primary); border-color: #93c5fd; background: #fff;">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Nạp Dự án mẫu CHC1 (Thử nghiệm)
+            </button>
+          </div>
         </div>
       `;
+      document.getElementById('btn-empty-import')?.addEventListener('click', () => this.openProjectModal());
       document.getElementById('btn-seed-sample-chc1')?.addEventListener('click', () => this.seedDemoData());
       return;
     }
@@ -562,6 +575,10 @@ export class ContractsManager {
         <span class="proj-meta-divider">|</span>
         <span class="proj-meta-item">
           <i class="fa-solid fa-circle-up" style="color: #06b6d4;"></i> Giải ngân cho bên B: <strong style="color: #0891b2;">${this.formatCurrency(totalPaidB)}</strong>
+        </span>
+        <span class="proj-meta-divider">|</span>
+        <span class="proj-meta-item" title="${curPrj.source_filename ? `File data local: ${curPrj.source_filename}` : 'Chưa liên kết file data CPMS local'}">
+          <i class="fa-solid fa-laptop-file" style="color: #6366f1;"></i> File Data Local: <strong style="color: ${curPrj.source_filename ? 'var(--primary)' : 'var(--text-muted)'};">${curPrj.source_filename || 'Chưa liên kết'}</strong>
         </span>
       </div>
       <div style="flex-shrink: 0; margin-left: auto;">
@@ -1744,7 +1761,7 @@ export class ContractsManager {
                     <th>Tiêu đề tài liệu</th>
                     <th>Ngày nhận</th>
                     <th>Tình trạng</th>
-                    <th>File scan</th>
+                    <th>Tệp tin (Local & Drive Online)</th>
                     <th>Thao tác</th>
                   </tr>
                 </thead>
@@ -1763,11 +1780,34 @@ export class ContractsManager {
                           <td>${this.formatDate(d.received_date)}</td>
                           <td><span class="badge badge-success">${d.status || 'Approved'}</span></td>
                           <td>
-                            ${
-                              d.file_link
-                                ? `<a href="${d.file_link}" target="_blank" class="button button-outline" style="padding: 2px 8px; font-size: 0.75rem;"><i class="fa-solid fa-file-pdf" style="color: var(--danger);"></i> Xem</a>`
-                                : '<span style="color: var(--text-light); font-size: 0.8rem;">Chưa có file</span>'
-                            }
+                            <div style="display: flex; flex-direction: column; gap: 5px;">
+                              <!-- Link Local -->
+                              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
+                                <i class="fa-solid fa-laptop" style="color: #64748b;" title="Tệp trên máy tính (Local)"></i>
+                                ${(d.local_link || (!String(d.file_link || '').startsWith('http') && d.file_link)) ? `
+                                  <span style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 0.75rem; color: #1e293b;" title="${d.local_link || d.file_link}">
+                                    ${this.getBaseName(d.local_link || d.file_link)}
+                                  </span>
+                                  <button class="button button-outline btn-copy-doc-local" data-path="${encodeURIComponent(d.local_link || d.file_link)}" style="padding: 1px 5px; font-size: 0.7rem; border-color: #cbd5e1; height: 20px;" title="Sao chép đường dẫn file trên máy tính">
+                                    <i class="fa-regular fa-copy"></i>
+                                  </button>
+                                ` : `
+                                  <span style="color: #94a3b8; font-size: 0.75rem;">Chưa có file local</span>
+                                `}
+                              </div>
+                              <!-- Link Drive Online -->
+                              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
+                                ${(d.drive_link || (String(d.file_link || '').startsWith('http') && d.file_link)) ? `
+                                  <a href="${d.drive_link || d.file_link}" target="_blank" class="button button-outline" style="padding: 1px 7px; font-size: 0.72rem; color: #0284c7; border-color: #bae6fd; display: inline-flex; align-items: center; gap: 4px; height: 20px;">
+                                    <i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Mở Drive
+                                  </a>
+                                ` : `
+                                  <span style="color: #94a3b8; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px;">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Chưa lên Drive
+                                  </span>
+                                `}
+                              </div>
+                            </div>
                           </td>
                           <td>
                             <button class="button button-outline btn-delete-doc" data-doc-id="${d.id}" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger);" title="Xóa hồ sơ">
@@ -2009,6 +2049,23 @@ export class ContractsManager {
       });
     });
 
+    // Sao chép đường dẫn file local của hồ sơ
+    modal.querySelectorAll('.btn-copy-doc-local').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const p = decodeURIComponent(btn.getAttribute('data-path') || '');
+        if (p) {
+          navigator.clipboard.writeText(p).then(() => {
+            const orig = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-check" style="color: var(--success);"></i>';
+            setTimeout(() => { btn.innerHTML = orig; }, 1500);
+          }).catch(() => {
+            prompt('Đường dẫn file trên máy tính (sao chép Ctrl+C):', p);
+          });
+        }
+      });
+    });
+
     // Sửa đợt giải ngân (ĐN)
     modal.querySelectorAll('.btn-edit-payment').forEach((btn) => {
       btn.addEventListener('click', (e) => {
@@ -2048,7 +2105,7 @@ export class ContractsManager {
       <div class="modal-container" style="max-width: 650px;">
         <div class="modal-header">
           <h3 style="font-size: 1.15rem; font-weight: 700;">
-            <i class="fa-solid fa-folder-plus" style="color: var(--primary);"></i> Thêm Dự án Mới hoặc Nhập dữ liệu CPMS
+            <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i> Dẫn link & Nhập file Data CPMS từ máy tính
           </h3>
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -2056,7 +2113,7 @@ export class ContractsManager {
         <div style="padding: 0 20px; background: #fff; border-bottom: 1px solid var(--border-color);">
           <div class="tab-nav" style="margin-bottom: 0;">
             <button class="tab-btn active prj-tab-btn" data-target="tab-import-cpms">
-              <i class="fa-solid fa-file-import"></i> 1. Nhập dữ liệu CPMS (.cpms / .xlsx)
+              <i class="fa-solid fa-file-import"></i> 1. Dẫn file CPMS Local (.cpms / .xlsx)
             </button>
             <button class="tab-btn prj-tab-btn" data-target="tab-create-manual">
               <i class="fa-solid fa-pen-nib"></i> 2. Tạo dự án mới thủ công
@@ -2068,7 +2125,7 @@ export class ContractsManager {
           <!-- TAB 1: IMPORT FILE .CPMS -->
           <div id="tab-import-cpms" class="prj-tab-pane">
             <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 16px;">
-              Chọn file sao lưu dữ liệu dự án (có đuôi <code>.cpms</code>, <code>.xlsb</code>, hoặc <code>.xlsx</code> được xuất từ phần mềm CPMS Plus).
+              Chọn file dữ liệu dự án trên máy tính của bạn (định dạng <code>.cpms</code>, <code>.xlsb</code>, hoặc <code>.xlsx</code> được xuất từ CPMS Plus). Dữ liệu chỉ hiển thị trong tài khoản của bạn, an toàn và bảo mật.
             </p>
 
             <div class="upload-dropzone" id="dropzone-cpms">
@@ -2632,8 +2689,13 @@ export class ContractsManager {
             </div>
 
             <div class="form-group">
-              <label class="form-label">Đường dẫn tệp tin / Link Google Drive</label>
-              <input type="url" class="form-control" name="file_link" placeholder="https://drive.google.com/file/d/...">
+              <label class="form-label"><i class="fa-solid fa-laptop"></i> Đường dẫn tệp tin trên máy tính (Local File Path)</label>
+              <input type="text" class="form-control" name="local_link" placeholder="Vd: D:\\OneDrive\\DuAn\\CHC1\\HopDong\\HD_114.pdf">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label"><i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Link xem trực tuyến Google Drive (Online URL)</label>
+              <input type="url" class="form-control" name="drive_link" placeholder="https://drive.google.com/file/d/...">
             </div>
 
             <div class="form-grid-2">
@@ -2667,6 +2729,8 @@ export class ContractsManager {
     modal.querySelector('#form-doc').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
+      const localLink = formData.get('local_link')?.trim() || '';
+      const driveLink = formData.get('drive_link')?.trim() || '';
       const docData = {
         id: formData.get('id'),
         project_id: targetContract.project_id || this.currentProjectId,
@@ -2674,7 +2738,9 @@ export class ContractsManager {
         category: formData.get('category'),
         doc_no: formData.get('doc_no'),
         title: formData.get('title'),
-        file_link: formData.get('file_link'),
+        local_link: localLink,
+        drive_link: driveLink,
+        file_link: driveLink || localLink || '',
         received_date: formData.get('received_date'),
         status: formData.get('status'),
       };

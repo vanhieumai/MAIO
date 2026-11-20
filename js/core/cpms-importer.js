@@ -278,6 +278,9 @@ export class CPMSImporterExporter {
         const docId = String(r[0] || '').trim();
         if (!docId || docId.toLowerCase().includes('documentid')) continue;
 
+        const rawLink = String(r[5] || '').trim();
+        const isOnlineDrive = rawLink.startsWith('http://') || rawLink.startsWith('https://');
+
         documents.push({
           id: docId,
           project_id: projectId,
@@ -285,7 +288,9 @@ export class CPMSImporterExporter {
           category: String(r[2] || 'Hồ sơ'),
           doc_no: String(r[3] || ''),
           title: String(r[4] || ''),
-          file_link: String(r[5] || ''),
+          file_link: rawLink,
+          local_link: isOnlineDrive ? '' : rawLink,
+          drive_link: isOnlineDrive ? rawLink : '',
           start_date: r[6] || null,
           due_date: r[7] || null,
           received_date: r[8] || null,
@@ -305,11 +310,18 @@ export class CPMSImporterExporter {
       client: clientName,
       location: location,
       contractor: contractor,
+      source_filename: file.name,
+      source_file_size: file.size,
+      source_file_updated: new Date().toISOString(),
       created_at: new Date().toISOString(),
       total_contracts: contracts.length,
       total_payments: payments.length,
       total_docs: documents.length,
     };
+
+    try {
+      localStorage.setItem('maio_active_local_filename', file.name);
+    } catch (_) {}
 
     // Lưu vào IndexedDB
     await db.put('projects', projectData);
