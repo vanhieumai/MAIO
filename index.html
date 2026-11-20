@@ -82,19 +82,18 @@
 
       <!-- Account & Actions: Đăng nhập (Thoát) gọn gàng -->
       <div class="header-actions">
-        <!-- Nút Đăng nhập Google Drive khi ở chế độ Cục bộ (Offline) -->
-        <button id="btn-header-login" class="button button-google button-sm" title="Đăng nhập Google Drive để đồng bộ Online">
+        <!-- Nút Đăng nhập Google Drive khi ở cổng Auth Gate -->
+        <button id="btn-header-login" class="button button-google button-sm hidden" title="Đăng nhập Google Drive">
           <i class="fa-brands fa-google" style="color: #4285F4;"></i>
           <span id="btn-header-login-label">Đăng nhập</span>
         </button>
 
-        <!-- Trạng thái người dùng và nút Thoát -->
-        <div id="header-user-status" class="header-user-status">
-          <span id="header-user-avatar-badge" class="header-avatar-badge">
-            <img id="header-user-avatar" src="" alt="Avatar" class="hidden">
+        <!-- Trạng thái phiên làm việc (Local hoặc Email Drive) và nút Thoát duy nhất -->
+        <div id="header-user-status" class="header-auth-badge">
+          <span class="auth-status-tag">
             <i id="header-user-avatar-icon" class="fa-solid fa-laptop-file"></i>
+            <span id="header-user-name">Local</span>
           </span>
-          <span id="header-user-name" class="header-user-name">Cục bộ</span>
           <button id="btn-header-logout" class="button button-outline button-sm btn-logout" title="Thoát phiên làm việc">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
             <span>Thoát</span>
@@ -105,7 +104,20 @@
 
     <!-- Main Content -->
     <main class="main-content">
-      <!-- Top Banner: Thông tin cơ bản Dự án đang mở (Trái) & Đồng bộ Đám mây thu gọn (Phải) -->
+      <!-- 3 Sub-tabs Quản lý Dự án đưa lên trên cùng, ngay trên tên và địa điểm dự án -->
+      <div id="cpms-subnav-bar" class="cpms-subnav-tabs">
+        <button class="cpms-subtab-btn active" data-cpms-tab="overview">
+          <i class="fa-solid fa-chart-pie"></i> Tổng quan
+        </button>
+        <button class="cpms-subtab-btn" data-cpms-tab="contracts">
+          <i class="fa-solid fa-file-contract"></i> Hợp đồng
+        </button>
+        <button class="cpms-subtab-btn" data-cpms-tab="disbursements">
+          <i class="fa-solid fa-money-bill-wave"></i> Giải ngân
+        </button>
+      </div>
+
+      <!-- Top Banner: Thông tin cơ bản Dự án đang mở (Trái) & Icon Push/Pull Cloud thu gọn (Phải) -->
       <section class="top-header-banner">
         <!-- Vùng TRÁI: Thông tin cơ bản dự án đang mở (tên dự án & địa điểm từ sheet proj info) -->
         <div class="top-project-basic">
@@ -123,23 +135,15 @@
           </div>
         </div>
 
-        <!-- Vùng PHẢI: Khối Đồng bộ Đám mây & Thư mục máy tính tinh gọn -->
+        <!-- Vùng PHẢI: Khối Đồng bộ Đám mây tinh gọn (Chỉ Icon Drive + Icon Push & Pull) -->
         <div class="cloud-banner-compact">
-          <div class="cloud-info-compact">
-            <i class="fa-brands fa-google-drive cloud-icon-sm"></i>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span class="cloud-title-sm">Đồng bộ Cloud</span>
-              <span id="cloud-badge" class="badge badge-warning" style="font-size: 0.7rem; padding: 2px 6px;">Cục bộ (Offline)</span>
-            </div>
-          </div>
-          <div class="cloud-sync-actions" style="display: flex; gap: 8px; align-items: center;">
-            <button id="btn-sync-to-drive" class="button button-primary button-sm" style="padding: 5px 11px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px;" title="Sao lưu dữ liệu từ máy tính lên Google Drive">
+          <i class="fa-brands fa-google-drive cloud-drive-icon" title="Google Drive Cloud"></i>
+          <div class="cloud-sync-actions">
+            <button id="btn-sync-to-drive" class="button button-primary button-sm btn-sync-icon" title="Đồng bộ dữ liệu từ máy tính lên Google Drive (Push)">
               <i class="fa-solid fa-cloud-arrow-up"></i>
-              <span>Đồng bộ lên Drive</span>
             </button>
-            <button id="btn-sync-from-drive" class="button button-outline button-sm" style="padding: 5px 11px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px; background: #fff;" title="Tải dữ liệu từ Google Drive về máy tính">
+            <button id="btn-sync-from-drive" class="button button-outline button-sm btn-sync-icon" title="Tải dữ liệu từ Google Drive về máy tính (Pull)">
               <i class="fa-solid fa-cloud-arrow-down"></i>
-              <span>Đồng bộ về máy</span>
             </button>
           </div>
         </div>
@@ -147,45 +151,8 @@
 
       <!-- 1. PHÂN HỆ QUẢN LÝ DỰ ÁN (CORE) -->
       <div id="view-cpms" class="view-panel">
-        <div class="page-title-row" style="margin-bottom: 8px;">
-          <div>
-            <h1 class="page-title">Quản lý Dự án</h1>
-            <p class="page-subtitle">Tổng quan tài chính, Cây hợp đồng & Phụ lục và Sổ theo dõi giải ngân (IPC)</p>
-          </div>
-        </div>
-
-        <!-- Sub-tabs bên trong Quản lý Dự án: Tổng quan | Hợp đồng | Giải ngân -->
-        <div class="cpms-subnav-tabs" style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 2px solid var(--border-color); padding-bottom: 2px;">
-          <button class="cpms-subtab-btn active" data-cpms-tab="overview">
-            <i class="fa-solid fa-chart-pie"></i> Tổng quan
-          </button>
-          <button class="cpms-subtab-btn" data-cpms-tab="contracts">
-            <i class="fa-solid fa-file-contract"></i> Hợp đồng
-          </button>
-          <button class="cpms-subtab-btn" data-cpms-tab="disbursements">
-            <i class="fa-solid fa-money-bill-wave"></i> Giải ngân
-          </button>
-        </div>
-
         <!-- SUB-TAB 1: TỔNG QUAN DỰ ÁN -->
         <div id="cpms-tab-overview" class="cpms-tab-pane">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">
-              Dự án đang mở: <strong id="active-project-name" style="color: var(--primary);">Chưa có dự án nào</strong>
-            </p>
-            <div style="display: flex; gap: 8px;">
-              <button id="btn-quick-to-contracts" class="button button-primary button-sm">
-                <i class="fa-solid fa-file-contract"></i> Xem Cây Hợp đồng
-              </button>
-              <button id="btn-quick-to-disbursements" class="button button-outline button-sm">
-                <i class="fa-solid fa-money-bill-wave"></i> Sổ Giải ngân (IPC)
-              </button>
-              <button id="btn-export-backup" class="button button-outline button-sm">
-                <i class="fa-solid fa-file-export"></i> Xuất bản sao lưu JSON
-              </button>
-            </div>
-          </div>
-
           <!-- PHÂN KHU TÁCH RÕ 2 NHÓM: BÊN A (CHỦ ĐẦU TƯ) VÀ BÊN B (THẦU PHỤ / NCC) -->
           <div class="dashboard-ab-container">
             <!-- KHỐI NHÓM A: HỢP ĐỒNG VỚI BÊN A -->

@@ -237,28 +237,6 @@ class App {
       });
     });
 
-    // Các nút chuyển nhanh trong sub-tab Tổng quan
-    document.getElementById('btn-quick-to-contracts')?.addEventListener('click', () => {
-      this.switchCpmsTab('contracts');
-    });
-
-    document.getElementById('btn-quick-to-disbursements')?.addEventListener('click', () => {
-      this.switchCpmsTab('disbursements');
-    });
-
-    // Xuất file backup JSON
-    document.getElementById('btn-export-backup')?.addEventListener('click', async () => {
-      const snapshot = await db.exportSnapshot();
-      const curPrjId = contractsManager.currentProjectId || 'CHC1';
-      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `MAIO_Backup_${curPrjId}_${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-
     // Sự kiện nút đăng nhập / thoát ở Header
     document.getElementById('btn-header-login')?.addEventListener('click', () => {
       try {
@@ -323,11 +301,16 @@ class App {
       }
     });
 
-    // Xử lý nạp dữ liệu cho view tương ứng
+    // Thanh 3 Sub-tab chỉ hiển thị khi ở phân hệ Quản lý dự án
+    const cpmsSubnavBar = document.getElementById('cpms-subnav-bar');
     if (viewName === 'cpms') {
+      cpmsSubnavBar?.classList.remove('hidden');
       this.switchCpmsTab(this.currentCpmsTab || 'overview');
-    } else if (viewName === 'profile') {
-      this.updateProfileView();
+    } else {
+      cpmsSubnavBar?.classList.add('hidden');
+      if (viewName === 'profile') {
+        this.updateProfileView();
+      }
     }
   }
 
@@ -658,54 +641,32 @@ class App {
   updateGoogleDriveUI(user) {
     const headerLoginBtn = document.getElementById('btn-header-login');
     const headerUserStatus = document.getElementById('header-user-status');
-    const headerUserAvatar = document.getElementById('header-user-avatar');
     const headerUserAvatarIcon = document.getElementById('header-user-avatar-icon');
     const headerUserName = document.getElementById('header-user-name');
-
-    const cloudBadge = document.getElementById('cloud-badge');
     const testSyncBtn = document.getElementById('btn-test-sync');
 
     if (user) {
+      // Khi đã vào phiên làm việc: ẨN nút Đăng nhập, CHỈ HIỆN nhãn (Local hoặc email) + nút Thoát
+      headerLoginBtn?.classList.add('hidden');
       headerUserStatus?.classList.remove('hidden');
 
       if (user.isOffline) {
-        // Chế độ Cục bộ (Offline)
-        headerLoginBtn?.classList.remove('hidden');
-        if (headerUserAvatar) headerUserAvatar.classList.add('hidden');
-        if (headerUserAvatarIcon) headerUserAvatarIcon.classList.remove('hidden');
-        if (headerUserName) headerUserName.textContent = 'Cục bộ';
-
-        if (cloudBadge) {
-          cloudBadge.className = 'badge badge-warning';
-          cloudBadge.textContent = 'Cục bộ (Offline)';
-        }
+        // Chế độ Cục bộ: Hiển thị nhãn Local
+        if (headerUserAvatarIcon) headerUserAvatarIcon.className = 'fa-solid fa-laptop-file';
+        if (headerUserName) headerUserName.textContent = 'Local';
         if (testSyncBtn) testSyncBtn.disabled = true;
       } else {
-        // Đã kết nối Google Drive thật
-        headerLoginBtn?.classList.add('hidden');
-        if (headerUserAvatar && user.picture) {
-          headerUserAvatar.src = user.picture;
-          headerUserAvatar.classList.remove('hidden');
-        }
-        if (headerUserAvatarIcon) headerUserAvatarIcon.classList.add('hidden');
+        // Đã kết nối Google Drive: Hiển thị email
+        if (headerUserAvatarIcon) headerUserAvatarIcon.className = 'fa-brands fa-google';
         if (headerUserName) {
-          const shortName = user.name ? user.name.split(' ').slice(-2).join(' ') : (user.email ? user.email.split('@')[0] : 'Online');
-          headerUserName.textContent = shortName;
-        }
-
-        if (cloudBadge) {
-          cloudBadge.className = 'badge badge-success';
-          cloudBadge.textContent = 'Đã kết nối Drive';
+          headerUserName.textContent = user.email || user.name || 'Drive';
         }
         if (testSyncBtn) testSyncBtn.disabled = false;
       }
     } else {
+      // Khi chưa đăng nhập (Auth Gate): Chỉ hiện nút Đăng nhập, ẩn nút Thoát
       headerLoginBtn?.classList.remove('hidden');
       headerUserStatus?.classList.add('hidden');
-      if (cloudBadge) {
-        cloudBadge.className = 'badge badge-warning';
-        cloudBadge.textContent = 'Cục bộ (Offline)';
-      }
       if (testSyncBtn) testSyncBtn.disabled = true;
     }
 
