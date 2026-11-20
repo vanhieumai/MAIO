@@ -10,8 +10,8 @@
  * 2. Giải ngân & Thanh toán: CHỈ cộng các dòng giao dịch thực tế (is_header !== true), tuyệt đối không cộng dòng Header tổng hợp.
  */
 
-import { db } from '../../core/db.js?v=4.0';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=4.0';
+import { db } from '../../core/db.js?v=4.1';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=4.1';
 
 export class ContractsManager {
   constructor() {
@@ -25,6 +25,116 @@ export class ContractsManager {
     this.documents = [];
     this.selectedContract = null;
     this.expandedContracts = new Set();
+    this.activeFileHandle = null;
+    this._toastTimer = null;
+  }
+
+  showLocalSaveStatus(message, isError = false) {
+    let toast = document.getElementById('maio-local-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'maio-local-toast';
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 999999;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        opacity: 0;
+        transform: translateY(10px);
+      `;
+      document.body.appendChild(toast);
+    }
+    toast.style.background = isError ? '#fef2f2' : '#f0fdf4';
+    toast.style.color = isError ? '#dc2626' : '#15803d';
+    toast.style.border = `1px solid ${isError ? '#fecaca' : '#bbf7d0'}`;
+    toast.innerHTML = `<i class="fa-solid ${isError ? 'fa-triangle-exclamation' : 'fa-circle-check'}"></i> ${message}`;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateY(0)';
+
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+    }, 3500);
+  }
+
+  /**
+   * Tự động lưu mọi thay đổi trực tiếp vào file máy tính đã liên kết
+   */
+  async syncToLocalFile(isManual = false) {
+    if (!this.activeFileHandle) {
+      if (isManual) {
+        alert('Chưa có liên kết tệp trực tiếp trên máy tính. Hãy bấm "Nhập dữ liệu CPMS (Dẫn file Local)" để chọn tệp trên máy tính trước.');
+      }
+      return false;
+    }
+
+    try {
+      const buffer = await CPMSImporterExporter.buildCPMSBinaryBuffer(this.currentProjectId);
+      const writable = await this.activeFileHandle.createWritable();
+      await writable.write(buffer);
+      await writable.close();
+
+      const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
+      if (curPrj) {
+        curPrj.source_file_updated = new Date().toISOString();
+        await db.put('projects', curPrj);
+      }
+
+      this.showLocalSaveStatus(`Đã tự động lưu thay đổi vào file "${this.activeFileHandle.name}"!`);
+      return true;
+    } catch (err) {
+      console.warn('Lỗi lưu file local:', err);
+      this.showLocalSaveStatus(`Không thể ghi file "${this.activeFileHandle.name}": ${err.message}`, true);
+      return false;
+    }
+  }
+
+  /**
+   * Mở trực tiếp File Picker của trình duyệt để liên kết file máy tính
+   */
+  async pickAndLoadLocalCPMSFile() {
+    if ('showOpenFilePicker' in window) {
+      try {
+        const [handle] = await window.showOpenFilePicker({
+          types: [
+            {
+              description: 'Tệp dữ liệu CPMS (*.cpms, *.xlsx, *.xlsb)',
+              accept: {
+                'application/octet-stream': ['.cpms', '.xlsb'],
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+              }
+            }
+          ],
+          multiple: false
+        });
+
+        if (handle) {
+          this.activeFileHandle = handle;
+          const file = await handle.getFile();
+          const result = await CPMSImporterExporter.importCPMSFile(file);
+          this.currentProjectId = result.projectData.id;
+          await this.loadData();
+          this.render();
+          this.showLocalSaveStatus(`Đã liên kết file "${handle.name}". Mọi chỉnh sửa sẽ tự động lưu vào file này!`);
+          return;
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.warn('Không thể mở showOpenFilePicker, chuyển sang modal tải file:', err);
+      }
+    }
+    // Fallback: Mở modal import file
+    this.openProjectModal();
   }
 
   async init() {
@@ -143,7 +253,7 @@ export class ContractsManager {
       if (val === 'IMPORT_NEW') {
         // Trả lại giá trị trước đó trên UI
         projectSelector.value = this.currentProjectId;
-        this.openProjectModal();
+        this.pickAndLoadLocalCPMSFile();
       } else {
         this.currentProjectId = val;
         await this.loadData();
@@ -151,9 +261,9 @@ export class ContractsManager {
       }
     });
 
-    // Nút Import .cpms
+    // Nút Import .cpms (Dẫn file Local trực tiếp)
     document.getElementById('btn-import-project')?.addEventListener('click', () => {
-      this.openProjectModal();
+      this.pickAndLoadLocalCPMSFile();
     });
 
     // Nút Sao chép Dự án
@@ -482,19 +592,15 @@ export class ContractsManager {
 
       infoContainer.innerHTML = `
         <div style="padding: 12px 18px; background: #f8fafc; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; width: 100%; border: 1px dashed var(--border-color);">
-          <span><i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> Tài khoản của bạn hiện chưa liên kết dự án nào. Bấm <strong>"Nhập dữ liệu CPMS (Dẫn file Local)"</strong> để đọc dữ liệu từ máy tính của bạn.</span>
-          <div style="display: flex; gap: 8px;">
-            <button id="btn-empty-import" class="button button-primary" style="font-size: 0.8rem; padding: 5px 14px;">
-              <i class="fa-solid fa-laptop-file"></i> Dẫn file CPMS Local
-            </button>
-            <button id="btn-seed-sample-chc1" class="button button-outline" style="font-size: 0.78rem; padding: 5px 12px; color: var(--primary); border-color: #93c5fd; background: #fff;">
-              <i class="fa-solid fa-cloud-arrow-down"></i> Nạp Dự án mẫu CHC1 (Thử nghiệm)
+          <span><i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> Tài khoản của bạn hiện chưa liên kết dự án nào. Bấm <strong>"Nhập dữ liệu CPMS (Dẫn file Local)"</strong> để chọn file dữ liệu dự án trên máy tính của bạn.</span>
+          <div>
+            <button id="btn-empty-import" class="button button-primary" style="font-size: 0.8rem; padding: 6px 16px;">
+              <i class="fa-solid fa-laptop-file"></i> Dẫn file CPMS Local từ máy tính
             </button>
           </div>
         </div>
       `;
-      document.getElementById('btn-empty-import')?.addEventListener('click', () => this.openProjectModal());
-      document.getElementById('btn-seed-sample-chc1')?.addEventListener('click', () => this.seedDemoData());
+      document.getElementById('btn-empty-import')?.addEventListener('click', () => this.pickAndLoadLocalCPMSFile());
       return;
     }
 
@@ -540,6 +646,8 @@ export class ContractsManager {
       totalPaidB += st.totalPaid;
     });
 
+    const activeFileName = this.activeFileHandle?.name || curPrj.source_filename || null;
+
     // 4. Render thanh Project Info Bar chi tiết bên dưới
     infoContainer.innerHTML = `
       <div class="project-info-meta">
@@ -563,16 +671,26 @@ export class ContractsManager {
           <i class="fa-solid fa-circle-up" style="color: #06b6d4;"></i> Giải ngân cho bên B: <strong style="color: #0891b2;">${this.formatCurrency(totalPaidB)}</strong>
         </span>
         <span class="proj-meta-divider">|</span>
-        <span class="proj-meta-item" title="${curPrj.source_filename ? `File data local: ${curPrj.source_filename}` : 'Chưa liên kết file data CPMS local'}">
-          <i class="fa-solid fa-laptop-file" style="color: #6366f1;"></i> File Data Local: <strong style="color: ${curPrj.source_filename ? 'var(--primary)' : 'var(--text-muted)'};">${curPrj.source_filename || 'Chưa liên kết'}</strong>
+        <span class="proj-meta-item" title="${this.activeFileHandle ? `File máy tính: ${this.activeFileHandle.name} (Tự động lưu khi sửa đổi)` : (activeFileName ? `File data local: ${activeFileName}` : 'Chưa liên kết file data CPMS local')}">
+          <i class="fa-solid fa-laptop-file" style="color: #6366f1;"></i> File Data Local: <strong style="color: ${this.activeFileHandle ? '#10b981' : (activeFileName ? 'var(--primary)' : 'var(--text-muted)')};">${activeFileName || 'Chưa liên kết'}</strong>
+          ${this.activeFileHandle ? '<span class="badge badge-success" style="font-size: 0.68rem; margin-left: 4px; padding: 1px 5px;"><i class="fa-solid fa-bolt"></i> Tự động lưu</span>' : ''}
         </span>
       </div>
-      <div style="flex-shrink: 0; margin-left: auto;">
+      <div style="flex-shrink: 0; margin-left: auto; display: flex; gap: 6px;">
+        ${this.activeFileHandle ? `
+          <button id="btn-manual-sync-file" class="button button-outline" style="font-size: 0.75rem; padding: 4px 10px; height: 28px; color: #0284c7; border-color: #bae6fd;" title="Ghi đè thủ công ngay vào file máy tính">
+            <i class="fa-solid fa-floppy-disk"></i> Lưu file
+          </button>
+        ` : ''}
         <button id="btn-edit-project-info" class="button button-outline" style="font-size: 0.75rem; padding: 4px 10px; height: 28px;" title="Chỉnh sửa thông tin dự án">
           <i class="fa-solid fa-pen-to-square"></i> Sửa thông tin
         </button>
       </div>
     `;
+
+    document.getElementById('btn-manual-sync-file')?.addEventListener('click', () => {
+      this.syncToLocalFile(true);
+    });
 
     document.getElementById('btn-edit-project-info')?.addEventListener('click', () => {
       this.openEditProjectModal(curPrj);
@@ -646,6 +764,7 @@ export class ContractsManager {
       await this.loadData();
       closeModal();
       this.render();
+      await this.syncToLocalFile();
       alert('Đã cập nhật thông tin dự án thành công!');
     };
   }
@@ -978,6 +1097,7 @@ export class ContractsManager {
         closeModal();
         await this.loadData();
         this.render();
+        await this.syncToLocalFile();
 
         alert(`🎉 Sao chép Hợp đồng thành công!\n\nĐã tạo "${newNo}" (Mã: ${newId}).`);
         this.openContractDetail(newContract.id);
@@ -1306,10 +1426,7 @@ export class ContractsManager {
               <i class="fa-solid fa-plus"></i> Thêm Dự án mới
             </button>
             <button id="btn-empty-import" class="button button-outline">
-              <i class="fa-solid fa-file-arrow-up" style="color: var(--primary);"></i> Nhập dữ liệu CPMS
-            </button>
-            <button id="btn-empty-seed" class="button button-outline" style="color: #6366f1; border-color: #c7d2fe;">
-              <i class="fa-solid fa-cloud-arrow-down"></i> Nạp Dự án mẫu CHC1
+              <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i> Dẫn file CPMS Local
             </button>
           </div>
         </div>
@@ -1318,10 +1435,7 @@ export class ContractsManager {
         this.openCreateProjectModal();
       });
       document.getElementById('btn-empty-import')?.addEventListener('click', () => {
-        document.getElementById('btn-import-project')?.click();
-      });
-      document.getElementById('btn-empty-seed')?.addEventListener('click', () => {
-        this.seedDemoData();
+        this.pickAndLoadLocalCPMSFile();
       });
       return;
     }
@@ -2030,6 +2144,7 @@ export class ContractsManager {
         if (confirm(`Bạn có chắc muốn xóa hồ sơ ${docId} không?`)) {
           await db.delete('documents', docId);
           await this.loadData();
+          await this.syncToLocalFile();
           this.openContractDetail(contract.id);
         }
       });
@@ -2070,6 +2185,7 @@ export class ContractsManager {
         if (confirm(`Bạn có chắc muốn xóa đợt thanh toán này không?`)) {
           await db.delete('payments', payId);
           await this.loadData();
+          await this.syncToLocalFile();
           this.openContractDetail(contract.id);
         }
       });
@@ -2219,7 +2335,33 @@ export class ContractsManager {
       statusMsg.style.display = 'none';
     };
 
-    btnBrowse.addEventListener('click', () => fileInput.click());
+    btnBrowse.addEventListener('click', async () => {
+      if ('showOpenFilePicker' in window) {
+        try {
+          const [handle] = await window.showOpenFilePicker({
+            types: [
+              {
+                description: 'File dữ liệu CPMS (*.cpms, *.xlsx, *.xlsb)',
+                accept: {
+                  'application/octet-stream': ['.cpms', '.xlsb'],
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
+                }
+              }
+            ],
+            multiple: false
+          });
+          if (handle) {
+            this.activeFileHandle = handle;
+            const file = await handle.getFile();
+            handleFile(file);
+            return;
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+        }
+      }
+      fileInput.click();
+    });
     dropzone.addEventListener('click', (e) => {
       if (e.target !== btnBrowse && !btnBrowse.contains(e.target)) {
         fileInput.click();
@@ -2271,6 +2413,10 @@ export class ContractsManager {
         this.currentProjectId = result.projectData.id;
         await this.loadData();
         this.render();
+
+        if (this.activeFileHandle) {
+          this.showLocalSaveStatus(`Đã liên kết tệp "${this.activeFileHandle.name}". Mọi chỉnh sửa sẽ tự động lưu vào tệp này!`);
+        }
 
         setTimeout(() => {
           closeSubModal();
@@ -2618,6 +2764,7 @@ export class ContractsManager {
       await this.loadData();
       this.render();
       closeSubModal();
+      await this.syncToLocalFile();
       alert('Đã lưu dữ liệu Hợp đồng thành công!');
       this.openContractDetail(updatedData.id);
     });
@@ -2734,6 +2881,7 @@ export class ContractsManager {
       await db.put('documents', docData);
       await this.loadData();
       closeSubModal();
+      await this.syncToLocalFile();
       this.openContractDetail(targetContract.id);
       alert('Đã lưu thành công Hồ sơ!');
     });
@@ -2839,6 +2987,7 @@ export class ContractsManager {
       await db.put('payments', paymentData);
       await this.loadData();
       closeSubModal();
+      await this.syncToLocalFile();
       this.openContractDetail(targetContract.id);
       alert('Đã ghi sổ thành công đợt Giải ngân!');
     });
@@ -2936,6 +3085,7 @@ export class ContractsManager {
       await db.put('payments', payment);
       await this.loadData();
       closeSubModal();
+      await this.syncToLocalFile();
       this.openContractDetail(targetContract.id);
       setTimeout(() => {
         document.querySelector('.modal-tab-btn[data-target="m-tab-ipc"]')?.click();
@@ -2997,24 +3147,6 @@ export class ContractsManager {
     if (msg) {
       msg.textContent = 'Đã xuất file báo cáo thành công!';
       setTimeout(() => (msg.textContent = ''), 3000);
-    }
-  }
-
-  async seedDemoData() {
-    if (!confirm('Bạn có muốn nạp dữ liệu mẫu Dự án CHC1 vào tài khoản của mình không?')) return;
-    try {
-      const { CHC1_SEED_DATA } = await import('../../data/chc1_seed.js?v=4.0');
-      if (!CHC1_SEED_DATA) return;
-      await db.put('projects', CHC1_SEED_DATA.project);
-      for (const c of CHC1_SEED_DATA.contracts) await db.put('contracts', c);
-      for (const p of CHC1_SEED_DATA.payments) await db.put('payments', p);
-      for (const d of CHC1_SEED_DATA.documents) await db.put('documents', d);
-      this.currentProjectId = CHC1_SEED_DATA.project.id;
-      await this.loadData();
-      this.render();
-      alert('Đã nạp thành công dữ liệu mẫu Dự án CHC1 vào tài khoản của bạn!');
-    } catch (err) {
-      alert('Lỗi nạp dữ liệu mẫu: ' + err.message);
     }
   }
 }

@@ -3,7 +3,7 @@
  * Đọc và xuất file dữ liệu định dạng .cpms (.xlsb / .xlsx) chuẩn xác 100% với phần mềm CPMS Plus.
  */
 
-import { db } from './db.js?v=4.0';
+import { db } from './db.js?v=4.1';
 
 export class CPMSImporterExporter {
   /**
@@ -337,7 +337,10 @@ export class CPMSImporterExporter {
    * @param {string} projectId Mã dự án
    * @param {string} extension Định dạng xuất: 'cpms' (để nạp thẳng vào CPMS Plus) hoặc 'xlsx' (để mở trong Excel)
    */
-  static async exportToCPMSFormat(projectId = 'CHC1', extension = 'cpms') {
+  /**
+   * Tạo toàn bộ cấu trúc Workbook CPMS chuẩn 5 sheet
+   */
+  static async buildCPMSWorkbook(projectId = 'CHC1') {
     if (!window.XLSX) {
       throw new Error('Thư viện XLSX chưa sẵn sàng.');
     }
@@ -538,6 +541,21 @@ export class CPMSImporterExporter {
       ['ExportedAt', new Date().toISOString()],
     ];
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(sysInfoData), 'SYS_INFO');
+
+    return { wb, prjCode };
+  }
+
+  /**
+   * Tạo mảng nhị phân ArrayBuffer của file CPMS (để ghi trực tiếp vào FileSystemFileHandle)
+   */
+  static async buildCPMSBinaryBuffer(projectId = 'CHC1') {
+    const { wb } = await this.buildCPMSWorkbook(projectId);
+    const arrayBuffer = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    return arrayBuffer;
+  }
+
+  static async exportToCPMSFormat(projectId = 'CHC1', extension = 'cpms') {
+    const { wb, prjCode } = await this.buildCPMSWorkbook(projectId);
 
     // Tải về file theo đúng định dạng tên chuẩn của CPMS Plus: PROJ_YYYYMMDD_HHMMSS.cpms
     const now = new Date();

@@ -3,10 +3,9 @@
  * Quản lý khởi tạo IndexedDB, nạp dữ liệu hạt giống CHC1, điều hướng phân hệ và kết nối đồng bộ.
  */
 
-import { gdrive } from './core/gdrive.js?v=4.0';
-import { db } from './core/db.js?v=4.0';
-import { CHC1_SEED_DATA } from './data/chc1_seed.js?v=4.0';
-import { contractsManager } from './modules/cpms/contracts.js?v=4.0';
+import { gdrive } from './core/gdrive.js?v=4.1';
+import { db } from './core/db.js?v=4.1';
+import { contractsManager } from './modules/cpms/contracts.js?v=4.1';
 
 class App {
   constructor() {
