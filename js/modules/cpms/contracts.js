@@ -19,6 +19,7 @@ export class ContractsManager {
     this.projects = [];
     this.currentGroup = 'A';
     this.searchQuery = '';
+    this.categoryFilter = 'ALL';
     this.contracts = [];
     this.payments = [];
     this.documents = [];
@@ -87,6 +88,7 @@ export class ContractsManager {
         tabBtns.forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentGroup = btn.getAttribute('data-group');
+        this.categoryFilter = 'ALL';
         this.render();
       });
     });
@@ -94,6 +96,12 @@ export class ContractsManager {
     const searchInput = document.getElementById('contract-search-input');
     searchInput?.addEventListener('input', (e) => {
       this.searchQuery = e.target.value.trim();
+      this.render();
+    });
+
+    const catFilter = document.getElementById('contract-category-filter');
+    catFilter?.addEventListener('change', (e) => {
+      this.categoryFilter = e.target.value;
       this.render();
     });
 
@@ -1043,13 +1051,118 @@ export class ContractsManager {
     return false;
   }
 
+  updateCategoryFilterUI() {
+    const select = document.getElementById('contract-category-filter');
+    if (!select) return;
+
+    // Lấy tất cả HĐ gốc của nhóm hiện tại
+    const groupContracts = this.contracts.filter(
+      (c) => c.group === this.currentGroup && !c.parent_id
+    );
+
+    // Danh sách 8 nhóm tiêu chuẩn
+    const standardCategories = [
+      { key: 'Construction', name: 'Thi công / Xây lắp' },
+      { key: 'Procurement', name: 'Mua sắm vật tư' },
+      { key: 'Consultancy', name: 'Tư vấn giám sát / Thẩm tra' },
+      { key: 'Design', name: 'Thiết kế / Khảo sát' },
+      { key: 'Equipment', name: 'Thiết bị MEP / Cơ điện' },
+      { key: 'Service', name: 'Dịch vụ / Vệ sinh / Bảo vệ' },
+      { key: 'Maintenance', name: 'Bảo trì / Vận hành' },
+      { key: 'Rental', name: 'Thuê thiết bị / Nhân công' },
+      { key: 'Design & Build', name: 'Tổng thầu EPC / D&B' },
+    ];
+
+    const catCounts = {};
+    let otherCount = 0;
+
+    groupContracts.forEach((c) => {
+      const cCat = (c.category || '').trim();
+      if (!cCat) {
+        otherCount++;
+        return;
+      }
+
+      const matched = standardCategories.find(
+        (sc) => sc.key.toLowerCase() === cCat.toLowerCase()
+      );
+      if (matched) {
+        catCounts[matched.key] = (catCounts[matched.key] || 0) + 1;
+      } else {
+        catCounts[cCat] = (catCounts[cCat] || 0) + 1;
+      }
+    });
+
+    let optionsHtml = `<option value="ALL">📁 Tất cả loại hợp đồng (${groupContracts.length})</option>`;
+
+    // Render các standard categories có trong dữ liệu trước
+    standardCategories.forEach((sc) => {
+      const count = catCounts[sc.key] || 0;
+      if (count > 0) {
+        optionsHtml += `<option value="${sc.key}">🏷️ ${sc.key} - ${sc.name} (${count})</option>`;
+      }
+    });
+
+    // Các category đặc thù khác (nếu có ngoài standard)
+    Object.keys(catCounts).forEach((catKey) => {
+      const isStd = standardCategories.some(
+        (sc) => sc.key.toLowerCase() === catKey.toLowerCase()
+      );
+      if (!isStd) {
+        optionsHtml += `<option value="${catKey}">🏷️ ${catKey} (${catCounts[catKey]})</option>`;
+      }
+    });
+
+    // Các standard categories còn lại nếu có count = 0 (để người dùng biết đầy đủ các nhóm nghiệp vụ)
+    standardCategories.forEach((sc) => {
+      const count = catCounts[sc.key] || 0;
+      if (count === 0 && this.currentGroup === 'B') {
+        optionsHtml += `<option value="${sc.key}">🏷️ ${sc.key} - ${sc.name} (0)</option>`;
+      }
+    });
+
+    if (otherCount > 0) {
+      optionsHtml += `<option value="OTHER">📁 Khác / Chưa phân loại (${otherCount})</option>`;
+    }
+
+    select.innerHTML = optionsHtml;
+
+    // Giữ lựa chọn hiện tại nếu có, ngược lại về ALL
+    const exists = Array.from(select.options).some((opt) => opt.value === this.categoryFilter);
+    if (exists) {
+      select.value = this.categoryFilter;
+    } else {
+      this.categoryFilter = 'ALL';
+      select.value = 'ALL';
+    }
+  }
+
   getMainContracts() {
     return this.contracts.filter((c) => {
       const matchGroup = c.group === this.currentGroup;
       const isMain = !c.parent_id;
-      const matchSearch = this.isContractMatched(c, this.searchQuery);
+      if (!matchGroup || !isMain) return false;
 
-      return matchGroup && isMain && matchSearch;
+      const matchSearch = this.isContractMatched(c, this.searchQuery);
+      if (!matchSearch) return false;
+
+      if (!this.categoryFilter || this.categoryFilter === 'ALL') {
+        return true;
+      }
+
+      if (this.categoryFilter === 'OTHER') {
+        const standardCats = ['construction', 'procurement', 'consultancy', 'design', 'equipment', 'service', 'maintenance', 'rental', 'design & build'];
+        const cat = (c.category || '').toLowerCase().trim();
+        return !cat || !standardCats.includes(cat);
+      }
+
+      const target = this.categoryFilter.toLowerCase().trim();
+      const cCat = (c.category || '').toLowerCase().trim();
+      if (cCat === target) return true;
+
+      // Kiểm tra xem có phụ lục / con cháu nào có category trùng không
+      const familyIds = this.getAllDescendantIds(c.id);
+      return this.contracts.some((ch) => familyIds.includes(ch.id) && (ch.category || '').toLowerCase().trim() === target);
     });
   }
 
@@ -1135,6 +1248,7 @@ export class ContractsManager {
 
   render() {
     this.renderProjectInfo();
+    this.updateCategoryFilterUI();
 
     const container = document.getElementById('contracts-list-container');
     if (!container) return;
@@ -1142,12 +1256,26 @@ export class ContractsManager {
     const mainContracts = this.getMainContracts();
 
     if (mainContracts.length === 0) {
+      const isFiltered = this.categoryFilter && this.categoryFilter !== 'ALL';
       container.innerHTML = `
         <div style="text-align: center; padding: 48px; background: #fff; border-radius: var(--radius-md); border: 1px dashed var(--border-color);">
           <i class="fa-solid fa-folder-open" style="font-size: 2.5rem; color: var(--text-light); margin-bottom: 12px;"></i>
-          <p style="color: var(--text-muted); font-weight: 500;">Không tìm thấy hợp đồng nào phù hợp trong Nhóm ${this.currentGroup}.</p>
+          <p style="color: var(--text-muted); font-weight: 500;">
+            ${isFiltered 
+              ? `Không tìm thấy hợp đồng nào thuộc loại "<strong>${this.categoryFilter}</strong>" trong Nhóm ${this.currentGroup}.`
+              : `Không tìm thấy hợp đồng nào phù hợp trong Nhóm ${this.currentGroup}.`}
+          </p>
+          ${isFiltered ? `
+            <button id="btn-reset-category-filter" class="button button-outline" style="margin-top: 12px; font-size: 0.825rem;">
+              <i class="fa-solid fa-rotate-left"></i> Xem tất cả loại hợp đồng
+            </button>
+          ` : ''}
         </div>
       `;
+      document.getElementById('btn-reset-category-filter')?.addEventListener('click', () => {
+        this.categoryFilter = 'ALL';
+        this.render();
+      });
       return;
     }
 
@@ -1167,6 +1295,7 @@ export class ContractsManager {
                     <i class="fa-solid fa-file-signature"></i>
                     <span>${c.contract_no || c.id}</span>
                     <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}">Nhóm ${c.group}</span>
+                    ${c.category ? `<span class="badge" style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${c.category}</span>` : ''}
                     <span class="badge badge-success">${c.status || 'Active'}</span>
                   </div>
                   <div class="contract-title">${c.scope_of_work || 'Hợp đồng thực hiện dự án'}</div>
@@ -1380,6 +1509,7 @@ export class ContractsManager {
                 ${contract.contract_no || contract.id}
               </h2>
               <span class="badge ${contract.group === 'A' ? 'badge-primary' : 'badge-warning'}">Nhóm ${contract.group}</span>
+              ${contract.category ? `<span class="badge" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${contract.category}</span>` : ''}
               <span class="badge badge-success">${contract.status || 'Active'}</span>
             </div>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">${contract.scope_of_work || ''}</p>
@@ -1423,6 +1553,7 @@ export class ContractsManager {
                 <div><strong>Số hiệu chính thức:</strong> <p style="font-weight: 700; color: var(--primary);">${contract.contract_no}</p></div>
                 <div><strong>Bên A (Chủ đầu tư / Tổng thầu):</strong> <p style="color: var(--text-muted);">${contract.company_a || '—'}</p></div>
                 <div><strong>Bên B (Thầu phụ / Nhà cung cấp):</strong> <p style="color: var(--text-muted);">${contract.company_b || '—'}</p></div>
+                <div><strong>Loại hợp đồng:</strong> <p><span class="badge" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${contract.category || 'Chưa phân loại'}</span></p></div>
                 <div><strong>Ngày ký kết:</strong> <p style="color: var(--text-muted);">${this.formatDate(contract.signing_date)}</p></div>
                 <div><strong>Giá trị ký kết HĐ gốc:</strong> <p style="font-weight: 700; color: var(--primary);">${this.formatCurrency(contract.contract_val)}</p></div>
                 ${
@@ -2108,6 +2239,32 @@ export class ContractsManager {
               </div>
             </div>
 
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Loại hợp đồng (Category)</label>
+                <select class="form-control" name="category">
+                  <option value="Construction" ${editContract?.category === 'Construction' ? 'selected' : ''}>Construction (Thi công / Xây lắp)</option>
+                  <option value="Procurement" ${editContract?.category === 'Procurement' ? 'selected' : ''}>Procurement (Mua sắm vật tư)</option>
+                  <option value="Consultancy" ${editContract?.category === 'Consultancy' ? 'selected' : ''}>Consultancy (Tư vấn giám sát / Thẩm tra)</option>
+                  <option value="Design" ${editContract?.category === 'Design' ? 'selected' : ''}>Design (Thiết kế / Khảo sát)</option>
+                  <option value="Equipment" ${editContract?.category === 'Equipment' ? 'selected' : ''}>Equipment (Thiết bị MEP / Cơ điện)</option>
+                  <option value="Service" ${editContract?.category === 'Service' ? 'selected' : ''}>Service (Dịch vụ thí nghiệm / Vệ sinh / Bảo vệ)</option>
+                  <option value="Maintenance" ${editContract?.category === 'Maintenance' ? 'selected' : ''}>Maintenance (Bảo trì / Vận hành)</option>
+                  <option value="Rental" ${editContract?.category === 'Rental' ? 'selected' : ''}>Rental (Thuê thiết bị / Nhân công)</option>
+                  <option value="Design & Build" ${editContract?.category === 'Design & Build' ? 'selected' : ''}>Design & Build (Tổng thầu EPC / D&B)</option>
+                  <option value="Khác" ${!editContract?.category || editContract?.category === 'Khác' ? 'selected' : ''}>Khác / Chưa phân loại</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tình trạng</label>
+                <select class="form-control" name="status">
+                  <option value="Active" ${editContract?.status === 'Active' || !editContract ? 'selected' : ''}>Đang thực hiện (Active)</option>
+                  <option value="Completed" ${editContract?.status === 'Completed' ? 'selected' : ''}>Đã hoàn thành / Quyết toán (Completed)</option>
+                  <option value="Suspended" ${editContract?.status === 'Suspended' ? 'selected' : ''}>Tạm ngưng (Suspended)</option>
+                </select>
+              </div>
+            </div>
+
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
               <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
               <button type="submit" class="button button-primary">Lưu Hợp đồng</button>
@@ -2150,7 +2307,8 @@ export class ContractsManager {
         company_b: formData.get('company_b'),
         contract_val: this.parseNumberFromDots(formData.get('contract_val')),
         signing_date: formData.get('signing_date'),
-        status: editContract?.status || 'Active',
+        category: formData.get('category') || editContract?.category || 'Construction',
+        status: formData.get('status') || editContract?.status || 'Active',
       };
 
       await db.put('contracts', updatedData);
@@ -2237,6 +2395,7 @@ export class ContractsManager {
         signing_date: formData.get('signing_date'),
         company_a: parentContract.company_a,
         company_b: parentContract.company_b,
+        category: parentContract.category || 'Construction',
         status: 'Active',
       };
 
