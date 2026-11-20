@@ -342,16 +342,11 @@ class App {
       }
     });
 
-    // Thanh 3 Sub-tab chỉ hiển thị khi ở phân hệ Quản lý dự án
-    const cpmsSubnavBar = document.getElementById('cpms-subnav-bar');
+    // Phân hệ Quản lý dự án (CPMS) quản lý riêng các sub-tab và banner dự án
     if (viewName === 'cpms') {
-      cpmsSubnavBar?.classList.remove('hidden');
       this.switchCpmsTab(this.currentCpmsTab || 'overview');
-    } else {
-      cpmsSubnavBar?.classList.add('hidden');
-      if (viewName === 'profile') {
-        this.updateProfileView();
-      }
+    } else if (viewName === 'profile') {
+      this.updateProfileView();
     }
   }
 
