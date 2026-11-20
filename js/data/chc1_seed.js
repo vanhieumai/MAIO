@@ -2,8 +2,8 @@ export const CHC1_SEED_DATA = {
   "project": {
     "id": "CHC1",
     "code": "CHC1",
-    "name": "Dự án CHC1 (Thiết kế & Thi công)",
-    "location": "Hà Nội",
+    "name": "Dự án Nhà ở Chung cư Cao tầng Westlake Residential",
+    "location": "Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội",
     "client": "Công ty Cổ phần Xây dựng và Kỹ thuật Việt Nam",
     "total_contracts": 92,
     "total_payments": 343,

@@ -79,23 +79,42 @@ export class CPMSImporterExporter {
         lower === 'project info' ||
         lower === 'project_info' ||
         lower === 'projectinfo' ||
+        lower === 'proj info' ||
+        lower === 'proj_info' ||
+        lower === 'projinfo' ||
         lower === 'thông tin dự án' ||
-        lower === 'sys_info'
+        lower === 'sys_info' ||
+        (lower.includes('proj') && lower.includes('info'))
       );
     });
 
     if (infoSheetName) {
       const ws = workbook.Sheets[infoSheetName];
       const data = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
+      // 1. Quét theo dạng Key - Value 2 cột dọc
       for (const row of data) {
         if (!row || row.length < 2) continue;
         const key = String(row[0]).toLowerCase().trim();
         const val = String(row[1]).trim();
         if (key.includes('projectid') || key.includes('mã dự án') || key === 'proj') projectId = val;
-        if (key.includes('projectname') || key.includes('tên dự án') || key === 'proj_name') projectName = val;
+        if (key.includes('projectname') || key.includes('tên dự án') || key === 'proj_name' || key === 'name') projectName = val;
         if (key.includes('client') || key.includes('chủ đầu tư') || key.includes('bên a')) clientName = val;
         if (key.includes('location') || key.includes('địa điểm') || key.includes('địa chỉ')) location = val;
         if (key.includes('contractor') || key.includes('tổng thầu') || key.includes('nhà thầu') || key.includes('bên b')) contractor = val;
+      }
+      // 2. Quét theo dạng bảng ngang (Row 0 là Headers, Row 1 là Values)
+      if (data.length >= 2 && Array.isArray(data[0])) {
+        const headers = data[0].map((h) => String(h || '').toLowerCase().trim());
+        const values = data[1] || [];
+        headers.forEach((h, idx) => {
+          const val = String(values[idx] || '').trim();
+          if (!val) return;
+          if (h.includes('projectid') || h.includes('mã dự án') || h === 'proj') projectId = val;
+          if (h.includes('projectname') || h.includes('tên dự án') || h === 'proj_name') projectName = val;
+          if (h.includes('client') || h.includes('chủ đầu tư') || h.includes('bên a')) clientName = val;
+          if (h.includes('location') || h.includes('địa điểm') || h.includes('địa chỉ')) location = val;
+          if (h.includes('contractor') || h.includes('tổng thầu') || h.includes('nhà thầu') || h.includes('bên b')) contractor = val;
+        });
       }
     }
 

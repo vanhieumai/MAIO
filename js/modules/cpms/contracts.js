@@ -376,24 +376,37 @@ export class ContractsManager {
       name: 'Dự án ' + this.currentProjectId,
     };
 
-    // Nếu dự án có mã CHC1 mà chưa có địa điểm hoặc địa điểm mặc định
-    if ((!curPrj.location || curPrj.location === 'Việt Nam' || curPrj.location === '—') && String(curPrj.id).includes('CHC1')) {
-      curPrj.location = 'Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội';
-    }
-    // Nếu tên dự án chưa có hoặc chỉ là mã ID CHC1...
-    if ((!curPrj.name || curPrj.name === curPrj.id || curPrj.name.startsWith('CHC1_')) && String(curPrj.id).includes('CHC1')) {
-      curPrj.name = 'Dự án Nhà ở Chung cư Cao tầng Westlake Residential';
+    // Chuẩn hóa Tên và Địa điểm dự án cho CHC1
+    if (String(curPrj.id).includes('CHC1')) {
+      let needsSave = false;
+      if (!curPrj.name || curPrj.name.includes('Thiết kế & Thi công') || curPrj.name === curPrj.id || curPrj.name.startsWith('CHC1_')) {
+        curPrj.name = 'Dự án Nhà ở Chung cư Cao tầng Westlake Residential';
+        needsSave = true;
+      }
+      if (!curPrj.location || curPrj.location === 'Việt Nam' || curPrj.location === 'Hà Nội' || curPrj.location === '—') {
+        curPrj.location = 'Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội';
+        needsSave = true;
+      }
+      if (needsSave) {
+        db.put('projects', curPrj).catch(() => {});
+      }
     }
 
     const sampleContract = this.contracts[0] || {};
     const clientName = curPrj.client || sampleContract.company_a || 'Chủ đầu tư';
-    const location = curPrj.location || 'Việt Nam';
+    const location = curPrj.location || 'Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội';
 
     // 1. Cập nhật thông tin cơ bản trên Top Banner (Vùng hiển thị cơ bản phía trên)
     const topProjName = document.getElementById('top-project-name');
     const topProjLoc = document.getElementById('top-project-location');
     if (topProjName) topProjName.textContent = curPrj.name || curPrj.id;
     if (topProjLoc) topProjLoc.textContent = location;
+
+    // Cập nhật text trong dropdown dự án nếu cần
+    const selOpt = document.querySelector('#project-selector option[value="CHC1"]');
+    if (selOpt && String(curPrj.id).includes('CHC1')) {
+      selOpt.textContent = `📁 ${curPrj.name} (${curPrj.id})`;
+    }
 
     // 2. Thống kê chi tiết Hợp đồng & Phụ lục nhóm A (Chủ đầu tư / Tổng thầu)
     const mainA = this.contracts.filter((c) => !c.parent_id && c.group === 'A');
@@ -1425,7 +1438,10 @@ export class ContractsManager {
                             ${p.invoice_ref ? `<span class="badge badge-primary">HĐ: ${p.invoice_ref}</span>` : ''}
                             <small style="color: var(--text-muted); display: block;">${p.note || ''}</small>
                           </td>
-                          <td>
+                          <td style="white-space: nowrap;">
+                            <button class="button button-outline btn-edit-payment" data-pay-id="${p.id}" style="padding: 2px 7px; font-size: 0.75rem; color: var(--primary); margin-right: 4px;" title="Chỉnh sửa đợt giải ngân (ĐN)">
+                              <i class="fa-solid fa-pen-to-square"></i> Sửa
+                            </button>
                             <button class="button button-outline btn-delete-payment" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger);" title="Xóa đợt giải ngân">
                               <i class="fa-solid fa-trash"></i>
                             </button>
@@ -1591,6 +1607,17 @@ export class ContractsManager {
           await db.delete('documents', docId);
           await this.loadData();
           this.openContractDetail(contract.id);
+        }
+      });
+    });
+
+    // Sửa đợt giải ngân (ĐN)
+    modal.querySelectorAll('.btn-edit-payment').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const payId = btn.getAttribute('data-pay-id');
+        const payment = this.payments.find((p) => p.id === payId);
+        if (payment) {
+          this.openEditPaymentModal(payment, contract);
         }
       });
     });
@@ -2252,6 +2279,104 @@ export class ContractsManager {
       closeSubModal();
       this.openContractDetail(targetContract.id);
       alert('Đã ghi sổ thành công đợt Giải ngân!');
+    });
+  }
+
+  // ==========================================
+  // FORM CHỈNH SỬA ĐỢT GIẢI NGÂN (SỬA ĐN)
+  // ==========================================
+  openEditPaymentModal(payment, targetContract) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-container" style="max-width: 650px;">
+        <div class="modal-header">
+          <h3 style="font-size: 1.15rem; font-weight: 700;">
+            <i class="fa-solid fa-pen-to-square" style="color: var(--primary);"></i> Chỉnh sửa Đợt Giải ngân: ${this.formatDnNo(payment.payment_no)}
+          </h3>
+          <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+          <form id="form-edit-payment">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Số Đề nghị thanh toán (Số ĐN) <span style="color: var(--danger);">*</span></label>
+                <input type="text" class="form-control" name="payment_no" value="${payment.payment_no || ''}" placeholder="Vd: 49 hoặc ĐN-49" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ngày thanh toán</label>
+                <input type="date" class="form-control" name="payment_date" value="${this.formatDateForInput(payment.payment_date)}" required>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Diễn giải nội dung đợt thanh toán</label>
+              <input type="text" class="form-control" name="item_name" value="${payment.item_name || ''}" placeholder="Vd: Tạm ứng đợt 1 / Nghiệm thu giai đoạn 2" required>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
+                <input type="number" class="form-control" id="edit-pay-accepted" name="accepted_vol" value="${payment.accepted_vol || 0}">
+              </div>
+              <div class="form-group">
+                <label class="form-label">Bên B Đề nghị thanh toán (VNĐ)</label>
+                <input type="number" class="form-control" id="edit-pay-requested" name="request_amount" value="${payment.request_amount || 0}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Bên A Thực tế đã thanh toán (VNĐ)</label>
+                <input type="number" class="form-control" id="edit-pay-paid" name="paid_amount" value="${payment.paid_amount || 0}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Số Hóa đơn VAT / Tham chiếu</label>
+                <input type="text" class="form-control" name="invoice_ref" value="${payment.invoice_ref || ''}" placeholder="Vd: 0012458">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Ghi chú thanh toán</label>
+              <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú đối trừ tạm ứng, số UNC...">${payment.note || ''}</textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
+              <button type="submit" class="button button-primary">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi ĐN
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    const closeSubModal = () => modal.remove();
+    modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
+
+    modal.querySelector('#form-edit-payment').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const reqAmt = parseFloat(formData.get('request_amount') || 0);
+      const paidAmt = parseFloat(formData.get('paid_amount') || 0);
+
+      payment.payment_no = formData.get('payment_no');
+      payment.payment_date = formData.get('payment_date');
+      payment.item_name = formData.get('item_name');
+      payment.accepted_vol = parseFloat(formData.get('accepted_vol') || 0);
+      payment.request_amount = reqAmt;
+      payment.paid_amount = paidAmt;
+      payment.remaining = reqAmt - paidAmt;
+      payment.invoice_ref = formData.get('invoice_ref');
+      payment.note = formData.get('note');
+
+      await db.put('payments', payment);
+      await this.loadData();
+      closeSubModal();
+      this.openContractDetail(targetContract.id);
+      setTimeout(() => {
+        document.querySelector('.modal-tab-btn[data-target="m-tab-ipc"]')?.click();
+      }, 50);
+      alert(`Đã cập nhật thành công đợt Giải ngân ${this.formatDnNo(payment.payment_no)}!`);
     });
   }
 
