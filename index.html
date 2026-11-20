@@ -381,7 +381,7 @@
           </div>
 
           <div class="cpms-container">
-            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) + Nút Thêm Hợp đồng -->
+            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) + Nút Thêm Hợp đồng & Thêm CPB -->
             <div class="tab-nav" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="tab-btn active group-tab-btn" data-group="A">
@@ -391,9 +391,14 @@
                   <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
                 </button>
               </div>
-              <button id="btn-add-contract" class="button button-primary button-sm" style="font-weight: 600; white-space: nowrap;">
-                <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
-              </button>
+              <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                <button id="btn-add-cpb" class="button button-outline button-sm hidden" style="color: #b45309; border-color: #fde68a; background: #fffbeb; font-weight: 600; white-space: nowrap;" title="Thêm Chi phí Ban / Chi phí quản lý dự án không có hợp đồng">
+                  <i class="fa-solid fa-receipt"></i> + Thêm Chi phí Ban (CPB)
+                </button>
+                <button id="btn-add-contract" class="button button-primary button-sm" style="font-weight: 600; white-space: nowrap;">
+                  <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
+                </button>
+              </div>
             </div>
 
             <!-- Bộ lọc & Tìm kiếm -->

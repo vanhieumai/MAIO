@@ -341,6 +341,52 @@ export class CPMSImporterExporter {
           note: String(r[20] || ''),
         });
       }
+
+      // Tự động trích xuất các mục Chi phí Ban (CPB - Chi phí quản lý không có HĐ) từ PAYMENT_LEDGER
+      const existingCpbIds = new Set(contracts.map((c) => c.id));
+      const cpbPayments = payments.filter((p) => p.contract_id && /^B-CPB/i.test(p.contract_id));
+      const uniqueCpbIds = [...new Set(cpbPayments.map((p) => p.contract_id))];
+
+      uniqueCpbIds.forEach((cpbId) => {
+        if (!existingCpbIds.has(cpbId)) {
+          const headerRow = payments.find((p) => p.contract_id === cpbId && p.is_header);
+          const firstRow = payments.find((p) => p.contract_id === cpbId);
+          const cpbName = (headerRow && headerRow.item_name) || (firstRow && firstRow.contract_no) || 'Chi Phí Ban';
+
+          contracts.push({
+            id: cpbId,
+            project_id: projectId,
+            group: 'B',
+            parent_id: null,
+            level: 0,
+            contract_no: cpbId,
+            contract_type: 'CPB',
+            signing_date: null,
+            end_date: null,
+            status: 'Active',
+            company_a: clientName || 'Chủ đầu tư',
+            company_b: 'Ban Quản lý / Nội bộ',
+            company_b2: '',
+            rep_b2: '',
+            scope_of_work: cpbName,
+            exchange_rate: 1.0,
+            estimated_val: 0,
+            contract_val: 0,
+            rep_a: '',
+            rep_b: '',
+            category: 'CPB',
+            payee: 'Ban QLDA / Nội bộ',
+            bank_account: '',
+            bank_name: '',
+            contact_person_b: '',
+            created_at: new Date().toISOString().slice(0, 10),
+            display_no: 'CPB',
+            sort_order: 9999,
+            is_cpb: true,
+          });
+          existingCpbIds.add(cpbId);
+        }
+      });
     }
 
     // 4. DOCUMENT_TRACKER
@@ -470,9 +516,9 @@ export class CPMSImporterExporter {
       ]);
     });
 
-    // Nhóm B
+    // Nhóm B (Chỉ xuất các hợp đồng thực tế, CPB được quản lý trong PAYMENT_LEDGER chuẩn CPMS Plus)
     contractRows.push(['GROUP-B', 'Hợp đồng với thầu phụ / Nhà cung cấp']);
-    allContracts.filter(c => c.group === 'B').forEach(c => {
+    allContracts.filter(c => c.group === 'B' && !c.is_cpb && c.contract_type !== 'CPB').forEach(c => {
       contractRows.push([
         c.id, c.contract_no, c.contract_type || (c.parent_id ? 'Appendix' : 'MAIN'), c.signing_date, c.end_date, c.status || 'Active',
         c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
@@ -484,6 +530,30 @@ export class CPMSImporterExporter {
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(contractRows), 'CONTRACT_DB');
 
     // 3. Sheet PAYMENT_LEDGER (26 cột A -> Z với ĐẦY ĐỦ CÔNG THỨC EXCEL)
+    // Đảm bảo mọi mục CPB đều có dòng Header trong PAYMENT_LEDGER
+    const cpbContracts = allContracts.filter(c => c.is_cpb || c.contract_type === 'CPB' || c.id.startsWith('B-CPB-'));
+    cpbContracts.forEach(cpb => {
+      const hasHeader = allPayments.some(p => p.is_header && p.contract_id === cpb.id);
+      if (!hasHeader) {
+        allPayments.push({
+          id: `HDR-${cpb.id}`,
+          is_header: true,
+          project_id: projectId,
+          parent_id: 'GROUP-B',
+          contract_id: cpb.id,
+          contract_no: cpb.contract_no || cpb.id,
+          item_name: cpb.scope_of_work || 'Chi Phí Ban',
+          exchange_rate: 1.0,
+          contract_val: cpb.contract_val || 0,
+          actual_volume: 0,
+          accepted_vol: 0,
+          request_amount: 0,
+          paid_amount: 0,
+          remaining: 0,
+        });
+      }
+    });
+
     const payHeaders = [
       'RowID', 'LedgerID', 'ContractID', 'ContractNo.', 'ItemIndex', 'ItemName',
       'ExchangeRate', 'EstimatedValue', 'ContractValue', 'ActualVolume', 'AcceptedVolume',

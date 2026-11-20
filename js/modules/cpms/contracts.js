@@ -196,6 +196,62 @@ export class ContractsManager {
     const allPayments = await db.getAll('payments');
     const allDocs = await db.getAll('documents');
 
+    // Tự động nhận diện và nạp các mục Chi phí Ban (CPB) từ payments nếu chưa có trong contracts
+    const curProject = this.projects.find((p) => p.id === this.currentProjectId) || {};
+    const cpbPayments = allPayments.filter(
+      (p) => p.project_id === this.currentProjectId && p.contract_id && /^B-CPB/i.test(p.contract_id)
+    );
+    const uniqueCpbIds = [...new Set(cpbPayments.map((p) => p.contract_id))];
+
+    for (const cpbId of uniqueCpbIds) {
+      const exists = allContracts.some(
+        (c) => c.project_id === this.currentProjectId && c.id === cpbId
+      );
+      if (!exists) {
+        const headerRow = allPayments.find(
+          (p) => p.project_id === this.currentProjectId && p.contract_id === cpbId && p.is_header
+        );
+        const firstRow = allPayments.find(
+          (p) => p.project_id === this.currentProjectId && p.contract_id === cpbId
+        );
+        const cpbName = (headerRow && headerRow.item_name) || (firstRow && firstRow.contract_no) || 'Chi Phí Ban';
+
+        const newCpbContract = {
+          id: cpbId,
+          project_id: this.currentProjectId,
+          group: 'B',
+          parent_id: null,
+          level: 0,
+          contract_no: cpbId,
+          contract_type: 'CPB',
+          signing_date: null,
+          end_date: null,
+          status: 'Active',
+          company_a: curProject.client || 'Chủ đầu tư',
+          company_b: 'Ban Quản lý / Nội bộ',
+          company_b2: '',
+          rep_b2: '',
+          scope_of_work: cpbName,
+          exchange_rate: 1.0,
+          estimated_val: 0,
+          contract_val: 0,
+          rep_a: '',
+          rep_b: '',
+          category: 'CPB',
+          payee: 'Ban QLDA / Nội bộ',
+          bank_account: '',
+          bank_name: '',
+          contact_person_b: '',
+          created_at: new Date().toISOString().slice(0, 10),
+          display_no: 'CPB',
+          sort_order: 9999,
+          is_cpb: true,
+        };
+        await db.put('contracts', newCpbContract);
+        allContracts.push(newCpbContract);
+      }
+    }
+
     // Lọc theo currentProjectId
     this.contracts = allContracts.filter(
       (c) => c.project_id === this.currentProjectId
@@ -295,6 +351,10 @@ export class ContractsManager {
 
     document.getElementById('btn-add-contract')?.addEventListener('click', () => {
       this.openContractFormModal();
+    });
+
+    document.getElementById('btn-add-cpb')?.addEventListener('click', () => {
+      this.openCreateCPBModal();
     });
 
     // Lắng nghe chọn dự án
@@ -1327,6 +1387,7 @@ export class ContractsManager {
       { key: 'Maintenance', name: 'Bảo trì / Vận hành' },
       { key: 'Rental', name: 'Thuê thiết bị / Nhân công' },
       { key: 'Design & Build', name: 'Tổng thầu EPC / D&B' },
+      { key: 'CPB', name: 'Chi phí Ban / Quản lý' },
     ];
 
     const catCounts = {};
@@ -1506,6 +1567,16 @@ export class ContractsManager {
     this.renderProjectInfo();
     this.updateCategoryFilterUI();
 
+    // Ẩn / hiện nút Thêm Chi phí Ban (CPB) theo nhóm đang chọn (Chỉ hiện ở Nhóm B)
+    const btnAddCpb = document.getElementById('btn-add-cpb');
+    if (btnAddCpb) {
+      if (this.currentGroup === 'B') {
+        btnAddCpb.classList.remove('hidden');
+      } else {
+        btnAddCpb.classList.add('hidden');
+      }
+    }
+
     const container = document.getElementById('contracts-list-container');
     if (!container) return;
 
@@ -1569,7 +1640,127 @@ export class ContractsManager {
       .map((c) => {
         const stats = this.calculateTotals(c);
         const directChildren = this.getDirectChildren(c.id);
+        const realPayments = this.getRealPayments(c.id);
         const isExpanded = this.expandedContracts.has(c.id) || Boolean(this.searchQuery);
+        const isCpb = c.is_cpb || c.contract_type === 'CPB' || (c.id && c.id.startsWith('B-CPB-'));
+
+        // THẺ ĐẶC THÙ DÀNH CHO CHI PHÍ BAN (CPB - CHI PHÍ QUẢN LÝ DỰ ÁN KHÔNG CÓ HỢP ĐỒNG)
+        if (isCpb) {
+          return `
+            <div class="contract-group-wrapper cpb-group-wrapper" data-contract-id="${c.id}" style="border: 1.5px solid #f59e0b; border-radius: var(--radius-md); background: #fffcf5; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(245, 158, 11, 0.08);">
+              <!-- Card CPB -->
+              <div class="contract-card-main cpb-card-main" data-open-detail="${c.id}" style="cursor: pointer; padding: 16px 20px;">
+                <div class="contract-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px;">
+                  <div class="contract-header-left" style="flex: 1;">
+                    <div class="contract-no" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <i class="fa-solid fa-receipt" style="color: #d97706; font-size: 1.15rem;"></i>
+                      <span style="font-size: 1.05rem; font-weight: 800; color: #92400e;">${c.contract_no || c.id}</span>
+                      <span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 700;">
+                        <i class="fa-solid fa-calculator"></i> Chi phí Quản lý (CPB)
+                      </span>
+                      <span class="badge badge-success">${c.status || 'Active'}</span>
+                    </div>
+                    <div class="contract-title" style="font-size: 1.05rem; font-weight: 700; color: #1e293b; margin-top: 5px;">
+                      ${c.scope_of_work || 'Chi Phí Ban (Chi phí quản lý dự án)'}
+                    </div>
+                  </div>
+
+                  <div class="contract-header-right" style="display: flex; align-items: center; gap: 8px;">
+                    <button class="button button-primary button-sm btn-add-cpb-payment" data-cpb-id="${c.id}" style="background: #d97706; border-color: #b45309; font-weight: 600; font-size: 0.8rem; padding: 5px 12px; height: 32px;" title="Thêm đợt chi / phiếu chi cho khoản này">
+                      <i class="fa-solid fa-plus"></i> Đợt chi
+                    </button>
+                    <button class="button button-outline btn-edit-cpb-action" data-cpb-id="${c.id}" style="padding: 5px 10px; height: 32px; color: #b45309; border-color: #fde68a;" title="Chỉnh sửa thông tin Chi phí Ban">
+                      <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button class="button button-outline btn-delete-cpb-action" data-cpb-id="${c.id}" style="padding: 5px 10px; height: 32px; color: var(--danger); border-color: #fca5a5;" title="Xóa khoản Chi phí Ban này">
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                    <div class="contract-val-block" style="text-align: right; min-width: 150px; margin-left: 6px;">
+                      <span class="contract-val-label" style="color: #b45309; font-weight: 600;">Tổng tiền thực chi</span>
+                      <div class="contract-val-amount" style="color: #b45309; font-size: 1.25rem; font-weight: 800;">
+                        ${this.formatCurrency(stats.totalPaid)}
+                      </div>
+                      <div class="contract-val-sub" style="font-size: 0.75rem; color: #78716c;">
+                        ${c.contract_val > 0 ? `Dự toán: ${this.formatCurrency(c.contract_val)}` : '(Chi phí quản lý không có HĐ)'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="contract-meta" style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.825rem; color: #475569; border-top: 1px dashed #fde68a; padding-top: 10px; margin-top: 8px;">
+                  <span><i class="fa-solid fa-building-user" style="color: #d97706;"></i> Đơn vị phụ trách: <strong>${c.company_b || 'Ban Quản lý / Nội bộ'}</strong></span>
+                  ${c.payee ? `<span><i class="fa-solid fa-user-check" style="color: #d97706;"></i> Đối tượng nhận: <strong>${c.payee}</strong></span>` : ''}
+                  ${c.signing_date || c.created_at ? `<span><i class="fa-solid fa-calendar-day" style="color: #d97706;"></i> Ngày tạo: ${this.formatDate(c.signing_date || c.created_at)}</span>` : ''}
+                  <span><i class="fa-solid fa-receipt" style="color: #d97706;"></i> Đã giải ngân: <strong>${realPayments.length} đợt / phiếu chi</strong></span>
+                </div>
+              </div>
+
+              <!-- Accordion Xem danh sách các đợt chi của CPB -->
+              <div class="accordion-toggle-bar cpb-accordion-toggle" data-toggle-appendix="${c.id}" style="background: #fef3c7; border-top: 1px solid #fde68a; color: #92400e; padding: 10px 16px; font-weight: 600; cursor: pointer; display: flex; justify-content: space-between; align-items: center;">
+                <span>
+                  <i class="fa-solid ${isExpanded ? 'fa-folder-open' : 'fa-folder'}"></i>
+                  <span>${isExpanded ? 'Thu gọn danh sách đợt chi' : 'Xem danh sách'} <strong>${realPayments.length} đợt chi</strong> (Chi tiết phiếu chi, số tiền, ngày chi)</span>
+                </span>
+                <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+              </div>
+
+              ${isExpanded ? `
+                <div class="appendix-table-container" style="background: #fff; padding: 12px 16px; border-bottom-left-radius: var(--radius-md); border-bottom-right-radius: var(--radius-md);">
+                  ${realPayments.length === 0 ? `
+                    <div style="text-align: center; padding: 24px; color: #94a3b8; font-size: 0.875rem;">
+                      <i class="fa-solid fa-receipt" style="font-size: 1.5rem; margin-bottom: 6px; display: block; color: #d97706;"></i>
+                      Chưa có đợt chi nào. Bấm nút <strong>"+ Đợt chi"</strong> ở trên để thêm đợt chi cho khoản này.
+                    </div>
+                  ` : `
+                    <table class="appendix-grid-table" style="width: 100%; border-collapse: collapse;">
+                      <thead>
+                        <tr style="background: #fffbeb; border-bottom: 1px solid #fde68a;">
+                          <th style="width: 90px; padding: 8px 12px; font-size: 0.8rem; color: #92400e; text-align: left;">Đợt / Phiếu</th>
+                          <th style="width: 110px; padding: 8px 12px; font-size: 0.8rem; color: #92400e; text-align: left;">Ngày chi</th>
+                          <th style="padding: 8px 12px; font-size: 0.8rem; color: #92400e; text-align: left;">Nội dung chi</th>
+                          <th style="width: 150px; padding: 8px 12px; font-size: 0.8rem; color: #92400e; text-align: right;">Số tiền thực chi</th>
+                          <th style="padding: 8px 12px; font-size: 0.8rem; color: #92400e; text-align: left;">Ghi chú / Chứng từ</th>
+                          <th style="width: 100px; padding: 8px 12px; font-size: 0.8rem; color: #92400e; text-align: center;">Thao tác</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${realPayments.map((p, pIdx) => `
+                          <tr style="border-bottom: 1px solid #f1f5f9;">
+                            <td style="padding: 8px 12px; font-weight: 700; color: #b45309;">
+                              ${this.formatDnNo(p.payment_no || String(pIdx + 1))}
+                            </td>
+                            <td style="padding: 8px 12px; font-size: 0.825rem; color: #475569;">
+                              ${this.formatDate(p.payment_date)}
+                            </td>
+                            <td style="padding: 8px 12px; font-weight: 600; color: #1e293b;">
+                              ${p.item_name || 'Chi phí quản lý'}
+                            </td>
+                            <td style="padding: 8px 12px; text-align: right; font-weight: 700; color: #d97706;">
+                              ${this.formatCurrency(p.paid_amount || p.request_amount)}
+                            </td>
+                            <td style="padding: 8px 12px; font-size: 0.8rem; color: #64748b;">
+                              ${p.note || (p.invoice_ref ? `Chứng từ: ${p.invoice_ref}` : '—')}
+                            </td>
+                            <td style="padding: 8px 12px; text-align: center;">
+                              <div style="display: flex; gap: 4px; justify-content: center;">
+                                <button class="button button-outline btn-edit-cpb-payment" data-pay-id="${p.id}" data-contract-id="${c.id}" style="padding: 2px 7px; height: 26px; font-size: 0.75rem; color: #d97706; border-color: #fde68a;" title="Sửa đợt chi">
+                                  <i class="fa-solid fa-pen"></i>
+                                </button>
+                                <button class="button button-outline btn-delete-cpb-payment" data-pay-id="${p.id}" data-contract-id="${c.id}" style="padding: 2px 7px; height: 26px; font-size: 0.75rem; color: var(--danger); border-color: #fca5a5;" title="Xóa đợt chi">
+                                  <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  `}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }
 
         return `
           <div class="contract-group-wrapper" data-contract-id="${c.id}">
@@ -1674,7 +1865,7 @@ export class ContractsManager {
       })
       .join('');
 
-    // Bắt sự kiện Toggle Cây phụ lục
+    // Bắt sự kiện Toggle Cây phụ lục / Danh sách đợt chi CPB
     container.querySelectorAll('[data-toggle-appendix]').forEach((toggleBar) => {
       toggleBar.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1697,10 +1888,79 @@ export class ContractsManager {
       });
     });
 
+    // Bắt sự kiện Thêm Đợt chi cho CPB
+    container.querySelectorAll('.btn-add-cpb-payment').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cid = btn.getAttribute('data-cpb-id');
+        const cpbContract = this.contracts.find((c) => c.id === cid);
+        if (cpbContract) this.openPaymentEntryModal(cpbContract);
+      });
+    });
+
+    // Bắt sự kiện Sửa thông tin Chi phí Ban (CPB)
+    container.querySelectorAll('.btn-edit-cpb-action').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cid = btn.getAttribute('data-cpb-id');
+        const cpbContract = this.contracts.find((c) => c.id === cid);
+        if (cpbContract) this.openCreateCPBModal(cpbContract);
+      });
+    });
+
+    // Bắt sự kiện Xóa Chi phí Ban (CPB)
+    container.querySelectorAll('.btn-delete-cpb-action').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const cid = btn.getAttribute('data-cpb-id');
+        await this.deleteCPB(cid);
+      });
+    });
+
+    // Bắt sự kiện Sửa Đợt chi của CPB
+    container.querySelectorAll('.btn-edit-cpb-payment').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const payId = btn.getAttribute('data-pay-id');
+        const cid = btn.getAttribute('data-contract-id');
+        const payment = this.payments.find((p) => p.id === payId);
+        const cpbContract = this.contracts.find((c) => c.id === cid);
+        if (payment && cpbContract) this.openEditPaymentModal(payment, cpbContract);
+      });
+    });
+
+    // Bắt sự kiện Xóa Đợt chi của CPB
+    container.querySelectorAll('.btn-delete-cpb-payment').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const payId = btn.getAttribute('data-pay-id');
+        const payment = this.payments.find((p) => p.id === payId);
+        if (!payment) return;
+
+        const confirmed = confirm(
+          `Bạn có chắc chắn muốn xóa đợt chi "${payment.item_name || payment.payment_no}" (${this.formatCurrency(payment.paid_amount || payment.request_amount)}) không?`
+        );
+        if (!confirmed) return;
+
+        await db.delete('payments', payId);
+        await this.loadData();
+        this.render();
+        await this.syncToLocalFile();
+      });
+    });
+
     // Bắt sự kiện Click vào HĐ gốc hoặc Phụ lục
     container.querySelectorAll('[data-open-detail]').forEach((el) => {
       el.addEventListener('click', (e) => {
-        if (e.target.closest('[data-toggle-appendix]') || e.target.closest('.btn-clone-contract-action')) return;
+        if (
+          e.target.closest('[data-toggle-appendix]') ||
+          e.target.closest('.btn-clone-contract-action') ||
+          e.target.closest('.btn-add-cpb-payment') ||
+          e.target.closest('.btn-edit-cpb-action') ||
+          e.target.closest('.btn-delete-cpb-action') ||
+          e.target.closest('.btn-edit-cpb-payment') ||
+          e.target.closest('.btn-delete-cpb-payment')
+        ) return;
         const targetId = el.getAttribute('data-open-detail');
         this.openContractDetail(targetId);
       });
@@ -2547,12 +2807,293 @@ export class ContractsManager {
       };
 
       await db.put('projects', newProj);
+
+      // Tự động khởi tạo sẵn mục Chi phí Ban (CPB) mặc định cho dự án mới
+      const defaultCpbId = 'B-CPB-001';
+      const defaultCpbContract = {
+        id: defaultCpbId,
+        project_id: newId,
+        group: 'B',
+        parent_id: null,
+        level: 0,
+        contract_no: defaultCpbId,
+        contract_type: 'CPB',
+        signing_date: new Date().toISOString().slice(0, 10),
+        end_date: null,
+        status: 'Active',
+        company_a: newProj.client || 'Chủ đầu tư',
+        company_b: 'Ban Quản lý / Nội bộ',
+        company_b2: '',
+        rep_b2: '',
+        scope_of_work: 'Chi Phí Ban (Chi phí quản lý dự án)',
+        exchange_rate: 1.0,
+        estimated_val: 0,
+        contract_val: 0,
+        rep_a: '',
+        rep_b: '',
+        category: 'CPB',
+        payee: 'Ban QLDA / Nội bộ',
+        bank_account: '',
+        bank_name: '',
+        contact_person_b: '',
+        created_at: new Date().toISOString().slice(0, 10),
+        display_no: 'CPB',
+        sort_order: 9999,
+        is_cpb: true,
+      };
+      await db.put('contracts', defaultCpbContract);
+
+      const defaultCpbHeader = {
+        id: `HDR-${defaultCpbId}`,
+        is_header: true,
+        project_id: newId,
+        parent_id: 'GROUP-B',
+        contract_id: defaultCpbId,
+        contract_no: defaultCpbId,
+        item_name: 'Chi Phí Ban (Chi phí quản lý dự án)',
+        exchange_rate: 1.0,
+        contract_val: 0,
+        actual_volume: 0,
+        accepted_vol: 0,
+        request_amount: 0,
+        paid_amount: 0,
+        remaining: 0,
+      };
+      await db.put('payments', defaultCpbHeader);
+
       this.currentProjectId = newId;
       await this.loadData();
       this.render();
       closeSubModal();
-      alert(`Đã tạo thành công dự án "${newName}"!`);
+      alert(`Đã tạo thành công dự án "${newName}" kèm mục Chi phí Ban (CPB) quản lý nội bộ!`);
     });
+  }
+
+  // ==========================================
+  // MODAL THÊM / CHỈNH SỬA CHI PHÍ BAN (CPB)
+  // ==========================================
+  openCreateCPBModal(editCpb = null) {
+    const isEdit = !!editCpb;
+    const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || {};
+
+    // Sinh mã tự động B-CPB-001, B-CPB-002... nếu tạo mới
+    let formId = '';
+    if (isEdit) {
+      formId = editCpb.id;
+    } else {
+      const cpbContracts = this.contracts.filter(
+        (c) => c.is_cpb || c.contract_type === 'CPB' || (c.id && c.id.startsWith('B-CPB-'))
+      );
+      let maxNum = 0;
+      cpbContracts.forEach((c) => {
+        const m = (c.id || '').match(/B-CPB-(\d+)/i);
+        if (m) {
+          const num = parseInt(m[1], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      });
+      formId = `B-CPB-${String(maxNum + 1).padStart(3, '0')}`;
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-container" style="max-width: 620px;">
+        <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding: 14px 20px;">
+          <div>
+            <div style="font-size: 0.8rem; color: #b45309; font-weight: 700; text-transform: uppercase;">
+              <i class="fa-solid fa-calculator"></i> Chi phí Quản lý Dự án (Nhóm B)
+            </div>
+            <h3 style="font-size: 1.15rem; font-weight: 800; margin-top: 2px; color: #1e293b;">
+              ${isEdit ? `Chỉnh sửa Chi phí Ban: ${editCpb.contract_no || editCpb.id}` : '+ Thêm mới Chi phí Ban (CPB)'}
+            </h3>
+          </div>
+          <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="modal-body" style="padding: 20px;">
+          <form id="form-cpb">
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label" style="display: flex; justify-content: space-between;">
+                  <span>Mã khoản chi phí (CPB ID) *</span>
+                  <span style="font-weight: normal; color: var(--danger); font-size: 0.75rem;"><i class="fa-solid fa-lock"></i> Tự động</span>
+                </label>
+                <input type="text" class="form-control" name="id" value="${formId}" readonly style="background: #f1f5f9; color: #334155; font-weight: 700; font-family: monospace; cursor: not-allowed;" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Tình trạng *</label>
+                <select class="form-control" name="status">
+                  <option value="Active" ${!isEdit || editCpb?.status === 'Active' ? 'selected' : ''}>Active (Đang thực hiện)</option>
+                  <option value="Completed" ${editCpb?.status === 'Completed' ? 'selected' : ''}>Completed (Đã quyết toán)</option>
+                  <option value="Suspended" ${editCpb?.status === 'Suspended' ? 'selected' : ''}>Suspended (Tạm dừng)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Tên khoản chi phí quản lý (Nội dung) *</label>
+              <input type="text" class="form-control" name="scope_of_work" value="${editCpb?.scope_of_work || 'Chi Phí Ban (Chi phí quản lý dự án)'}" placeholder="Vd: Chi Phí Ban, Chi phí văn phòng điều hành công trường..." required>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Đơn vị / Ban phụ trách</label>
+                <input type="text" class="form-control" name="company_b" value="${editCpb?.company_b || 'Ban Quản lý / Nội bộ'}" placeholder="Ban Điều hành / Quản lý dự án">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Đối tượng thụ hưởng / Người nhận</label>
+                <input type="text" class="form-control" name="payee" value="${editCpb?.payee || 'Ban QLDA / Nội bộ'}" placeholder="Cán bộ phụ trách / Nội bộ">
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Dự toán / Ngân sách dự kiến (VNĐ)</label>
+                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="${this.formatNumberWithDots(editCpb?.contract_val || 0)}" placeholder="0 (Nếu không khống chế ngân sách)">
+                <small style="color: var(--text-muted); font-size: 0.72rem;">Để 0 nếu là khoản chi linh hoạt theo thực tế phát sinh</small>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Ngày khởi tạo</label>
+                <input type="date" class="form-control" name="signing_date" value="${this.formatDateForInput(editCpb?.signing_date || editCpb?.created_at) || new Date().toISOString().slice(0, 10)}">
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Ghi chú diễn giải</label>
+              <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú về mục đích sử dụng quỹ chi phí ban...">${editCpb?.note || ''}</textarea>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
+              <button type="submit" class="button button-primary" style="background: #d97706; border-color: #b45309;">
+                <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Lưu thay đổi' : 'Tạo khoản Chi phí Ban'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    this.setupCurrencyInputListeners(modal);
+
+    const closeSubModal = () => modal.remove();
+    modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
+
+    modal.querySelector('#form-cpb').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+      const cpbId = fd.get('id').trim();
+      const scopeWork = fd.get('scope_of_work').trim();
+      const contractVal = this.parseNumberFromDots(fd.get('contract_val'));
+
+      const cpbData = {
+        id: cpbId,
+        project_id: this.currentProjectId,
+        group: 'B',
+        parent_id: null,
+        level: 0,
+        contract_no: cpbId,
+        contract_type: 'CPB',
+        signing_date: fd.get('signing_date') || new Date().toISOString().slice(0, 10),
+        end_date: null,
+        status: fd.get('status') || 'Active',
+        company_a: curPrj.client || 'Chủ đầu tư',
+        company_b: fd.get('company_b')?.trim() || 'Ban Quản lý / Nội bộ',
+        company_b2: '',
+        rep_b2: '',
+        scope_of_work: scopeWork,
+        exchange_rate: 1.0,
+        estimated_val: contractVal,
+        contract_val: contractVal,
+        rep_a: '',
+        rep_b: '',
+        category: 'CPB',
+        payee: fd.get('payee')?.trim() || 'Ban QLDA / Nội bộ',
+        bank_account: '',
+        bank_name: '',
+        contact_person_b: '',
+        created_at: editCpb?.created_at || new Date().toISOString().slice(0, 10),
+        display_no: 'CPB',
+        sort_order: 9999,
+        is_cpb: true,
+        note: fd.get('note')?.trim() || '',
+      };
+
+      await db.put('contracts', cpbData);
+
+      // Đảm bảo dòng Header trong bảng payments luôn tồn tại
+      const headerId = `HDR-${cpbId}`;
+      const existingHeader = this.payments.find((p) => p.id === headerId || (p.contract_id === cpbId && p.is_header));
+      const headerRow = {
+        id: headerId,
+        is_header: true,
+        project_id: this.currentProjectId,
+        parent_id: 'GROUP-B',
+        contract_id: cpbId,
+        contract_no: cpbId,
+        item_name: scopeWork,
+        exchange_rate: 1.0,
+        contract_val: contractVal,
+        actual_volume: existingHeader?.actual_volume || 0,
+        accepted_vol: existingHeader?.accepted_vol || 0,
+        request_amount: existingHeader?.request_amount || 0,
+        paid_amount: existingHeader?.paid_amount || 0,
+        remaining: existingHeader?.remaining || 0,
+      };
+      await db.put('payments', headerRow);
+
+      await this.loadData();
+      closeSubModal();
+      this.render();
+      await this.syncToLocalFile();
+      alert(`Đã lưu thành công khoản Chi phí Ban "${scopeWork}" (${cpbId})!`);
+    });
+  }
+
+  // ==========================================
+  // XÓA KHOẢN CHI PHÍ BAN (CPB)
+  // ==========================================
+  async deleteCPB(cpbId) {
+    const cpb = this.contracts.find((c) => c.id === cpbId);
+    if (!cpb) return;
+
+    const realPayments = this.getRealPayments(cpbId);
+    const totalPaid = realPayments.reduce((s, p) => s + (p.paid_amount || p.request_amount || 0), 0);
+
+    const confirmMsg = realPayments.length > 0
+      ? `⚠️ CẢNH BÁO XÓA CHI PHÍ BAN!\n\nKhoản "${cpb.scope_of_work || cpb.id}" đang có ${realPayments.length} đợt chi với tổng số tiền ${this.formatCurrency(totalPaid)}.\n\nNếu xóa, toàn bộ ${realPayments.length} đợt chi này sẽ bị xóa vĩnh viễn khỏi sổ theo dõi!\n\nBạn có chắc chắn muốn tiếp tục không?`
+      : `Bạn có chắc chắn muốn xóa khoản Chi phí Ban "${cpb.scope_of_work || cpb.id}" (${cpbId}) không?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    // Xóa hợp đồng CPB
+    await db.delete('contracts', cpbId);
+
+    // Xóa Header và toàn bộ đợt thanh toán con của CPB này
+    const allPayments = await db.getAll('payments');
+    for (const p of allPayments) {
+      if (p.contract_id === cpbId || p.id === `HDR-${cpbId}`) {
+        await db.delete('payments', p.id);
+      }
+    }
+
+    // Xóa các tài liệu liên quan nếu có
+    const allDocs = await db.getAll('documents');
+    for (const d of allDocs) {
+      if (d.contract_id === cpbId) {
+        await db.delete('documents', d.id);
+      }
+    }
+
+    await this.loadData();
+    this.render();
+    await this.syncToLocalFile();
+    alert(`Đã xóa thành công khoản Chi phí Ban "${cpb.scope_of_work || cpbId}"!`);
   }
 
   // ==========================================
@@ -2987,9 +3528,10 @@ export class ContractsManager {
   }
 
   // ==========================================
-  // FORM NHẬP THANH TOÁN (PAYMENT ENTRY)
+  // FORM NHẬP THANH TOÁN (PAYMENT ENTRY) & ĐỢT CHI CPB
   // ==========================================
   openPaymentEntryModal(targetContract) {
+    const isCpb = targetContract.is_cpb || targetContract.contract_type === 'CPB' || (targetContract.id && targetContract.id.startsWith('B-CPB-'));
     const realPayments = this.getRealPayments(targetContract.id);
     const nextIdx = realPayments.length + 1;
     const ledgerId = `LG-${Date.now()}`;
@@ -2999,54 +3541,60 @@ export class ContractsManager {
     modal.innerHTML = `
       <div class="modal-container" style="max-width: 650px;">
         <div class="modal-header">
-          <h3 style="font-size: 1.15rem; font-weight: 700;">Nhập đợt Giải ngân cho ${targetContract.contract_no}</h3>
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: ${isCpb ? '#92400e' : 'inherit'};">
+            ${isCpb ? `<i class="fa-solid fa-receipt" style="color: #d97706;"></i> Nhập đợt Chi phí cho ${targetContract.scope_of_work || targetContract.contract_no}` : `Nhập đợt Giải ngân cho ${targetContract.contract_no}`}
+          </h3>
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="modal-body">
           <form id="form-payment">
             <div class="form-grid-2">
               <div class="form-group">
-                <label class="form-label">Số Đề nghị thanh toán (Số ĐN)</label>
-                <input type="text" class="form-control" name="payment_no" value="${String(nextIdx).padStart(2, '0')}" placeholder="Vd: 01 hoặc ĐN-01" required>
+                <label class="form-label">${isCpb ? 'Số Phiếu chi / Đợt chi' : 'Số Đề nghị thanh toán (Số ĐN)'}</label>
+                <input type="text" class="form-control" name="payment_no" value="${String(nextIdx).padStart(2, '0')}" placeholder="Vd: 01 hoặc PC-01" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Ngày thanh toán</label>
+                <label class="form-label">${isCpb ? 'Ngày chi tiền' : 'Ngày thanh toán'}</label>
                 <input type="date" class="form-control" name="payment_date" value="${new Date().toISOString().slice(0, 10)}" required>
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Diễn giải nội dung đợt thanh toán</label>
-              <input type="text" class="form-control" name="item_name" placeholder="Vd: Tạm ứng đợt 1 / Nghiệm thu giai đoạn 2" required>
+              <label class="form-label">${isCpb ? 'Nội dung khoản chi' : 'Diễn giải nội dung đợt thanh toán'}</label>
+              <input type="text" class="form-control" name="item_name" placeholder="${isCpb ? 'Vd: Chi tiếp khách bàn giao hồ sơ, Chi tiền nước văn phòng...' : 'Vd: Tạm ứng đợt 1 / Nghiệm thu giai đoạn 2'}" required>
             </div>
 
             <div class="form-grid-2">
+              ${isCpb ? '' : `
+                <div class="form-group">
+                  <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
+                  <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-accepted" name="accepted_vol" value="0">
+                </div>
+              `}
               <div class="form-group">
-                <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-accepted" name="accepted_vol" value="0">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Bên B Đề nghị thanh toán (VNĐ)</label>
+                <label class="form-label">${isCpb ? 'Số tiền đề nghị chi (VNĐ)' : 'Bên B Đề nghị thanh toán (VNĐ)'}</label>
                 <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-requested" name="request_amount" value="0" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Bên A Thực tế đã thanh toán (VNĐ)</label>
+                <label class="form-label">${isCpb ? 'Số tiền thực tế đã chi (VNĐ)' : 'Bên A Thực tế đã thanh toán (VNĐ)'}</label>
                 <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-paid" name="paid_amount" value="0" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Số Hóa đơn VAT / Tham chiếu</label>
-                <input type="text" class="form-control" name="invoice_ref" placeholder="Vd: 0012458">
+                <label class="form-label">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
+                <input type="text" class="form-control" name="invoice_ref" placeholder="Vd: PC-001 hoặc HD-1234">
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Ghi chú thanh toán</label>
-              <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú đối trừ tạm ứng, số UNC..."></textarea>
+              <label class="form-label">Ghi chú diễn giải</label>
+              <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú người nhận tiền, số UNC hoặc mục đích chi..."></textarea>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
               <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary">Ghi sổ Thanh toán</button>
+              <button type="submit" class="button button-primary" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
+                ${isCpb ? '<i class="fa-solid fa-receipt"></i> Ghi sổ Chi phí' : 'Ghi sổ Thanh toán'}
+              </button>
             </div>
           </form>
         </div>
@@ -3075,7 +3623,7 @@ export class ContractsManager {
         item_index: nextIdx,
         item_name: formData.get('item_name'),
         payment_date: formData.get('payment_date'),
-        accepted_vol: this.parseNumberFromDots(formData.get('accepted_vol')),
+        accepted_vol: isCpb ? paidAmt : this.parseNumberFromDots(formData.get('accepted_vol')),
         request_amount: reqAmt,
         paid_amount: paidAmt,
         remaining: reqAmt - paidAmt,
@@ -3086,23 +3634,28 @@ export class ContractsManager {
       await db.put('payments', paymentData);
       await this.loadData();
       closeSubModal();
+      this.render();
       await this.syncToLocalFile();
-      this.openContractDetail(targetContract.id);
-      alert('Đã ghi sổ thành công đợt Giải ngân!');
+      if (!isCpb) {
+        this.openContractDetail(targetContract.id);
+      }
+      alert(isCpb ? 'Đã ghi sổ thành công đợt Chi phí Ban!' : 'Đã ghi sổ thành công đợt Giải ngân!');
     });
   }
 
   // ==========================================
-  // FORM CHỈNH SỬA ĐỢT GIẢI NGÂN (SỬA ĐN)
+  // FORM CHỈNH SỬA ĐỢT GIẢI NGÂN (SỬA ĐN) & ĐỢT CHI CPB
   // ==========================================
   openEditPaymentModal(payment, targetContract) {
+    const isCpb = targetContract.is_cpb || targetContract.contract_type === 'CPB' || (targetContract.id && targetContract.id.startsWith('B-CPB-'));
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
       <div class="modal-container" style="max-width: 650px;">
         <div class="modal-header">
-          <h3 style="font-size: 1.15rem; font-weight: 700;">
-            <i class="fa-solid fa-pen-to-square" style="color: var(--primary);"></i> Chỉnh sửa Đợt Giải ngân: ${this.formatDnNo(payment.payment_no)}
+          <h3 style="font-size: 1.15rem; font-weight: 700; color: ${isCpb ? '#92400e' : 'inherit'};">
+            <i class="fa-solid fa-pen-to-square" style="color: ${isCpb ? '#d97706' : 'var(--primary)'};"></i>
+            ${isCpb ? `Chỉnh sửa Đợt Chi phí: ${this.formatDnNo(payment.payment_no)}` : `Chỉnh sửa Đợt Giải ngân: ${this.formatDnNo(payment.payment_no)}`}
           </h3>
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -3110,48 +3663,50 @@ export class ContractsManager {
           <form id="form-edit-payment">
             <div class="form-grid-2">
               <div class="form-group">
-                <label class="form-label">Số Đề nghị thanh toán (Số ĐN) <span style="color: var(--danger);">*</span></label>
-                <input type="text" class="form-control" name="payment_no" value="${payment.payment_no || ''}" placeholder="Vd: 49 hoặc ĐN-49" required>
+                <label class="form-label">${isCpb ? 'Số Phiếu chi / Đợt chi' : 'Số Đề nghị thanh toán (Số ĐN)'} <span style="color: var(--danger);">*</span></label>
+                <input type="text" class="form-control" name="payment_no" value="${payment.payment_no || ''}" placeholder="Vd: 01 hoặc PC-01" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Ngày thanh toán</label>
+                <label class="form-label">${isCpb ? 'Ngày chi tiền' : 'Ngày thanh toán'}</label>
                 <input type="date" class="form-control" name="payment_date" value="${this.formatDateForInput(payment.payment_date)}" required>
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Diễn giải nội dung đợt thanh toán</label>
-              <input type="text" class="form-control" name="item_name" value="${payment.item_name || ''}" placeholder="Vd: Tạm ứng đợt 1 / Nghiệm thu giai đoạn 2" required>
+              <label class="form-label">${isCpb ? 'Nội dung khoản chi' : 'Diễn giải nội dung đợt thanh toán'}</label>
+              <input type="text" class="form-control" name="item_name" value="${payment.item_name || ''}" placeholder="${isCpb ? 'Vd: Chi tiếp khách, chi văn phòng...' : 'Vd: Tạm ứng đợt 1 / Nghiệm thu giai đoạn 2'}" required>
             </div>
 
             <div class="form-grid-2">
+              ${isCpb ? '' : `
+                <div class="form-group">
+                  <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
+                  <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-accepted" name="accepted_vol" value="${this.formatNumberWithDots(payment.accepted_vol || 0)}">
+                </div>
+              `}
               <div class="form-group">
-                <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-accepted" name="accepted_vol" value="${this.formatNumberWithDots(payment.accepted_vol || 0)}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Bên B Đề nghị thanh toán (VNĐ)</label>
+                <label class="form-label">${isCpb ? 'Số tiền đề nghị chi (VNĐ)' : 'Bên B Đề nghị thanh toán (VNĐ)'}</label>
                 <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-requested" name="request_amount" value="${this.formatNumberWithDots(payment.request_amount || 0)}" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Bên A Thực tế đã thanh toán (VNĐ)</label>
+                <label class="form-label">${isCpb ? 'Số tiền thực tế đã chi (VNĐ)' : 'Bên A Thực tế đã thanh toán (VNĐ)'}</label>
                 <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-paid" name="paid_amount" value="${this.formatNumberWithDots(payment.paid_amount || 0)}" required>
               </div>
               <div class="form-group">
-                <label class="form-label">Số Hóa đơn VAT / Tham chiếu</label>
-                <input type="text" class="form-control" name="invoice_ref" value="${payment.invoice_ref || ''}" placeholder="Vd: 0012458">
+                <label class="form-label">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
+                <input type="text" class="form-control" name="invoice_ref" value="${payment.invoice_ref || ''}" placeholder="Vd: PC-001 hoặc HD-1234">
               </div>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Ghi chú thanh toán</label>
-              <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú đối trừ tạm ứng, số UNC...">${payment.note || ''}</textarea>
+              <label class="form-label">Ghi chú diễn giải</label>
+              <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú người nhận tiền, số UNC...">${payment.note || ''}</textarea>
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
               <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary">
-                <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi ĐN
+              <button type="submit" class="button button-primary" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi
               </button>
             </div>
           </form>
