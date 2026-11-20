@@ -9,7 +9,8 @@ import { contractsManager } from './modules/cpms/contracts.js?v=4.1';
 
 class App {
   constructor() {
-    this.currentView = 'dashboard';
+    this.currentView = 'cpms';
+    this.currentCpmsTab = 'overview';
     this.localDirectoryHandle = null;
   }
 
@@ -224,30 +225,85 @@ class App {
 
     document.getElementById('brand-link')?.addEventListener('click', (e) => {
       e.preventDefault();
-      this.switchView('dashboard');
+      this.switchView('cpms');
+      this.switchCpmsTab('overview');
     });
 
-    document.getElementById('btn-quick-to-cpms')?.addEventListener('click', () => {
-      this.switchView('cpms');
+    // Subnav tabs bên trong Quản lý Dự án (Tổng quan, Hợp đồng, Giải ngân)
+    document.querySelectorAll('.cpms-subtab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetTab = btn.getAttribute('data-cpms-tab');
+        this.switchCpmsTab(targetTab);
+      });
+    });
+
+    // Các nút chuyển nhanh trong sub-tab Tổng quan
+    document.getElementById('btn-quick-to-contracts')?.addEventListener('click', () => {
+      this.switchCpmsTab('contracts');
+    });
+
+    document.getElementById('btn-quick-to-disbursements')?.addEventListener('click', () => {
+      this.switchCpmsTab('disbursements');
     });
 
     // Xuất file backup JSON
     document.getElementById('btn-export-backup')?.addEventListener('click', async () => {
       const snapshot = await db.exportSnapshot();
+      const curPrjId = contractsManager.currentProjectId || 'CHC1';
       const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `MAIO_Backup_CHC1_${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `MAIO_Backup_${curPrjId}_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     });
+
+    // Sự kiện nút đăng nhập / thoát ở Header
+    document.getElementById('btn-header-login')?.addEventListener('click', () => {
+      try {
+        gdrive.signIn();
+      } catch (err) {
+        alert(err.message || 'Chưa thể kết nối Google Drive.');
+      }
+    });
+
+    document.getElementById('btn-header-logout')?.addEventListener('click', () => {
+      this.handleLogout();
+    });
+
+    // Sự kiện trong trang Profile
+    document.getElementById('btn-profile-login-gdrive')?.addEventListener('click', () => {
+      try {
+        gdrive.signIn();
+      } catch (err) {
+        alert(err.message || 'Chưa thể kết nối Google Drive.');
+      }
+    });
+
+    document.getElementById('btn-profile-logout')?.addEventListener('click', () => {
+      this.handleLogout();
+    });
+
+    document.getElementById('btn-profile-clear-cache')?.addEventListener('click', async () => {
+      if (confirm('LƯU Ý QUAN TRỌNG:\n\nThao tác này sẽ xóa sạch dữ liệu IndexedDB lưu tạm trên trình duyệt của tài khoản này.\n\nNếu bạn đã sao lưu lên file .cpms hoặc Google Drive, dữ liệu vẫn an toàn.\n\nBạn có chắc chắn muốn xóa không?')) {
+        await db.clear();
+        alert('Đã xóa bộ nhớ tạm trình duyệt. Trang sẽ được tải lại.');
+        window.location.reload();
+      }
+    });
+  }
+
+  handleLogout() {
+    if (confirm('Bạn có chắc muốn thoát phiên làm việc hiện tại không?')) {
+      gdrive.signOut();
+    }
   }
 
   switchView(viewName) {
     this.currentView = viewName;
 
-    // Cập nhật active pill
+    // Cập nhật active pill trên Header
     document.querySelectorAll('.nav-pill').forEach((pill) => {
       if (pill.getAttribute('data-view') === viewName) {
         pill.classList.add('active');
@@ -257,7 +313,7 @@ class App {
     });
 
     // Ẩn tất cả views
-    const allViews = ['dashboard', 'cpms', 'office', 'finance', 'ai', 'settings'];
+    const allViews = ['cpms', 'office', 'finance', 'profile', 'settings'];
     allViews.forEach((v) => {
       const el = document.getElementById(`view-${v}`);
       if (v === viewName) {
@@ -267,14 +323,44 @@ class App {
       }
     });
 
-    // Nếu vào Dashboard thì cập nhật số liệu
-    if (viewName === 'dashboard') {
-      this.updateDashboardStats();
-    }
-
-    // Nếu vào CPMS thì render lại danh sách hợp đồng
+    // Xử lý nạp dữ liệu cho view tương ứng
     if (viewName === 'cpms') {
+      this.switchCpmsTab(this.currentCpmsTab || 'overview');
+    } else if (viewName === 'profile') {
+      this.updateProfileView();
+    }
+  }
+
+  switchCpmsTab(tabName) {
+    this.currentCpmsTab = tabName || 'overview';
+
+    // Cập nhật active subtab button
+    document.querySelectorAll('.cpms-subtab-btn').forEach((btn) => {
+      if (btn.getAttribute('data-cpms-tab') === this.currentCpmsTab) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    // Ẩn/hiện các tab pane trong CPMS
+    const panes = ['overview', 'contracts', 'disbursements'];
+    panes.forEach((p) => {
+      const paneEl = document.getElementById(`cpms-tab-${p}`);
+      if (p === this.currentCpmsTab) {
+        paneEl?.classList.remove('hidden');
+      } else {
+        paneEl?.classList.add('hidden');
+      }
+    });
+
+    // Thực hiện render dữ liệu cho tab tương ứng
+    if (this.currentCpmsTab === 'overview') {
+      this.updateDashboardStats();
+    } else if (this.currentCpmsTab === 'contracts') {
       contractsManager.loadData().then(() => contractsManager.render());
+    } else if (this.currentCpmsTab === 'disbursements') {
+      contractsManager.loadData().then(() => contractsManager.renderDisbursementsTab());
     }
   }
 
@@ -570,30 +656,25 @@ class App {
   }
 
   updateGoogleDriveUI(user) {
-    const loginBtn = document.getElementById('btn-gdrive-login');
-    const loginBtnLabel = document.getElementById('btn-gdrive-login-label');
-    const userProfile = document.getElementById('user-profile');
-    const userAvatar = document.getElementById('user-avatar');
-    const userAvatarIcon = document.getElementById('user-avatar-icon');
-    const userName = document.getElementById('user-name');
-    const cloudStatusText = document.getElementById('cloud-status-text');
+    const headerLoginBtn = document.getElementById('btn-header-login');
+    const headerUserStatus = document.getElementById('header-user-status');
+    const headerUserAvatar = document.getElementById('header-user-avatar');
+    const headerUserAvatarIcon = document.getElementById('header-user-avatar-icon');
+    const headerUserName = document.getElementById('header-user-name');
+
     const cloudBadge = document.getElementById('cloud-badge');
     const testSyncBtn = document.getElementById('btn-test-sync');
 
     if (user) {
-      userProfile?.classList.remove('hidden');
+      headerUserStatus?.classList.remove('hidden');
 
       if (user.isOffline) {
         // Chế độ Cục bộ (Offline)
-        loginBtn?.classList.remove('hidden');
-        if (loginBtnLabel) loginBtnLabel.textContent = 'Đăng nhập Google Drive để Đồng bộ Online';
-        if (userAvatar) userAvatar.classList.add('hidden');
-        if (userAvatarIcon) userAvatarIcon.classList.remove('hidden');
-        if (userName) userName.textContent = 'Cục bộ (Offline)';
+        headerLoginBtn?.classList.remove('hidden');
+        if (headerUserAvatar) headerUserAvatar.classList.add('hidden');
+        if (headerUserAvatarIcon) headerUserAvatarIcon.classList.remove('hidden');
+        if (headerUserName) headerUserName.textContent = 'Cục bộ';
 
-        if (cloudStatusText) {
-          cloudStatusText.innerHTML = 'Đang làm việc với tệp dữ liệu cục bộ trên máy tính.';
-        }
         if (cloudBadge) {
           cloudBadge.className = 'badge badge-warning';
           cloudBadge.textContent = 'Cục bộ (Offline)';
@@ -601,17 +682,17 @@ class App {
         if (testSyncBtn) testSyncBtn.disabled = true;
       } else {
         // Đã kết nối Google Drive thật
-        loginBtn?.classList.add('hidden');
-        if (userAvatar && user.picture) {
-          userAvatar.src = user.picture;
-          userAvatar.classList.remove('hidden');
+        headerLoginBtn?.classList.add('hidden');
+        if (headerUserAvatar && user.picture) {
+          headerUserAvatar.src = user.picture;
+          headerUserAvatar.classList.remove('hidden');
         }
-        if (userAvatarIcon) userAvatarIcon.classList.add('hidden');
-        if (userName) userName.textContent = user.name || user.email;
+        if (headerUserAvatarIcon) headerUserAvatarIcon.classList.add('hidden');
+        if (headerUserName) {
+          const shortName = user.name ? user.name.split(' ').slice(-2).join(' ') : (user.email ? user.email.split('@')[0] : 'Online');
+          headerUserName.textContent = shortName;
+        }
 
-        if (cloudStatusText) {
-          cloudStatusText.innerHTML = `Đã kết nối với Google Drive của <strong>${user.email}</strong>.`;
-        }
         if (cloudBadge) {
           cloudBadge.className = 'badge badge-success';
           cloudBadge.textContent = 'Đã kết nối Drive';
@@ -619,19 +700,81 @@ class App {
         if (testSyncBtn) testSyncBtn.disabled = false;
       }
     } else {
-      loginBtn?.classList.remove('hidden');
-      if (loginBtnLabel) loginBtnLabel.textContent = 'Kết nối Google Drive';
-      userProfile?.classList.add('hidden');
-      if (cloudStatusText) {
-        cloudStatusText.textContent =
-          'Dữ liệu đang được lưu trữ an toàn trong bộ nhớ cục bộ (IndexedDB). Sẵn sàng đồng bộ 2 chiều với Google Drive.';
-      }
+      headerLoginBtn?.classList.remove('hidden');
+      headerUserStatus?.classList.add('hidden');
       if (cloudBadge) {
         cloudBadge.className = 'badge badge-warning';
         cloudBadge.textContent = 'Cục bộ (Offline)';
       }
-      syncNowBtn?.classList.add('hidden');
       if (testSyncBtn) testSyncBtn.disabled = true;
+    }
+
+    this.updateProfileView(user);
+  }
+
+  async updateProfileView(user = gdrive.currentUser) {
+    const pName = document.getElementById('profile-user-name');
+    const pEmail = document.getElementById('profile-user-email');
+    const pBadge = document.getElementById('profile-status-badge');
+    const pImg = document.getElementById('profile-avatar-img');
+    const pIcon = document.getElementById('profile-avatar-icon');
+    const pLoginBtn = document.getElementById('btn-profile-login-gdrive');
+    const pLoginText = document.getElementById('btn-profile-login-text');
+    const statProjects = document.getElementById('profile-stat-projects');
+    const statStorage = document.getElementById('profile-stat-storage');
+
+    if (user) {
+      if (user.isOffline) {
+        if (pName) pName.textContent = 'Chế độ Cục bộ (Offline)';
+        if (pEmail) pEmail.textContent = 'Lưu trữ trực tiếp trên máy tính qua file CPMS & IndexedDB';
+        if (pBadge) {
+          pBadge.className = 'badge badge-warning';
+          pBadge.textContent = 'Cục bộ (Offline)';
+        }
+        if (pImg) pImg.classList.add('hidden');
+        if (pIcon) pIcon.classList.remove('hidden');
+        if (pLoginBtn) pLoginBtn.classList.remove('hidden');
+        if (pLoginText) pLoginText.textContent = 'Đăng nhập Google Drive để Đồng bộ Online';
+      } else {
+        if (pName) pName.textContent = user.name || 'Người dùng Google';
+        if (pEmail) pEmail.textContent = user.email || '—';
+        if (pBadge) {
+          pBadge.className = 'badge badge-success';
+          pBadge.textContent = 'Đã kết nối Google Drive';
+        }
+        if (pImg && user.picture) {
+          pImg.src = user.picture;
+          pImg.classList.remove('hidden');
+        }
+        if (pIcon) pIcon.classList.add('hidden');
+        if (pLoginBtn) pLoginBtn.classList.remove('hidden');
+        if (pLoginText) pLoginText.textContent = 'Đổi / Đăng nhập tài khoản Google khác';
+      }
+    } else {
+      if (pName) pName.textContent = 'Chưa đăng nhập';
+      if (pEmail) pEmail.textContent = '—';
+      if (pBadge) {
+        pBadge.className = 'badge badge-warning';
+        pBadge.textContent = 'Chưa đăng nhập';
+      }
+    }
+
+    if (statProjects && contractsManager) {
+      statProjects.textContent = `${contractsManager.projects?.length || 0} dự án`;
+    }
+
+    if (statStorage) {
+      if (navigator.storage && navigator.storage.estimate) {
+        try {
+          const estimate = await navigator.storage.estimate();
+          const usedMB = (estimate.usage / (1024 * 1024)).toFixed(2);
+          statStorage.textContent = `~${usedMB} MB`;
+        } catch {
+          statStorage.textContent = 'Đang hoạt động';
+        }
+      } else {
+        statStorage.textContent = 'Đang hoạt động';
+      }
     }
   }
 

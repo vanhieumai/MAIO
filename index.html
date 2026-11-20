@@ -71,33 +71,33 @@
         <span class="brand-name">M<span>AIO</span></span>
       </a>
 
-      <!-- Navigation Modules (3 Phân hệ chính + AI + Cài đặt Cloud) -->
+      <!-- Navigation Modules: Quản lý dự án, Quản lý văn phòng, Quản lý chi tiêu, Hồ sơ cá nhân, Cài đặt -->
       <nav class="header-nav" aria-label="Điều hướng phân hệ">
-        <button class="nav-pill active" data-view="dashboard"><i class="fa-solid fa-chart-pie"></i> Tổng quan</button>
-        <button class="nav-pill" data-view="cpms"><i class="fa-solid fa-file-contract"></i> Quản lý Dự án (CPMS)</button>
-        <button class="nav-pill" data-view="office"><i class="fa-solid fa-laptop-file"></i> Quản lý Văn phòng</button>
-        <button class="nav-pill" data-view="finance"><i class="fa-solid fa-wallet"></i> Quản lý Chi tiêu</button>
-        <button class="nav-pill" data-view="ai"><i class="fa-solid fa-wand-magic-sparkles"></i> Ask AI</button>
-        <button class="nav-pill" data-view="settings"><i class="fa-solid fa-cloud"></i> Google Drive Cloud</button>
+        <button class="nav-pill active" data-view="cpms"><i class="fa-solid fa-file-contract"></i> Quản lý dự án</button>
+        <button class="nav-pill" data-view="office"><i class="fa-solid fa-laptop-file"></i> Quản lý văn phòng</button>
+        <button class="nav-pill" data-view="finance"><i class="fa-solid fa-wallet"></i> Quản lý chi tiêu</button>
+        <button class="nav-pill" data-view="profile"><i class="fa-solid fa-user-circle"></i> Hồ sơ cá nhân</button>
+        <button class="nav-pill" data-view="settings"><i class="fa-solid fa-gear"></i> Cài đặt</button>
       </nav>
 
-      <!-- Account & Actions -->
+      <!-- Account & Actions: Đăng nhập (Thoát) gọn gàng -->
       <div class="header-actions">
-        <!-- Khi chưa kết nối Google Drive hoặc đang ở Offline mode -->
-        <button id="btn-gdrive-login" class="button button-google" title="Đăng nhập Google Drive để sao lưu dữ liệu lên Cloud">
+        <!-- Nút Đăng nhập Google Drive khi ở chế độ Cục bộ (Offline) -->
+        <button id="btn-header-login" class="button button-google button-sm" title="Đăng nhập Google Drive để đồng bộ Online">
           <i class="fa-brands fa-google" style="color: #4285F4;"></i>
-          <span id="btn-gdrive-login-label">Đăng nhập Google Drive để Đồng bộ Online</span>
+          <span id="btn-header-login-label">Đăng nhập</span>
         </button>
 
-        <!-- Khi đã vào phiên làm việc (Offline hoặc Online) -->
-        <div id="user-profile" class="user-profile-pill hidden">
-          <span id="user-avatar-badge" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #e0e7ff; color: #4338ca; font-size: 0.85rem; overflow: hidden;">
-            <img id="user-avatar" src="" alt="Avatar" class="hidden" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
-            <i id="user-avatar-icon" class="fa-solid fa-laptop-file"></i>
+        <!-- Trạng thái người dùng và nút Thoát -->
+        <div id="header-user-status" class="header-user-status">
+          <span id="header-user-avatar-badge" class="header-avatar-badge">
+            <img id="header-user-avatar" src="" alt="Avatar" class="hidden">
+            <i id="header-user-avatar-icon" class="fa-solid fa-laptop-file"></i>
           </span>
-          <span id="user-name">Cục bộ (Offline)</span>
-          <button id="btn-gdrive-logout" class="button button-outline" style="padding: 2px 8px; font-size: 0.75rem; border-radius: 9999px;" title="Thoát phiên làm việc">
+          <span id="header-user-name" class="header-user-name">Cục bộ</span>
+          <button id="btn-header-logout" class="button button-outline button-sm btn-logout" title="Thoát phiên làm việc">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
+            <span>Thoát</span>
           </button>
         </div>
       </div>
@@ -145,234 +145,313 @@
         </div>
       </section>
 
-      <!-- 1. DASHBOARD VIEW -->
-      <div id="view-dashboard" class="view-panel">
-        <div class="page-title-row">
-          <div>
-            <h1 class="page-title">Bảng điều khiển Tổng quan</h1>
-            <p class="page-subtitle">Dự án hiện tại: <strong id="active-project-name">Chưa có dự án nào</strong></p>
-          </div>
-          <div style="display: flex; gap: 10px;">
-            <button id="btn-quick-to-cpms" class="button button-primary">
-              <i class="fa-solid fa-file-contract"></i> Vào Quản lý Hợp đồng (CPMS)
-            </button>
-            <button id="btn-export-backup" class="button button-outline">
-              <i class="fa-solid fa-file-export"></i> Xuất bản sao lưu JSON
-            </button>
-          </div>
-        </div>
-
-        <!-- PHÂN KHU TÁCH RÕ 2 NHÓM: BÊN A (CHỦ ĐẦU TƯ) VÀ BÊN B (THẦU PHỤ / NCC) -->
-        <div class="dashboard-ab-container">
-          <!-- KHỐI NHÓM A: HỢP ĐỒNG VỚI BÊN A -->
-          <div class="dash-ab-card group-a-panel">
-            <div class="dash-ab-header">
-              <div class="dash-ab-title">
-                <span class="badge badge-primary"><i class="fa-solid fa-landmark"></i> NHÓM A</span>
-                <h3>Hợp đồng với Bên A (Chủ đầu tư / Tổng thầu)</h3>
-              </div>
-              <span class="dash-ab-tag tag-income"><i class="fa-solid fa-arrow-down-left"></i> Dòng tiền Thu vào</span>
-            </div>
-            <div class="dash-ab-grid">
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Số lượng Hợp đồng</span>
-                <div class="dash-stat-num" id="stat-group-a-count">0 Hợp đồng</div>
-                <span class="dash-stat-sub">Hợp đồng & Phụ lục</span>
-              </div>
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Tổng giá trị ký kết</span>
-                <div class="dash-stat-num text-primary" id="stat-group-a-val">0 ₫</div>
-                <span class="dash-stat-sub">Giá trị hợp đồng A</span>
-              </div>
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Bên A đã giải ngân</span>
-                <div class="dash-stat-num text-success" id="stat-group-a-paid">0 ₫</div>
-                <span class="dash-stat-sub" id="stat-group-a-rate">Đạt 0% giá trị HĐ</span>
-              </div>
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
-                <div class="dash-stat-num" id="stat-group-a-ipc">0 đợt</div>
-                <span class="dash-stat-sub">Hồ sơ thanh toán A</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- KHỐI NHÓM B: HỢP ĐỒNG VỚI BÊN B -->
-          <div class="dash-ab-card group-b-panel">
-            <div class="dash-ab-header">
-              <div class="dash-ab-title">
-                <span class="badge badge-warning"><i class="fa-solid fa-handshake"></i> NHÓM B</span>
-                <h3>Hợp đồng với Bên B (Nhà thầu phụ / Nhà cung cấp)</h3>
-              </div>
-              <span class="dash-ab-tag tag-expense"><i class="fa-solid fa-arrow-up-right"></i> Dòng tiền Chi ra</span>
-            </div>
-            <div class="dash-ab-grid">
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Số lượng Hợp đồng</span>
-                <div class="dash-stat-num" id="stat-group-b-count">0 Hợp đồng</div>
-                <span class="dash-stat-sub">HĐ Thầu phụ & NCC</span>
-              </div>
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Tổng giá trị giao thầu</span>
-                <div class="dash-stat-num text-indigo" id="stat-group-b-val">0 ₫</div>
-                <span class="dash-stat-sub">Giá trị giao thầu B</span>
-              </div>
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Giải ngân cho bên B</span>
-                <div class="dash-stat-num text-cyan" id="stat-group-b-paid">0 ₫</div>
-                <span class="dash-stat-sub" id="stat-group-b-rate">Đạt 0% giá trị giao thầu</span>
-              </div>
-              <div class="dash-ab-stat">
-                <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
-                <div class="dash-stat-num" id="stat-group-b-ipc">0 đợt</div>
-                <span class="dash-stat-sub">Giao dịch thực trả B</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- HÀNG THỐNG KÊ CÂN ĐỐI DÒNG TIỀN & HỒ SƠ DỰ ÁN -->
-        <div class="grid-3" style="margin-bottom: 20px;">
-          <div class="stat-box">
-            <div class="stat-label">Cân đối Dòng tiền (A Thu - B Chi)</div>
-            <div class="stat-value" id="stat-cashflow-diff" style="color: var(--success);">
-              0 ₫
-            </div>
-            <div class="stat-note">Thặng dư dòng tiền dự án</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">Tổng số Hồ sơ & Công văn</div>
-            <div class="stat-value" id="stat-docs-count">0</div>
-            <div class="stat-note">Đang theo dõi tiến độ</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-label">Tổng số Đợt Giải ngân (ĐN)</div>
-            <div class="stat-value" id="stat-payments-count">0 đợt</div>
-            <div class="stat-note">Toàn bộ giao dịch giải ngân</div>
-          </div>
-        </div>
-
-        <!-- Cây cấu trúc 3 Trụ cột -->
-        <div class="grid-2">
-          <div class="card">
-            <h2 class="card-title"><i class="fa-solid fa-folder-tree" style="color: var(--primary);"></i> Cây Thư mục 3 Trụ cột Chuẩn hóa</h2>
-            <p class="card-desc">Cấu trúc đồng bộ tự động giữa thư mục máy tính và Google Drive của bạn:</p>
-            <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 14px 16px; font-family: monospace; font-size: 0.8rem; line-height: 1.7; overflow-x: auto;">
-              📁 <strong>MAIO_Data /</strong><br>
-              ├── 📁 <strong>01_QuanLy_DuAn / DuAn_{MaDA} /</strong><br>
-              │&nbsp;&nbsp;&nbsp;├── 📁 <strong>01_Nhom_A_ChuDauTu /</strong><br>
-              │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>{SoHieuHD} /</strong><br>
-              │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
-              │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan HĐ gốc, thương thảo)<br>
-              │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_PL-01 /</strong> (Thư mục riêng file PL-01)<br>
-              │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>PhuLuc_PL-02 /</strong> (Thư mục riêng file PL-02)<br>
-              │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ nghiệm thu & thanh toán A)<br>
-              │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Pháp lý...)<br>
-              │&nbsp;&nbsp;&nbsp;└── 📁 <strong>02_Nhom_B_ThauPhu_NCC /</strong> (Phân theo 8 nhóm chuẩn CPMS)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Construction /</strong> (Xây lắp / Thi công cọc, ngầm, thân, hoàn thiện)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Procurement /</strong> (Mua sắm vật tư, thép, nhôm kính, gạch đá)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Consultancy /</strong> (Tư vấn giám sát, thẩm tra thiết kế, kiểm định)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Design /</strong> (Thiết kế kiến trúc, kết cấu, cơ điện MEP)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Equipment /</strong> (Thiết bị cơ điện, thang máy, trạm biến áp)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Service /</strong> (Dịch vụ thí nghiệm, trắc đạc, bảo vệ, vệ sinh)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Maintenance /</strong> (Bảo trì, bảo dưỡng hệ thống kỹ thuật)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Rental /</strong> (Thuê cẩu tháp, giàn giáo, máy phát điện, cốp pha)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <em>{SoHieuHD}_{TenNhaThau} /</em><br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan hợp đồng gốc)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_{SoPL} /</strong> (Thư mục riêng từng phụ lục)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 ...<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ đề nghị & chứng từ thanh toán)<br>
-              │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Kỹ thuật...)<br>
-              ├── 📁 <strong>02_QuanLy_VanPhong /</strong> (Tài sản thiết bị, HĐ thuê văn phòng, Nội quy)<br>
-              └── 📁 <strong>03_QuanLy_ChiTieu /</strong> (Sổ quỹ công trình & Quỹ cá nhân)
-            </div>
-          </div>
-
-          <div class="card">
-            <h2 class="card-title"><i class="fa-solid fa-shield-halved" style="color: var(--success);"></i> Trạng thái Đồng bộ & An toàn</h2>
-            <p class="card-desc">Ứng dụng hoạt động theo triết lý bảo vệ quyền sở hữu của người dùng:</p>
-            <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.8;">
-              <li><strong>Sở hữu 100% dữ liệu:</strong> Toàn bộ dữ liệu nằm trên máy tính và Google Drive cá nhân của bạn.</li>
-              <li><strong>Bảo vệ chống ghi đè:</strong> Tự động phát hiện và đánh dấu xung đột (Conflict) nếu sửa cùng lúc.</li>
-              <li><strong>Làm việc đa thiết bị:</strong> Mở máy tính làm việc offline, mở điện thoại xem và duyệt file tức thì.</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. PHÂN HỆ QUẢN LÝ DỰ ÁN & HỢP ĐỒNG (CPMS CORE) -->
-      <div id="view-cpms" class="view-panel hidden">
+      <!-- 1. PHÂN HỆ QUẢN LÝ DỰ ÁN (CORE) -->
+      <div id="view-cpms" class="view-panel">
         <div class="page-title-row" style="margin-bottom: 8px;">
           <div>
-            <h1 class="page-title">Quản lý Dự án & Hợp đồng (CPMS)</h1>
-            <p class="page-subtitle">Quản lý cây Hợp đồng, Phụ lục và các đợt thanh toán (IPC)</p>
+            <h1 class="page-title">Quản lý Dự án</h1>
+            <p class="page-subtitle">Tổng quan tài chính, Cây hợp đồng & Phụ lục và Sổ theo dõi giải ngân (IPC)</p>
           </div>
         </div>
 
-        <!-- Thanh công cụ Dự án 1 hàng ngang tối ưu -->
-        <div class="cpms-toolbar-row" style="margin-bottom: 10px;">
-          <div class="cpms-toolbar-left">
-            <select id="project-selector" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 600; font-family: inherit; font-size: 0.85rem;">
-              <option value="" disabled selected>-- Chọn dự án --</option>
-              <option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>
-            </select>
-            <button id="btn-clone-project" class="button button-outline" title="Sao chép toàn bộ dự án hiện tại thành dự án mới">
-              <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép dự án
-            </button>
-            <button id="btn-import-project" class="button button-outline" title="Dẫn link và nạp dữ liệu từ file CPMS trên máy tính (.cpms / .xlsx)">
-              <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i> Nhập dữ liệu CPMS (Dẫn file Local)
-            </button>
-            <button id="btn-export-cpms" class="button button-outline" title="Xuất toàn bộ dữ liệu dự án ra file .xlsx / .cpms">
-              <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất CPMS
-            </button>
-            <button id="btn-delete-project" class="button button-outline" style="color: var(--danger); border-color: #fca5a5;" title="Xóa toàn bộ dữ liệu của dự án hiện tại">
-              <i class="fa-solid fa-trash-can"></i> Xóa dự án
-            </button>
+        <!-- Sub-tabs bên trong Quản lý Dự án: Tổng quan | Hợp đồng | Giải ngân -->
+        <div class="cpms-subnav-tabs" style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 2px solid var(--border-color); padding-bottom: 2px;">
+          <button class="cpms-subtab-btn active" data-cpms-tab="overview">
+            <i class="fa-solid fa-chart-pie"></i> Tổng quan
+          </button>
+          <button class="cpms-subtab-btn" data-cpms-tab="contracts">
+            <i class="fa-solid fa-file-contract"></i> Hợp đồng
+          </button>
+          <button class="cpms-subtab-btn" data-cpms-tab="disbursements">
+            <i class="fa-solid fa-money-bill-wave"></i> Giải ngân
+          </button>
+        </div>
+
+        <!-- SUB-TAB 1: TỔNG QUAN DỰ ÁN -->
+        <div id="cpms-tab-overview" class="cpms-tab-pane">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <p style="color: var(--text-muted); font-size: 0.875rem; margin: 0;">
+              Dự án đang mở: <strong id="active-project-name" style="color: var(--primary);">Chưa có dự án nào</strong>
+            </p>
+            <div style="display: flex; gap: 8px;">
+              <button id="btn-quick-to-contracts" class="button button-primary button-sm">
+                <i class="fa-solid fa-file-contract"></i> Xem Cây Hợp đồng
+              </button>
+              <button id="btn-quick-to-disbursements" class="button button-outline button-sm">
+                <i class="fa-solid fa-money-bill-wave"></i> Sổ Giải ngân (IPC)
+              </button>
+              <button id="btn-export-backup" class="button button-outline button-sm">
+                <i class="fa-solid fa-file-export"></i> Xuất bản sao lưu JSON
+              </button>
+            </div>
           </div>
-          <div class="cpms-toolbar-right">
-            <button id="btn-add-contract" class="button button-primary">
-              <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
-            </button>
+
+          <!-- PHÂN KHU TÁCH RÕ 2 NHÓM: BÊN A (CHỦ ĐẦU TƯ) VÀ BÊN B (THẦU PHỤ / NCC) -->
+          <div class="dashboard-ab-container">
+            <!-- KHỐI NHÓM A: HỢP ĐỒNG VỚI BÊN A -->
+            <div class="dash-ab-card group-a-panel">
+              <div class="dash-ab-header">
+                <div class="dash-ab-title">
+                  <span class="badge badge-primary"><i class="fa-solid fa-landmark"></i> NHÓM A</span>
+                  <h3>Hợp đồng với Bên A (Chủ đầu tư / Tổng thầu)</h3>
+                </div>
+                <span class="dash-ab-tag tag-income"><i class="fa-solid fa-arrow-down-left"></i> Dòng tiền Thu vào</span>
+              </div>
+              <div class="dash-ab-grid">
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Số lượng Hợp đồng</span>
+                  <div class="dash-stat-num" id="stat-group-a-count">0 Hợp đồng</div>
+                  <span class="dash-stat-sub">Hợp đồng & Phụ lục</span>
+                </div>
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Tổng giá trị ký kết</span>
+                  <div class="dash-stat-num text-primary" id="stat-group-a-val">0 ₫</div>
+                  <span class="dash-stat-sub">Giá trị hợp đồng A</span>
+                </div>
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Bên A đã giải ngân</span>
+                  <div class="dash-stat-num text-success" id="stat-group-a-paid">0 ₫</div>
+                  <span class="dash-stat-sub" id="stat-group-a-rate">Đạt 0% giá trị HĐ</span>
+                </div>
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
+                  <div class="dash-stat-num" id="stat-group-a-ipc">0 đợt</div>
+                  <span class="dash-stat-sub">Hồ sơ thanh toán A</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- KHỐI NHÓM B: HỢP ĐỒNG VỚI BÊN B -->
+            <div class="dash-ab-card group-b-panel">
+              <div class="dash-ab-header">
+                <div class="dash-ab-title">
+                  <span class="badge badge-warning"><i class="fa-solid fa-handshake"></i> NHÓM B</span>
+                  <h3>Hợp đồng với Bên B (Nhà thầu phụ / Nhà cung cấp)</h3>
+                </div>
+                <span class="dash-ab-tag tag-expense"><i class="fa-solid fa-arrow-up-right"></i> Dòng tiền Chi ra</span>
+              </div>
+              <div class="dash-ab-grid">
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Số lượng Hợp đồng</span>
+                  <div class="dash-stat-num" id="stat-group-b-count">0 Hợp đồng</div>
+                  <span class="dash-stat-sub">HĐ Thầu phụ & NCC</span>
+                </div>
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Tổng giá trị giao thầu</span>
+                  <div class="dash-stat-num text-indigo" id="stat-group-b-val">0 ₫</div>
+                  <span class="dash-stat-sub">Giá trị giao thầu B</span>
+                </div>
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Giải ngân cho bên B</span>
+                  <div class="dash-stat-num text-cyan" id="stat-group-b-paid">0 ₫</div>
+                  <span class="dash-stat-sub" id="stat-group-b-rate">Đạt 0% giá trị giao thầu</span>
+                </div>
+                <div class="dash-ab-stat">
+                  <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
+                  <div class="dash-stat-num" id="stat-group-b-ipc">0 đợt</div>
+                  <span class="dash-stat-sub">Giao dịch thực trả B</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- HÀNG THỐNG KÊ CÂN ĐỐI DÒNG TIỀN & HỒ SƠ DỰ ÁN -->
+          <div class="grid-3" style="margin-bottom: 20px;">
+            <div class="stat-box">
+              <div class="stat-label">Cân đối Dòng tiền (A Thu - B Chi)</div>
+              <div class="stat-value" id="stat-cashflow-diff" style="color: var(--success);">
+                0 ₫
+              </div>
+              <div class="stat-note">Thặng dư dòng tiền dự án</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Tổng số Hồ sơ & Công văn</div>
+              <div class="stat-value" id="stat-docs-count">0</div>
+              <div class="stat-note">Đang theo dõi tiến độ</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Tổng số Đợt Giải ngân (ĐN)</div>
+              <div class="stat-value" id="stat-payments-count">0 đợt</div>
+              <div class="stat-note">Toàn bộ giao dịch giải ngân</div>
+            </div>
+          </div>
+
+          <!-- Cây cấu trúc 3 Trụ cột -->
+          <div class="grid-2">
+            <div class="card">
+              <h2 class="card-title"><i class="fa-solid fa-folder-tree" style="color: var(--primary);"></i> Cây Thư mục 3 Trụ cột Chuẩn hóa</h2>
+              <p class="card-desc">Cấu trúc đồng bộ tự động giữa thư mục máy tính và Google Drive của bạn:</p>
+              <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 14px 16px; font-family: monospace; font-size: 0.8rem; line-height: 1.7; overflow-x: auto;">
+                📁 <strong>MAIO_Data /</strong><br>
+                ├── 📁 <strong>01_QuanLy_DuAn / DuAn_{MaDA} /</strong><br>
+                │&nbsp;&nbsp;&nbsp;├── 📁 <strong>01_Nhom_A_ChuDauTu /</strong><br>
+                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>{SoHieuHD} /</strong><br>
+                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
+                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan HĐ gốc, thương thảo)<br>
+                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_PL-01 /</strong> (Thư mục riêng file PL-01)<br>
+                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>PhuLuc_PL-02 /</strong> (Thư mục riêng file PL-02)<br>
+                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ nghiệm thu & thanh toán A)<br>
+                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Pháp lý...)<br>
+                │&nbsp;&nbsp;&nbsp;└── 📁 <strong>02_Nhom_B_ThauPhu_NCC /</strong> (Phân theo 8 nhóm chuẩn CPMS)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Construction /</strong> (Xây lắp / Thi công cọc, ngầm, thân, hoàn thiện)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Procurement /</strong> (Mua sắm vật tư, thép, nhôm kính, gạch đá)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Consultancy /</strong> (Tư vấn giám sát, thẩm tra thiết kế, kiểm định)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Design /</strong> (Thiết kế kiến trúc, kết cấu, cơ điện MEP)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Equipment /</strong> (Thiết bị cơ điện, thang máy, trạm biến áp)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Service /</strong> (Dịch vụ thí nghiệm, trắc đạc, bảo vệ, vệ sinh)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Maintenance /</strong> (Bảo trì, bảo dưỡng hệ thống kỹ thuật)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Rental /</strong> (Thuê cẩu tháp, giàn giáo, máy phát điện, cốp pha)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <em>{SoHieuHD}_{TenNhaThau} /</em><br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan hợp đồng gốc)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_{SoPL} /</strong> (Thư mục riêng từng phụ lục)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 ...<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ đề nghị & chứng từ thanh toán)<br>
+                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Kỹ thuật...)<br>
+                ├── 📁 <strong>02_QuanLy_VanPhong /</strong> (Tài sản thiết bị, HĐ thuê văn phòng, Nội quy)<br>
+                └── 📁 <strong>03_QuanLy_ChiTieu /</strong> (Sổ quỹ công trình & Quỹ cá nhân)
+              </div>
+            </div>
+
+            <div class="card">
+              <h2 class="card-title"><i class="fa-solid fa-shield-halved" style="color: var(--success);"></i> Trạng thái Đồng bộ & An toàn</h2>
+              <p class="card-desc">Ứng dụng hoạt động theo triết lý bảo vệ quyền sở hữu của người dùng:</p>
+              <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.8;">
+                <li><strong>Sở hữu 100% dữ liệu:</strong> Toàn bộ dữ liệu nằm trên máy tính và Google Drive cá nhân của bạn.</li>
+                <li><strong>Bảo vệ chống ghi đè:</strong> Tự động phát hiện và đánh dấu xung đột (Conflict) nếu sửa cùng lúc.</li>
+                <li><strong>Làm việc đa thiết bị:</strong> Mở máy tính làm việc offline, mở điện thoại xem và duyệt file tức thì.</li>
+              </ul>
+            </div>
           </div>
         </div>
 
-        <!-- Khung hiển thị thông tin dự án (Project Info) -->
-        <div id="project-info-bar" class="project-info-bar">
-          <!-- Render tự động bởi contracts.js -->
-        </div>
-
-        <div class="cpms-container">
-          <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) -->
-          <div class="tab-nav">
-            <button class="tab-btn active group-tab-btn" data-group="A">
-              <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Chủ đầu tư / Tổng thầu
-            </button>
-            <button class="tab-btn group-tab-btn" data-group="B">
-              <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
-            </button>
+        <!-- SUB-TAB 2: CÂY HỢP ĐỒNG & PHỤ LỤC -->
+        <div id="cpms-tab-contracts" class="cpms-tab-pane hidden">
+          <!-- Thanh công cụ Dự án 1 hàng ngang tối ưu -->
+          <div class="cpms-toolbar-row" style="margin-bottom: 10px;">
+            <div class="cpms-toolbar-left">
+              <select id="project-selector" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 600; font-family: inherit; font-size: 0.85rem;">
+                <option value="" disabled selected>-- Chọn dự án --</option>
+                <option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>
+              </select>
+              <button id="btn-clone-project" class="button button-outline" title="Sao chép toàn bộ dự án hiện tại thành dự án mới">
+                <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép dự án
+              </button>
+              <button id="btn-import-project" class="button button-outline" title="Dẫn link và nạp dữ liệu từ file CPMS trên máy tính (.cpms / .xlsx)">
+                <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i> Nhập dữ liệu CPMS (Dẫn file Local)
+              </button>
+              <button id="btn-export-cpms" class="button button-outline" title="Xuất toàn bộ dữ liệu dự án ra file .xlsx / .cpms">
+                <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất CPMS
+              </button>
+              <button id="btn-delete-project" class="button button-outline" style="color: var(--danger); border-color: #fca5a5;" title="Xóa toàn bộ dữ liệu của dự án hiện tại">
+                <i class="fa-solid fa-trash-can"></i> Xóa dự án
+              </button>
+            </div>
+            <div class="cpms-toolbar-right">
+              <button id="btn-add-contract" class="button button-primary">
+                <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
+              </button>
+            </div>
           </div>
 
-          <!-- Bộ lọc & Tìm kiếm -->
-          <div class="filter-row">
+          <!-- Khung hiển thị thông tin dự án (Project Info) -->
+          <div id="project-info-bar" class="project-info-bar">
+            <!-- Render tự động bởi contracts.js -->
+          </div>
+
+          <div class="cpms-container">
+            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) -->
+            <div class="tab-nav">
+              <button class="tab-btn active group-tab-btn" data-group="A">
+                <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Chủ đầu tư / Tổng thầu
+              </button>
+              <button class="tab-btn group-tab-btn" data-group="B">
+                <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
+              </button>
+            </div>
+
+            <!-- Bộ lọc & Tìm kiếm -->
+            <div class="filter-row">
+              <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
+                <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
+                <input type="text" id="contract-search-input" class="search-input" placeholder="Tìm theo số HĐ, tên đối tác, nội dung gói thầu, ghi chú thanh toán (hỗ trợ gõ không dấu)...">
+              </div>
+              
+              <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 8px;">
+                <label for="contract-category-filter" style="font-size: 0.825rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                  <i class="fa-solid fa-filter"></i> Loại HĐ:
+                </label>
+                <select id="contract-category-filter" class="form-control" style="width: auto; min-width: 200px; height: 34px; padding: 4px 10px; font-size: 0.825rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer;">
+                  <option value="ALL">📁 Tất cả loại hợp đồng</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Danh sách Hợp đồng -->
+            <div id="contracts-list-container" class="contract-list">
+              <!-- Được render tự động qua contracts.js -->
+            </div>
+          </div>
+        </div>
+
+        <!-- SUB-TAB 3: SỔ THEO DÕI GIẢI NGÂN (IPC LEDGER) -->
+        <div id="cpms-tab-disbursements" class="cpms-tab-pane hidden">
+          <!-- Bảng tóm tắt thẻ giải ngân A / B / Cân đối -->
+          <div class="disbursements-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 14px;">
+            <div class="card" style="padding: 14px 16px; border-left: 4px solid var(--success);">
+              <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+                <i class="fa-solid fa-arrow-down-left" style="color: var(--success);"></i> Thu từ Bên A (Chủ đầu tư)
+              </div>
+              <div id="disburse-stat-a-paid" style="font-size: 1.4rem; font-weight: 800; color: var(--success); margin: 4px 0;">0 ₫</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                Tổng ký: <span id="disburse-stat-a-signed" style="font-weight: 600;">0 ₫</span> (<span id="disburse-stat-a-count">0 đợt</span>)
+              </div>
+            </div>
+
+            <div class="card" style="padding: 14px 16px; border-left: 4px solid #06b6d4;">
+              <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+                <i class="fa-solid fa-arrow-up-right" style="color: #06b6d4;"></i> Thực trả Bên B (Thầu phụ / NCC)
+              </div>
+              <div id="disburse-stat-b-paid" style="font-size: 1.4rem; font-weight: 800; color: #0891b2; margin: 4px 0;">0 ₫</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                Tổng giao thầu: <span id="disburse-stat-b-signed" style="font-weight: 600;">0 ₫</span> (<span id="disburse-stat-b-count">0 đợt</span>)
+              </div>
+            </div>
+
+            <div class="card" style="padding: 14px 16px; border-left: 4px solid var(--primary);">
+              <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
+                <i class="fa-solid fa-scale-balanced" style="color: var(--primary);"></i> Chênh lệch Dòng tiền (A Thu - B Chi)
+              </div>
+              <div id="disburse-stat-balance" style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin: 4px 0;">+0 ₫</div>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                Tổng số giao dịch: <strong id="disburse-stat-total-count">0 đợt</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Thanh công cụ Sổ giải ngân: Tìm kiếm & Lọc & Nút hành động -->
+          <div class="filter-row" style="margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
               <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-              <input type="text" id="contract-search-input" class="search-input" placeholder="Tìm theo số HĐ, tên đối tác, nội dung gói thầu, ghi chú thanh toán (hỗ trợ gõ không dấu)...">
+              <input type="text" id="disburse-search-input" class="search-input" placeholder="Tìm theo số đợt (IPC), số HĐ, đối tác, nội dung, số hóa đơn VAT...">
             </div>
             
-            <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 8px;">
-              <label for="contract-category-filter" style="font-size: 0.825rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap;">
-                <i class="fa-solid fa-filter"></i> Loại HĐ:
-              </label>
-              <select id="contract-category-filter" class="form-control" style="width: auto; min-width: 200px; height: 34px; padding: 4px 10px; font-size: 0.825rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer;">
-                <option value="ALL">📁 Tất cả loại hợp đồng</option>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <select id="disburse-group-filter" class="form-control" style="width: auto; min-width: 170px; height: 34px; padding: 4px 10px; font-size: 0.825rem; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer;">
+                <option value="ALL">📋 Tất cả đợt giải ngân</option>
+                <option value="A">🏛️ Chỉ Nhóm A (Chủ đầu tư)</option>
+                <option value="B">🤝 Chỉ Nhóm B (Thầu phụ / NCC)</option>
               </select>
+
+              <button id="btn-export-disbursements-excel" class="button button-outline button-sm" title="Xuất toàn bộ bảng kê giải ngân ra file Excel / CSV">
+                <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất Excel
+              </button>
             </div>
           </div>
 
-          <!-- Danh sách Hợp đồng -->
-          <div id="contracts-list-container" class="contract-list">
-            <!-- Được render tự động qua contracts.js -->
+          <!-- Bảng kê danh sách Đợt giải ngân -->
+          <div id="disbursements-list-container" class="disbursements-container">
+            <!-- Render tự động bởi contracts.js -->
           </div>
         </div>
       </div>
@@ -424,31 +503,77 @@
         </div>
       </div>
 
-      <!-- 5. ASK AI -->
-      <div id="view-ai" class="view-panel hidden">
+      <!-- 5. HỒ SƠ CÁ NHÂN -->
+      <div id="view-profile" class="view-panel hidden">
         <div class="page-title-row">
           <div>
-            <h1 class="page-title">MAIO AI Assistant (Ask AI)</h1>
-            <p class="page-subtitle">Trợ lý AI tra cứu thông tin hợp đồng, hỏi đáp tài chính và tóm tắt tiến độ</p>
+            <h1 class="page-title">Hồ sơ cá nhân & Tài khoản</h1>
+            <p class="page-subtitle">Thông tin người dùng, trạng thái phiên làm việc và quản trị dữ liệu</p>
           </div>
         </div>
 
-        <div class="card" style="padding: 24px;">
-          <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-            <input type="text" class="search-input" placeholder="Hỏi AI bất kỳ điều gì: 'Tổng số tiền đã trả cho HĐ thiết kế?', 'Còn nợ nhà thầu Hòa Phát bao nhiêu?'...">
-            <button class="button button-primary"><i class="fa-solid fa-paper-plane"></i> Gửi câu hỏi</button>
+        <div class="grid-2">
+          <!-- Thông tin tài khoản -->
+          <div class="card">
+            <h2 class="card-title"><i class="fa-solid fa-id-card" style="color: var(--primary);"></i> Thông tin tài khoản</h2>
+            <div style="display: flex; align-items: center; gap: 16px; margin: 16px 0; padding: 16px; background: var(--bg-card-subtle); border-radius: var(--radius-md);">
+              <div id="profile-avatar-box" style="width: 56px; height: 56px; border-radius: 50%; background: #e0e7ff; color: #4338ca; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; overflow: hidden; flex-shrink: 0;">
+                <img id="profile-avatar-img" src="" alt="Avatar" class="hidden" style="width: 100%; height: 100%; object-fit: cover;">
+                <i id="profile-avatar-icon" class="fa-solid fa-laptop-file"></i>
+              </div>
+              <div style="min-width: 0;">
+                <h3 id="profile-user-name" style="font-size: 1.1rem; font-weight: 700; margin-bottom: 4px;">Cục bộ (Offline)</h3>
+                <p id="profile-user-email" style="font-size: 0.85rem; color: var(--text-muted); margin: 0;">Chưa liên kết tài khoản Google</p>
+                <div style="margin-top: 6px;">
+                  <span id="profile-status-badge" class="badge badge-warning">Làm việc Cục bộ (Offline)</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 16px;">
+              <button id="btn-profile-login-gdrive" class="button button-google" style="width: 100%;">
+                <i class="fa-brands fa-google" style="color: #4285F4;"></i>
+                <span id="btn-profile-login-text">Đăng nhập Google Drive để Đồng bộ Online</span>
+              </button>
+              <button id="btn-profile-logout" class="button button-outline" style="width: 100%; color: var(--danger); border-color: #fca5a5;">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                <span>Thoát phiên làm việc (Đăng xuất)</span>
+              </button>
+            </div>
           </div>
-          <div style="background: var(--bg-card-subtle); border-radius: var(--radius-md); padding: 24px; min-height: 200px; color: var(--text-muted); display: flex; align-items: center; justify-content: center;">
-            <span><i class="fa-solid fa-wand-magic-sparkles"></i> Sẵn sàng kết nối Gemini API để phân tích dữ liệu dự án của bạn.</span>
+
+          <!-- Quản trị dữ liệu & Bộ nhớ -->
+          <div class="card">
+            <h2 class="card-title"><i class="fa-solid fa-database" style="color: var(--success);"></i> Dữ liệu & Bộ nhớ thiết bị</h2>
+            <p class="card-desc">Quản lý không gian lưu trữ IndexedDB trên trình duyệt của bạn:</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 16px 0;">
+              <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 12px;">
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Số dự án lưu trữ:</div>
+                <div id="profile-stat-projects" style="font-size: 1.3rem; font-weight: 800; color: var(--text-main);">0</div>
+              </div>
+              <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 12px;">
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Dung lượng sử dụng:</div>
+                <div id="profile-stat-storage" style="font-size: 1.3rem; font-weight: 800; color: var(--primary);">Ước tính...</div>
+              </div>
+            </div>
+
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: var(--radius-sm); padding: 12px; margin-bottom: 16px; font-size: 0.825rem; color: #92400e;">
+              <i class="fa-solid fa-triangle-exclamation"></i> <strong>Lưu ý bảo mật:</strong> Dữ liệu lưu cục bộ trên máy tính của bạn hoàn toàn bảo mật và không gửi về máy chủ bên ngoài.
+            </div>
+
+            <button id="btn-profile-clear-cache" class="button button-outline button-sm" style="color: var(--danger); border-color: #fca5a5;">
+              <i class="fa-solid fa-trash-can"></i> Xóa bộ nhớ tạm trình duyệt (Cache Reset)
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- 6. SETTINGS & GOOGLE DRIVE VIEW -->
+      <!-- 6. CÀI ĐẶT HỆ THỐNG & GOOGLE DRIVE -->
       <div id="view-settings" class="view-panel hidden">
         <div class="page-title-row">
           <div>
-            <h1 class="page-title">Cài đặt Đồng bộ Cloud & Thư mục máy tính</h1>
+            <h1 class="page-title">Cài đặt Hệ thống & Đồng bộ</h1>
             <p class="page-subtitle">Thiết lập kết nối Google Drive và chọn thư mục làm việc trên máy tính</p>
           </div>
         </div>

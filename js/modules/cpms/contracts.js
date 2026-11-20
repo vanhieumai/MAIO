@@ -3203,6 +3203,274 @@ export class ContractsManager {
       setTimeout(() => (msg.textContent = ''), 3000);
     }
   }
+
+  // ==========================================
+  // SỔ THEO DÕI GIẢI NGÂN TOÀN DỰ ÁN (DISBURSEMENTS TAB)
+  // ==========================================
+  renderDisbursementsTab() {
+    const container = document.getElementById('disbursements-list-container');
+    if (!container) return;
+
+    // Lọc các đợt giải ngân thực tế (không phải header)
+    const realPayments = this.payments.filter((p) => !p.is_header);
+
+    // Tính thống kê tóm tắt
+    let totalPaidA = 0;
+    let totalSignedA = 0;
+    let countA = 0;
+
+    let totalPaidB = 0;
+    let totalSignedB = 0;
+    let countB = 0;
+
+    // Tìm contract map để tra cứu nhanh
+    const contractMap = new Map();
+    this.contracts.forEach((c) => {
+      contractMap.set(c.id, c);
+      if (c.contract_code) contractMap.set(c.contract_code, c);
+    });
+
+    // Thống kê giá trị ký hợp đồng A & B
+    this.contracts.filter(c => !c.parent_id).forEach(c => {
+      const st = this.calculateTotals(c);
+      if (c.group === 'A') {
+        totalSignedA += st.totalSigned;
+      } else {
+        totalSignedB += st.totalSigned;
+      }
+    });
+
+    // Tính tổng thanh toán A và B
+    realPayments.forEach((p) => {
+      const c = contractMap.get(p.contract_id);
+      const isGroupA = c ? c.group === 'A' : (String(p.contract_id).startsWith('A-') || String(p.id).startsWith('PAY-A-'));
+      const paid = Number(p.paid_amount) || 0;
+      if (isGroupA) {
+        totalPaidA += paid;
+        countA++;
+      } else {
+        totalPaidB += paid;
+        countB++;
+      }
+    });
+
+    // Cập nhật thẻ tóm tắt
+    const el = (id) => document.getElementById(id);
+    if (el('disburse-stat-a-paid')) el('disburse-stat-a-paid').textContent = this.formatCurrency(totalPaidA);
+    if (el('disburse-stat-a-signed')) el('disburse-stat-a-signed').textContent = this.formatCurrency(totalSignedA);
+    if (el('disburse-stat-a-count')) el('disburse-stat-a-count').textContent = `${countA} đợt`;
+
+    if (el('disburse-stat-b-paid')) el('disburse-stat-b-paid').textContent = this.formatCurrency(totalPaidB);
+    if (el('disburse-stat-b-signed')) el('disburse-stat-b-signed').textContent = this.formatCurrency(totalSignedB);
+    if (el('disburse-stat-b-count')) el('disburse-stat-b-count').textContent = `${countB} đợt`;
+
+    const balance = totalPaidA - totalPaidB;
+    if (el('disburse-stat-balance')) {
+      el('disburse-stat-balance').textContent = (balance >= 0 ? '+' : '-') + this.formatCurrency(Math.abs(balance));
+      el('disburse-stat-balance').style.color = balance >= 0 ? 'var(--primary)' : 'var(--danger)';
+    }
+    if (el('disburse-stat-total-count')) el('disburse-stat-total-count').textContent = `${realPayments.length} đợt`;
+
+    // Lọc theo search input và group filter
+    const searchInput = document.getElementById('disburse-search-input');
+    const groupFilter = document.getElementById('disburse-group-filter');
+    const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    const selectedGroup = groupFilter ? groupFilter.value : 'ALL';
+
+    const filtered = realPayments.filter((p) => {
+      const c = contractMap.get(p.contract_id);
+      const isGroupA = c ? c.group === 'A' : (String(p.contract_id).startsWith('A-') || String(p.id).startsWith('PAY-A-'));
+      const group = isGroupA ? 'A' : 'B';
+
+      if (selectedGroup !== 'ALL' && group !== selectedGroup) return false;
+
+      if (!searchTerm) return true;
+
+      const pNo = String(p.payment_no || p.item_index || '').toLowerCase();
+      const pName = String(p.item_name || '').toLowerCase();
+      const inv = String(p.invoice_ref || '').toLowerCase();
+      const note = String(p.note || '').toLowerCase();
+      const cNo = c ? String(c.contract_no || '').toLowerCase() : '';
+      const cPartner = c ? String(c.company_b || c.company_a || '').toLowerCase() : '';
+
+      return (
+        pNo.includes(searchTerm) ||
+        pName.includes(searchTerm) ||
+        inv.includes(searchTerm) ||
+        note.includes(searchTerm) ||
+        cNo.includes(searchTerm) ||
+        cPartner.includes(searchTerm)
+      );
+    });
+
+    // Sắp xếp các đợt giải ngân theo ngày thanh toán hoặc số đợt
+    filtered.sort((a, b) => {
+      const dateA = a.payment_date ? new Date(a.payment_date).getTime() : 0;
+      const dateB = b.payment_date ? new Date(b.payment_date).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    // Render danh sách / bảng
+    if (filtered.length === 0) {
+      container.innerHTML = `
+        <div class="card" style="text-align: center; padding: 40px; color: var(--text-muted);">
+          <i class="fa-solid fa-receipt" style="font-size: 2.5rem; margin-bottom: 12px; color: var(--border-color);"></i>
+          <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 6px;">Không tìm thấy đợt giải ngân nào</h3>
+          <p style="font-size: 0.85rem; margin: 0;">${searchTerm ? 'Thử thay đổi từ khóa hoặc bộ lọc nhóm.' : 'Dự án hiện chưa có dữ liệu giao dịch giải ngân.'}</p>
+        </div>
+      `;
+      return;
+    }
+
+    let rowsHtml = '';
+    filtered.forEach((p) => {
+      const c = contractMap.get(p.contract_id);
+      const isGroupA = c ? c.group === 'A' : (String(p.contract_id).startsWith('A-') || String(p.id).startsWith('PAY-A-'));
+      const groupBadge = isGroupA
+        ? `<span class="badge badge-primary" style="font-size: 0.7rem;"><i class="fa-solid fa-landmark"></i> Nhóm A (Thu)</span>`
+        : `<span class="badge badge-warning" style="font-size: 0.7rem;"><i class="fa-solid fa-handshake"></i> Nhóm B (Chi)</span>`;
+      
+      const partnerName = c ? (isGroupA ? (c.company_a || 'Chủ đầu tư') : (c.company_b || 'Nhà thầu phụ / NCC')) : '—';
+      const contractLabel = c ? `${c.contract_no || c.id}` : (p.contract_id || '—');
+
+      rowsHtml += `
+        <tr>
+          <td style="font-weight: 700; white-space: nowrap;">
+            <span style="background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem;">
+              ${this.formatDnNo(p.payment_no || p.item_index)}
+            </span>
+          </td>
+          <td>${groupBadge}</td>
+          <td>
+            <div style="font-weight: 600; color: var(--text-main);">${contractLabel}</div>
+            <div style="font-size: 0.75rem; color: var(--text-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${partnerName}">
+              ${partnerName}
+            </div>
+          </td>
+          <td>
+            <div style="font-weight: 500;">${p.item_name || 'Đợt thanh toán'}</div>
+            ${p.note ? `<div style="font-size: 0.75rem; color: var(--text-muted);">${p.note}</div>` : ''}
+          </td>
+          <td style="white-space: nowrap; font-size: 0.8rem; color: var(--text-muted);">
+            <i class="fa-regular fa-calendar-days"></i> ${this.formatDate(p.payment_date)}
+          </td>
+          <td style="white-space: nowrap; font-weight: 600; text-align: right;">
+            ${this.formatCurrency(p.request_amount || 0)}
+          </td>
+          <td style="white-space: nowrap; text-align: right;">
+            <span class="${isGroupA ? 'amount-success' : 'amount-primary'}">
+              ${this.formatCurrency(p.paid_amount || 0)}
+            </span>
+          </td>
+          <td style="white-space: nowrap; font-size: 0.8rem;">
+            ${p.invoice_ref ? `<span style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${p.invoice_ref}</span>` : '—'}
+          </td>
+          <td style="white-space: nowrap; text-align: center;">
+            <button class="button button-outline btn-edit-disburse" data-pay-id="${p.id}" style="padding: 4px 8px; font-size: 0.75rem;" title="Chỉnh sửa đợt giải ngân">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+            <button class="button button-outline btn-delete-disburse" data-pay-id="${p.id}" style="padding: 4px 8px; font-size: 0.75rem; color: var(--danger); border-color: #fca5a5;" title="Xóa đợt giải ngân">
+              <i class="fa-solid fa-trash-can"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    container.innerHTML = `
+      <div class="disbursements-table-wrap">
+        <table class="disbursements-table">
+          <thead>
+            <tr>
+              <th style="width: 80px;">Đợt (IPC)</th>
+              <th style="width: 110px;">Phân loại</th>
+              <th>Hợp đồng & Đối tác</th>
+              <th>Nội dung thanh toán</th>
+              <th style="width: 100px;">Ngày TT</th>
+              <th style="width: 130px; text-align: right;">Đề nghị TT</th>
+              <th style="width: 140px; text-align: right;">Thực thanh toán</th>
+              <th style="width: 110px;">Hóa đơn VAT</th>
+              <th style="width: 80px; text-align: center;">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Gắn sự kiện sửa / xóa cho các nút trong bảng
+    container.querySelectorAll('.btn-edit-disburse').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const payId = btn.getAttribute('data-pay-id');
+        const pay = this.payments.find((p) => p.id === payId);
+        if (pay) {
+          const c = contractMap.get(pay.contract_id) || { id: pay.contract_id };
+          this.openEditPaymentModal(pay, c);
+        }
+      });
+    });
+
+    container.querySelectorAll('.btn-delete-disburse').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const payId = btn.getAttribute('data-pay-id');
+        if (confirm('Bạn có chắc chắn muốn xóa đợt giải ngân này không?')) {
+          await db.delete('payments', payId);
+          await this.loadData();
+          await this.syncToLocalFile();
+          this.renderDisbursementsTab();
+        }
+      });
+    });
+
+    // Lắng nghe sự kiện search & group filter một lần
+    if (!this.disburseEventsBound) {
+      this.disburseEventsBound = true;
+      document.getElementById('disburse-search-input')?.addEventListener('input', () => {
+        this.renderDisbursementsTab();
+      });
+      document.getElementById('disburse-group-filter')?.addEventListener('change', () => {
+        this.renderDisbursementsTab();
+      });
+      document.getElementById('btn-export-disbursements-excel')?.addEventListener('click', () => {
+        this.exportAllDisbursementsToExcel();
+      });
+    }
+  }
+
+  exportAllDisbursementsToExcel() {
+    const realPayments = this.payments.filter((p) => !p.is_header);
+    const prj = this.projects.find((p) => p.id === this.currentProjectId);
+    const prjName = prj ? (prj.name || prj.id) : (this.currentProjectId || 'DuAn');
+
+    const contractMap = new Map();
+    this.contracts.forEach((c) => contractMap.set(c.id, c));
+
+    let csvContent = '\uFEFF';
+    csvContent += `SỔ THEO DÕI GIẢI NGÂN & THANH TOÁN (PAYMENT LEDGER / IPC)\r\n`;
+    csvContent += `Dự án: ${prjName}\r\n`;
+    csvContent += `Thời điểm xuất: ${new Date().toLocaleString('vi-VN')}\r\n\r\n`;
+    csvContent += `STT,Số ĐN,Nhóm,Mã HĐ,Số hiệu HĐ,Đối tác,Nội dung thanh toán,Ngày TT,Đề nghị TT (VNĐ),Thực trả (VNĐ),Hóa đơn VAT,Ghi chú\r\n`;
+
+    realPayments.forEach((p, idx) => {
+      const c = contractMap.get(p.contract_id);
+      const isGroupA = c ? c.group === 'A' : (String(p.contract_id).startsWith('A-') || String(p.id).startsWith('PAY-A-'));
+      const groupName = isGroupA ? 'Nhóm A (Chủ đầu tư)' : 'Nhóm B (Thầu phụ / NCC)';
+      const cNo = c ? (c.contract_no || '') : '';
+      const partner = c ? (isGroupA ? (c.company_a || '') : (c.company_b || '')) : '';
+
+      csvContent += `"${idx + 1}","${this.formatDnNo(p.payment_no || p.item_index)}","${groupName}","${p.contract_id || ''}","${cNo.replace(/"/g, '""')}","${partner.replace(/"/g, '""')}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${p.request_amount || 0},${p.paid_amount || 0},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `So_Giai_Ngan_${prjName}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 }
 
 if (!window.__MAIO_CONTRACTS_MANAGER__) {
