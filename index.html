@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <!-- MÀN HÌNH YÊU CẦU ĐĂNG NHẬP GOOGLE DRIVE (AUTH GATE) -->
+  <!-- MÀN HÌNH YÊU CẦU CHỌN CHẾ ĐỘ LÀM VIỆC (AUTH GATE) -->
   <div id="auth-gate" class="auth-gate-overlay" style="position: fixed; inset: 0; z-index: 99999; background: radial-gradient(circle at 50% 20%, #eff6ff 0%, #f8fafc 70%, #f1f5f9 100%); display: flex; align-items: center; justify-content: center; padding: 20px;">
     <div class="auth-gate-card">
       <div class="auth-gate-icon-wrap">
@@ -22,38 +22,42 @@
           <i class="fa-solid fa-cubes"></i>
         </div>
         <div class="auth-drive-badge">
-          <i class="fa-brands fa-google-drive"></i>
+          <i class="fa-solid fa-laptop-file"></i>
         </div>
       </div>
       <h1 class="auth-gate-title">Hệ thống Quản lý MAIO</h1>
       <p class="auth-gate-subtitle">
-        Vui lòng kết nối tài khoản Google Drive để bắt đầu làm việc. Mỗi tài khoản sẽ quản lý độc lập các dự án và dữ liệu của riêng mình.
+        Quản lý Dự án & Hợp đồng Xây dựng (CPMS Plus) — Hoạt động trực tiếp với tệp dữ liệu máy tính của bạn và sẵn sàng sao lưu đám mây Google Drive.
       </p>
 
       <div class="auth-features-box">
         <div class="auth-feature-row">
           <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i>
-          <span><strong>Bảo mật riêng biệt:</strong> Mỗi tài khoản Google chỉ xem và quản lý các dự án của chính mình.</span>
+          <span><strong>Bảo mật & Cục bộ:</strong> Dữ liệu lưu trực tiếp vào file máy tính của bạn, hoàn toàn bảo mật và độc lập.</span>
         </div>
         <div class="auth-feature-row">
-          <i class="fa-brands fa-google-drive" style="color: #2563eb;"></i>
-          <span><strong>Sở hữu dữ liệu 100%:</strong> Tệp tin và hợp đồng được lưu trữ trực tiếp trên Google Drive cá nhân.</span>
+          <i class="fa-solid fa-file-excel" style="color: #2563eb;"></i>
+          <span><strong>Tương thích CPMS Plus:</strong> Hỗ trợ mở trực tiếp file dữ liệu <code>.cpms</code> và <code>.xlsx</code> với đầy đủ cây Hợp đồng, Phụ lục & Đợt thanh toán.</span>
         </div>
         <div class="auth-feature-row">
-          <i class="fa-solid fa-bolt" style="color: #6366f1;"></i>
-          <span><strong>Tốc độ Local-first:</strong> Hoạt động tức thì với IndexedDB và đồng bộ 2 chiều an toàn lên Cloud.</span>
+          <i class="fa-brands fa-google-drive" style="color: #6366f1;"></i>
+          <span><strong>Sao lưu Đám mây:</strong> Đăng nhập Google Drive bất cứ lúc nào để đồng bộ dữ liệu và tệp đính kèm lên Cloud.</span>
         </div>
       </div>
 
-      <button id="btn-login-gate" class="auth-btn-primary">
-        <i class="fa-brands fa-google" style="color: #4285F4; font-size: 1.25rem;"></i>
-        <span>Đăng nhập bằng Google Drive</span>
+      <!-- Tùy chọn 1: Làm việc Cục bộ (Mặc định dẫn file CPMS local) -->
+      <button id="btn-login-offline" class="auth-btn-primary" style="background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%); width: 100%; padding: 14px 20px; font-size: 1rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 12px; border-radius: 12px; box-shadow: 0 4px 14px rgba(37,99,235,0.35); border: none; cursor: pointer; color: #fff;">
+        <i class="fa-solid fa-folder-open" style="font-size: 1.25rem;"></i>
+        <span>Làm việc Cục bộ (Chọn file Data CPMS từ máy tính)</span>
       </button>
+      <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; text-align: center;">Mặc định mở và làm việc trực tiếp với file dữ liệu trên máy tính (.cpms, .xlsx)</div>
 
-      <div class="auth-offline-box">
-        <span style="color: var(--text-muted); font-size: 0.8rem;">Hoặc trải nghiệm lưu trữ trên máy tính:</span><br>
-        <button id="btn-login-offline" class="button button-outline" style="margin-top: 8px; font-size: 0.8rem; padding: 6px 14px; border-radius: 9999px;">
-          <i class="fa-solid fa-user-tag" style="color: #6366f1;"></i> Đăng nhập Chế độ Offline / Cục bộ
+      <!-- Tùy chọn 2: Đăng nhập Google Drive để Đồng bộ Online -->
+      <div style="margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border-color); width: 100%; text-align: center;">
+        <span style="color: var(--text-muted); font-size: 0.8rem; font-weight: 500;">Hoặc sao lưu & làm việc đồng bộ trực tuyến:</span>
+        <button id="btn-login-gate" class="button button-outline" style="width: 100%; margin-top: 8px; padding: 11px 16px; border-radius: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 0.9rem; background: #fff; border: 1.5px solid #cbd5e1; color: #1e293b;">
+          <i class="fa-brands fa-google" style="color: #4285F4; font-size: 1.2rem;"></i>
+          <span>Đăng nhập Google Drive để Đồng bộ Online</span>
         </button>
       </div>
     </div>
@@ -79,17 +83,20 @@
 
       <!-- Account & Actions -->
       <div class="header-actions">
-        <!-- Khi chưa kết nối Google Drive -->
-        <button id="btn-gdrive-login" class="button button-google">
+        <!-- Khi chưa kết nối Google Drive hoặc đang ở Offline mode -->
+        <button id="btn-gdrive-login" class="button button-google" title="Đăng nhập Google Drive để sao lưu dữ liệu lên Cloud">
           <i class="fa-brands fa-google" style="color: #4285F4;"></i>
-          <span>Kết nối Google Drive</span>
+          <span id="btn-gdrive-login-label">Đăng nhập Google Drive để Đồng bộ Online</span>
         </button>
 
-        <!-- Khi đã kết nối Google Drive -->
+        <!-- Khi đã vào phiên làm việc (Offline hoặc Online) -->
         <div id="user-profile" class="user-profile-pill hidden">
-          <img id="user-avatar" src="" alt="Avatar">
-          <span id="user-name">Người dùng</span>
-          <button id="btn-gdrive-logout" class="button button-outline" style="padding: 2px 8px; font-size: 0.75rem; border-radius: 9999px;" title="Ngắt kết nối">
+          <span id="user-avatar-badge" style="display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #e0e7ff; color: #4338ca; font-size: 0.85rem; overflow: hidden;">
+            <img id="user-avatar" src="" alt="Avatar" class="hidden" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+            <i id="user-avatar-icon" class="fa-solid fa-laptop-file"></i>
+          </span>
+          <span id="user-name">Cục bộ (Offline)</span>
+          <button id="btn-gdrive-logout" class="button button-outline" style="padding: 2px 8px; font-size: 0.75rem; border-radius: 9999px;" title="Thoát phiên làm việc">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
           </button>
         </div>
@@ -488,6 +495,6 @@
   <script src="gdrive-config.js"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=4.1"></script>
+  <script type="module" src="js/app.js?v=4.2"></script>
 </body>
 </html>

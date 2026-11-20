@@ -144,16 +144,16 @@ export class GoogleDriveService {
   }
 
   /**
-   * Đăng nhập chế độ Offline / Demo (lưu trữ cục bộ an toàn theo email)
+   * Đăng nhập chế độ Cục bộ (Offline) - lưu trữ trực tiếp trên máy tính
    */
-  signInOffline(email = 'demo_user@maio.local', name = 'Người dùng Demo') {
+  signInOffline(email = 'local_user@maio.local', name = 'Người dùng Cục bộ (Offline)') {
     this.currentUser = {
-      email: email.trim().toLowerCase(),
-      name: name || email.split('@')[0],
+      email: 'local_user@maio.local',
+      name: 'Người dùng Cục bộ (Offline)',
       picture: '',
       isOffline: true,
     };
-    this.accessToken = 'offline_token_' + Date.now();
+    this.accessToken = 'offline_local_session';
     localStorage.setItem('maio_gdrive_user', JSON.stringify(this.currentUser));
     sessionStorage.setItem('maio_gdrive_token', this.accessToken);
     this.notifyAuthChange(this.currentUser);

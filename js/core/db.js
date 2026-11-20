@@ -17,7 +17,11 @@ class DatabaseEngine {
 
   getDbNameForUser(email) {
     if (!email) return 'MAIO_GuestDB';
-    const safe = email.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+    const clean = email.toLowerCase().trim();
+    if (clean === 'local_user@maio.local' || clean === 'local' || clean.startsWith('demo_user')) {
+      return 'MAIO_LocalDB';
+    }
+    const safe = clean.replace(/[^a-z0-9]/g, '_');
     return `MAIO_UserDB_${safe}`;
   }
 
@@ -251,6 +255,68 @@ class DatabaseEngine {
     const snapshot = await gdrive.readJsonFile(fileId);
     await this.importSnapshot(snapshot);
     return snapshot;
+  }
+
+  /**
+   * Sao chép dữ liệu từ Cục bộ sang tài khoản Google khi người dùng vừa đăng nhập
+   */
+  async copyLocalDataIfEmpty(newUserEmail) {
+    if (!newUserEmail) return;
+    const clean = newUserEmail.toLowerCase().trim();
+    if (clean === 'local_user@maio.local' || clean.startsWith('demo_user')) return;
+
+    try {
+      // 1. Kiểm tra DB mới của user có dự án nào chưa
+      const curProjects = await this.getAll('projects');
+      if (curProjects && curProjects.length > 0) return;
+
+      // 2. Đọc từ MAIO_LocalDB
+      const localProjects = await this.readAllFromNamedDb('MAIO_LocalDB', 'projects');
+      if (localProjects && localProjects.length > 0) {
+        const localContracts = await this.readAllFromNamedDb('MAIO_LocalDB', 'contracts');
+        const localPayments = await this.readAllFromNamedDb('MAIO_LocalDB', 'payments');
+        const localDocs = await this.readAllFromNamedDb('MAIO_LocalDB', 'documents');
+
+        for (const p of localProjects) await this.save('projects', p);
+        for (const c of localContracts) await this.save('contracts', c);
+        for (const pay of localPayments) await this.save('payments', pay);
+        for (const d of localDocs) await this.save('documents', d);
+
+        console.log(`Đã chuyển toàn bộ ${localProjects.length} dự án từ Cục bộ sang tài khoản Google: ${newUserEmail}`);
+      }
+    } catch (e) {
+      console.warn('Lỗi copy dữ liệu local sang user DB:', e);
+    }
+  }
+
+  async readAllFromNamedDb(dbName, storeName) {
+    return new Promise((resolve) => {
+      const req = indexedDB.open(dbName);
+      req.onerror = () => resolve([]);
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(storeName)) {
+          db.close();
+          return resolve([]);
+        }
+        try {
+          const tx = db.transaction(storeName, 'readonly');
+          const store = tx.objectStore(storeName);
+          const getAllReq = store.getAll();
+          getAllReq.onsuccess = () => {
+            db.close();
+            resolve(getAllReq.result || []);
+          };
+          getAllReq.onerror = () => {
+            db.close();
+            resolve([]);
+          };
+        } catch (err) {
+          db.close();
+          resolve([]);
+        }
+      };
+    });
   }
 }
 

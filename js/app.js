@@ -35,13 +35,18 @@ class App {
     const headerNav = document.querySelector('.header-nav');
 
     if (user && user.email) {
-      console.log('Đã đăng nhập người dùng:', user.email);
+      console.log('Đã đăng nhập người dùng:', user.email, user.isOffline ? '(Offline)' : '(Online Google)');
       authGate?.classList.add('hidden');
       if (mainContent) mainContent.style.display = '';
       if (headerNav) headerNav.style.pointerEvents = '';
 
       // Chuyển đổi IndexedDB sang cơ sở dữ liệu riêng của tài khoản này
       await db.switchUser(user.email);
+
+      // Nếu là tài khoản Google vừa đăng nhập từ chế độ offline, sao chép dữ liệu cục bộ sang tài khoản Google nếu DB mới rỗng
+      if (!user.isOffline) {
+        await db.copyLocalDataIfEmpty(user.email);
+      }
 
       // Nạp dữ liệu và khởi tạo phân hệ Quản lý Dự án & Hợp đồng
       try {
@@ -311,14 +316,20 @@ class App {
     gateLoginBtn?.addEventListener('click', handleLogin);
 
     gateOfflineBtn?.addEventListener('click', () => {
-      const email = prompt('Nhập địa chỉ email tài khoản của bạn (mỗi tài khoản sẽ quản lý độc lập các dự án của riêng mình):', 'demo@maio.local');
-      if (email && email.trim()) {
-        gdrive.signInOffline(email.trim());
-      }
+      // 1. Vào thẳng chế độ Cục bộ (Offline) - Không hỏi bất kỳ email demo nào
+      gdrive.signInOffline();
+
+      // 2. Chuyển sang phân hệ Quản lý Dự án (CPMS)
+      this.switchView('cpms');
+
+      // 3. Tự động mở File System Picker để dẫn file Data CPMS local
+      setTimeout(() => {
+        contractsManager.pickAndLoadLocalCPMSFile();
+      }, 150);
     });
 
     logoutBtn?.addEventListener('click', () => {
-      if (confirm('Bạn có chắc muốn đăng xuất khỏi tài khoản này không?')) {
+      if (confirm('Bạn có chắc muốn thoát phiên làm việc này không?')) {
         gdrive.signOut();
       }
     });
@@ -335,11 +346,21 @@ class App {
 
     // Xử lý nút đồng bộ ngay
     syncNowBtn?.addEventListener('click', async () => {
+      if (gdrive.currentUser?.isOffline || !gdrive.isSignedIn()) {
+        const wantLogin = confirm(
+          'Bạn đang làm việc ở chế độ Cục bộ (Offline).\n\nĐể sao lưu và đồng bộ dữ liệu lên Google Drive, bạn cần đăng nhập tài khoản Google Drive của mình.\n\nBạn có muốn đăng nhập Google Drive ngay bây giờ không?'
+        );
+        if (wantLogin) {
+          handleLogin();
+        }
+        return;
+      }
+
       try {
         syncNowBtn.disabled = true;
         syncNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
         await db.syncToGoogleDrive();
-        alert('Đã đồng bộ thành công dữ liệu lên Google Drive!');
+        alert('Đã đồng bộ thành công dữ liệu lên Google Drive của bạn!');
       } catch (err) {
         alert('Lỗi đồng bộ: ' + err.message);
       } finally {
@@ -369,8 +390,10 @@ class App {
 
   updateGoogleDriveUI(user) {
     const loginBtn = document.getElementById('btn-gdrive-login');
+    const loginBtnLabel = document.getElementById('btn-gdrive-login-label');
     const userProfile = document.getElementById('user-profile');
     const userAvatar = document.getElementById('user-avatar');
+    const userAvatarIcon = document.getElementById('user-avatar-icon');
     const userName = document.getElementById('user-name');
     const cloudStatusText = document.getElementById('cloud-status-text');
     const cloudBadge = document.getElementById('cloud-badge');
@@ -378,24 +401,56 @@ class App {
     const testSyncBtn = document.getElementById('btn-test-sync');
 
     if (user) {
-      loginBtn?.classList.add('hidden');
       userProfile?.classList.remove('hidden');
-      if (userAvatar && user.picture) userAvatar.src = user.picture;
-      if (userName) userName.textContent = user.name || user.email;
 
-      if (cloudStatusText) {
-        cloudStatusText.innerHTML = `Đã kết nối với Google Drive của <strong>${user.email}</strong>. Thư mục: <code>${
-          window.MAIO_GDRIVE_CONFIG?.appFolderName || 'MAIO_Data'
-        }</code>.`;
+      if (user.isOffline) {
+        // Chế độ Cục bộ (Offline)
+        loginBtn?.classList.remove('hidden');
+        if (loginBtnLabel) loginBtnLabel.textContent = 'Đăng nhập Google Drive để Đồng bộ Online';
+        if (userAvatar) userAvatar.classList.add('hidden');
+        if (userAvatarIcon) userAvatarIcon.classList.remove('hidden');
+        if (userName) userName.textContent = 'Cục bộ (Offline)';
+
+        if (cloudStatusText) {
+          cloudStatusText.innerHTML = 'Đang làm việc với tệp dữ liệu cục bộ trên máy tính. Bấm Đăng nhập Google Drive khi bạn muốn sao lưu trực tuyến.';
+        }
+        if (cloudBadge) {
+          cloudBadge.className = 'badge badge-warning';
+          cloudBadge.textContent = 'Cục bộ (Offline)';
+        }
+        if (syncNowBtn) {
+          syncNowBtn.classList.remove('hidden');
+          syncNowBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Đăng nhập Drive để Đồng bộ';
+        }
+        if (testSyncBtn) testSyncBtn.disabled = true;
+      } else {
+        // Đã kết nối Google Drive thật
+        loginBtn?.classList.add('hidden');
+        if (userAvatar && user.picture) {
+          userAvatar.src = user.picture;
+          userAvatar.classList.remove('hidden');
+        }
+        if (userAvatarIcon) userAvatarIcon.classList.add('hidden');
+        if (userName) userName.textContent = user.name || user.email;
+
+        if (cloudStatusText) {
+          cloudStatusText.innerHTML = `Đã kết nối với Google Drive của <strong>${user.email}</strong>. Thư mục: <code>${
+            window.MAIO_GDRIVE_CONFIG?.appFolderName || 'MAIO_Data'
+          }</code>.`;
+        }
+        if (cloudBadge) {
+          cloudBadge.className = 'badge badge-success';
+          cloudBadge.textContent = 'Đã kết nối Cloud';
+        }
+        if (syncNowBtn) {
+          syncNowBtn.classList.remove('hidden');
+          syncNowBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Đồng bộ ngay';
+        }
+        if (testSyncBtn) testSyncBtn.disabled = false;
       }
-      if (cloudBadge) {
-        cloudBadge.className = 'badge badge-success';
-        cloudBadge.textContent = 'Đã kết nối Cloud';
-      }
-      syncNowBtn?.classList.remove('hidden');
-      if (testSyncBtn) testSyncBtn.disabled = false;
     } else {
       loginBtn?.classList.remove('hidden');
+      if (loginBtnLabel) loginBtnLabel.textContent = 'Kết nối Google Drive';
       userProfile?.classList.add('hidden');
       if (cloudStatusText) {
         cloudStatusText.textContent =
