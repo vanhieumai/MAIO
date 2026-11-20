@@ -73,9 +73,9 @@ class App {
 
   resetDashboardStats() {
     const el = (id) => document.getElementById(id);
-    if (el('top-project-name')) el('top-project-name').textContent = 'Chưa đăng nhập';
-    if (el('top-project-location')) el('top-project-location').textContent = 'Vui lòng đăng nhập Google Drive';
-    if (el('active-project-name')) el('active-project-name').textContent = 'Chưa đăng nhập';
+    if (el('top-project-name')) el('top-project-name').textContent = 'Chưa có dự án nào';
+    if (el('top-project-location')) el('top-project-location').textContent = '—';
+    if (el('active-project-name')) el('active-project-name').textContent = 'Chưa có dự án nào';
     if (el('stat-group-a-count')) el('stat-group-a-count').textContent = '0 Hợp đồng';
     if (el('stat-group-a-val')) el('stat-group-a-val').textContent = '0 ₫';
     if (el('stat-group-a-paid')) el('stat-group-a-paid').textContent = '0 ₫';
@@ -98,10 +98,19 @@ class App {
     const curPrjId = contractsManager.currentProjectId;
     const curPrj = contractsManager.projects.find((p) => p.id === curPrjId);
 
-    // Cập nhật tên dự án hiện tại trên Dashboard
+    // Cập nhật tên và địa điểm dự án hiện tại trên Banner và Dashboard
     const activePrjName = document.getElementById('active-project-name');
-    if (activePrjName) {
-      activePrjName.textContent = curPrj?.name || curPrj?.id || 'Dự án CHC1 (Thiết kế & Thi công)';
+    const topProjName = document.getElementById('top-project-name');
+    const topProjLoc = document.getElementById('top-project-location');
+
+    if (curPrj) {
+      if (activePrjName) activePrjName.textContent = curPrj.name || curPrj.id;
+      if (topProjName) topProjName.textContent = curPrj.name || curPrj.id;
+      if (topProjLoc) topProjLoc.textContent = curPrj.location ? String(curPrj.location).trim() : '—';
+    } else {
+      if (activePrjName) activePrjName.textContent = 'Chưa có dự án nào';
+      if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
+      if (topProjLoc) topProjLoc.textContent = '—';
     }
 
     const contracts = contractsManager.contracts;

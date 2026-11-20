@@ -79,6 +79,10 @@ export class ContractsManager {
       `;
       const activePrjName = document.getElementById('active-project-name');
       if (activePrjName) activePrjName.textContent = 'Chưa có dự án nào';
+      const topProjName = document.getElementById('top-project-name');
+      if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
+      const topProjLoc = document.getElementById('top-project-location');
+      if (topProjLoc) topProjLoc.textContent = '—';
       return;
     }
 
@@ -474,7 +478,7 @@ export class ContractsManager {
       const topProjName = document.getElementById('top-project-name');
       const topProjLoc = document.getElementById('top-project-location');
       if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
-      if (topProjLoc) topProjLoc.textContent = 'Vui lòng dẫn link file CPMS máy tính hoặc thêm dự án mới';
+      if (topProjLoc) topProjLoc.textContent = '—';
 
       infoContainer.innerHTML = `
         <div style="padding: 12px 18px; background: #f8fafc; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; width: 100%; border: 1px dashed var(--border-color);">
@@ -494,31 +498,13 @@ export class ContractsManager {
       return;
     }
 
-    const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || this.projects[0] || {
-      id: this.currentProjectId || 'PRJ_1',
-      code: this.currentProjectId || 'PRJ_1',
-      name: 'Dự án mới',
-    };
+    const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || this.projects[0];
+    if (!curPrj) return;
 
-    // Chuẩn hóa Tên và Địa điểm dự án cho CHC1
-    if (String(curPrj.id).includes('CHC1')) {
-      let needsSave = false;
-      if (!curPrj.name || curPrj.name.includes('Thiết kế & Thi công') || curPrj.name === curPrj.id || curPrj.name.startsWith('CHC1_')) {
-        curPrj.name = 'Dự án Nhà ở Chung cư Cao tầng Westlake Residential';
-        needsSave = true;
-      }
-      if (!curPrj.location || curPrj.location === 'Việt Nam' || curPrj.location === 'Hà Nội' || curPrj.location === '—') {
-        curPrj.location = 'Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội';
-        needsSave = true;
-      }
-      if (needsSave) {
-        db.put('projects', curPrj).catch(() => {});
-      }
-    }
-
+    // Địa điểm đọc chính xác từ dữ liệu dự án trong file CPMS (thuộc tính location)
+    const location = curPrj.location && String(curPrj.location).trim() ? String(curPrj.location).trim() : '—';
     const sampleContract = this.contracts[0] || {};
     const clientName = curPrj.client || sampleContract.company_a || 'Chủ đầu tư';
-    const location = curPrj.location || 'Ô đất CHC1, Khu D6, Phú Thượng, Tây Hồ, Hà Nội';
 
     // 1. Cập nhật thông tin cơ bản trên Top Banner (Vùng hiển thị cơ bản phía trên)
     const topProjName = document.getElementById('top-project-name');
@@ -527,9 +513,9 @@ export class ContractsManager {
     if (topProjLoc) topProjLoc.textContent = location;
 
     // Cập nhật text trong dropdown dự án nếu cần
-    const selOpt = document.querySelector('#project-selector option[value="CHC1"]');
-    if (selOpt && String(curPrj.id).includes('CHC1')) {
-      selOpt.textContent = `📁 ${curPrj.name} (${curPrj.id})`;
+    const selOpt = document.querySelector(`#project-selector option[value="${curPrj.id}"]`);
+    if (selOpt) {
+      selOpt.textContent = `📁 ${curPrj.name || curPrj.id}`;
     }
 
     // 2. Thống kê chi tiết Hợp đồng & Phụ lục nhóm A (Chủ đầu tư / Tổng thầu)
