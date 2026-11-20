@@ -862,8 +862,9 @@
     grid-template-columns: 1fr 1fr;
     gap: 8px 10px;
   }
+}
 
-  /* Sub-nav tabs bên trong Quản lý Dự án (Tổng quan | Hợp đồng | Giải ngân) - Cố định khi Scrolling */
+/* Sub-nav tabs bên trong Quản lý Dự án (Tổng quan | Hợp đồng | Giải ngân) - Cố định khi Scrolling */
 .cpms-subnav-tabs {
   display: flex;
   align-items: center;
@@ -1048,6 +1049,7 @@
 }
 
 /* Toolbar dự án trên mobile */
+@media (max-width: 768px) {
   .cpms-toolbar-row {
     flex-direction: column;
     align-items: stretch;
