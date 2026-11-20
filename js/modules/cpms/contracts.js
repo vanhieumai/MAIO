@@ -287,6 +287,18 @@ export class ContractsManager {
     return '';
   }
 
+  formatDnNo(no) {
+    if (no === undefined || no === null || String(no).trim() === '') return '—';
+    const s = String(no).trim();
+    if (/^IPC[-_\s]*/i.test(s)) {
+      return s.replace(/^IPC[-_\s]*/i, 'ĐN-');
+    }
+    if (/^(ĐN|DN)[-_\s]*/i.test(s)) {
+      return s;
+    }
+    return `ĐN-${s}`;
+  }
+
   getDrivePathForContract(contract) {
     const curPrjId = this.currentProjectId || 'CHC1';
     const isMain = !contract.parent_id;
@@ -1005,7 +1017,7 @@ export class ContractsManager {
                   <span class="contract-stat-val" style="color: var(--primary);">${stats.directChildrenCount} phụ lục</span>
                 </div>
                 <div class="contract-stat-item">
-                  <span class="contract-stat-label">Đợt thanh toán (IPC)</span>
+                  <span class="contract-stat-label">Đợt giải ngân (ĐN)</span>
                   <span class="contract-stat-val">${stats.ipcCount} đợt</span>
                 </div>
                 <div class="contract-stat-item">
@@ -1213,7 +1225,7 @@ export class ContractsManager {
               <i class="fa-solid fa-folder-closed"></i> 2. Hồ sơ (${docs.length})
             </button>
             <button class="tab-btn modal-tab-btn" data-target="m-tab-ipc">
-              <i class="fa-solid fa-money-bill-wave"></i> 3. Thanh toán (${realPayments.length} đợt)
+              <i class="fa-solid fa-money-bill-wave"></i> 3. Giải ngân (${realPayments.length} đợt)
             </button>
             <button class="tab-btn modal-tab-btn" data-target="m-tab-dash">
               <i class="fa-solid fa-chart-pie"></i> 4. Dashboard & Báo cáo
@@ -1373,7 +1385,7 @@ export class ContractsManager {
                 </span>
               </div>
               <button id="btn-add-payment-entry" class="button button-primary" style="font-size: 0.8rem; padding: 6px 14px;">
-                <i class="fa-solid fa-plus"></i> Nhập đợt Thanh toán (Payment Entry)
+                <i class="fa-solid fa-plus"></i> Nhập đợt Giải ngân (Đề nghị thanh toán)
               </button>
             </div>
 
@@ -1381,7 +1393,7 @@ export class ContractsManager {
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Đợt (IPC)</th>
+                    <th>ĐN</th>
                     <th>Nội dung thanh toán</th>
                     <th>Ngày thanh toán</th>
                     <th class="num-col">Nghiệm thu</th>
@@ -1395,12 +1407,12 @@ export class ContractsManager {
                 <tbody>
                   ${
                     realPayments.length === 0
-                      ? '<tr><td colspan="9" style="text-align:center; padding: 20px;">Chưa có đợt thanh toán nào. Bấm "+ Nhập đợt Thanh toán" để tạo.</td></tr>'
+                      ? '<tr><td colspan="9" style="text-align:center; padding: 20px;">Chưa có đợt giải ngân nào. Bấm "+ Nhập đợt Giải ngân" để tạo.</td></tr>'
                       : realPayments
                           .map(
                             (p) => `
                         <tr>
-                          <td><strong>IPC-${p.payment_no || p.item_index || '01'}</strong></td>
+                          <td><strong>${this.formatDnNo(p.payment_no || p.item_index || '01')}</strong></td>
                           <td>${p.item_name || 'Nghiệm thu giai đoạn'}</td>
                           <td>${this.formatDate(p.payment_date)}</td>
                           <td class="num-col">${this.formatCurrency(p.accepted_vol)}</td>
@@ -1414,7 +1426,7 @@ export class ContractsManager {
                             <small style="color: var(--text-muted); display: block;">${p.note || ''}</small>
                           </td>
                           <td>
-                            <button class="button button-outline btn-delete-payment" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger);" title="Xóa đợt thanh toán">
+                            <button class="button button-outline btn-delete-payment" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger);" title="Xóa đợt giải ngân">
                               <i class="fa-solid fa-trash"></i>
                             </button>
                           </td>
@@ -2153,15 +2165,15 @@ export class ContractsManager {
     modal.innerHTML = `
       <div class="modal-container" style="max-width: 650px;">
         <div class="modal-header">
-          <h3 style="font-size: 1.15rem; font-weight: 700;">Nhập Thanh toán cho ${targetContract.contract_no}</h3>
+          <h3 style="font-size: 1.15rem; font-weight: 700;">Nhập đợt Giải ngân cho ${targetContract.contract_no}</h3>
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="modal-body">
           <form id="form-payment">
             <div class="form-grid-2">
               <div class="form-group">
-                <label class="form-label">Kỳ / Đợt thanh toán (IPC No)</label>
-                <input type="text" class="form-control" name="payment_no" value="${String(nextIdx).padStart(2, '0')}" required>
+                <label class="form-label">Số Đề nghị thanh toán (Số ĐN)</label>
+                <input type="text" class="form-control" name="payment_no" value="${String(nextIdx).padStart(2, '0')}" placeholder="Vd: 01 hoặc ĐN-01" required>
               </div>
               <div class="form-group">
                 <label class="form-label">Ngày thanh toán</label>
@@ -2239,7 +2251,7 @@ export class ContractsManager {
       await this.loadData();
       closeSubModal();
       this.openContractDetail(targetContract.id);
-      alert('Đã ghi sổ thành công đợt thanh toán IPC!');
+      alert('Đã ghi sổ thành công đợt Giải ngân!');
     });
   }
 
@@ -2256,7 +2268,7 @@ export class ContractsManager {
     const prjName = prj ? (prj.name || prj.id) : (contract.project_id || this.currentProjectId);
 
     let csvContent = '\uFEFF';
-    csvContent += `BÁO CÁO QUẢN LÝ ${isMain ? 'HỢP ĐỒNG GỐC' : 'PHỤ LỤC'} & THANH TOÁN (CPMS)\r\n`;
+    csvContent += `BÁO CÁO QUẢN LÝ ${isMain ? 'HỢP ĐỒNG GỐC' : 'PHỤ LỤC'} & GIẢI NGÂN (CPMS)\r\n`;
     csvContent += `Dự án: ${prjName}\r\n`;
     csvContent += `Số hiệu: ${contract.contract_no} - ${contract.scope_of_work}\r\n`;
     csvContent += `Giá trị ký kết: ${stats.totalSigned}\r\n`;
@@ -2271,10 +2283,10 @@ export class ContractsManager {
       csvContent += `\r\n`;
     }
 
-    csvContent += `--- BẢNG KÊ CÁC ĐỢT THANH TOÁN (IPC THỰC TẾ) ---\r\n`;
-    csvContent += `Đợt (IPC),Nội dung thanh toán,Ngày thanh toán,Giá trị nghiệm thu,Đề nghị thanh toán,Thực trả,Chênh lệch,Hóa đơn VAT,Ghi chú\r\n`;
+    csvContent += `--- BẢNG KÊ CÁC ĐỢT GIẢI NGÂN (ĐỀ NGHỊ THANH TOÁN - ĐN) ---\r\n`;
+    csvContent += `ĐN,Nội dung thanh toán,Ngày thanh toán,Giá trị nghiệm thu,Đề nghị thanh toán,Thực trả,Chênh lệch,Hóa đơn VAT,Ghi chú\r\n`;
     realPayments.forEach((p) => {
-      csvContent += `"IPC-${p.payment_no || p.item_index}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${p.accepted_vol},${p.request_amount},${p.paid_amount},${p.remaining},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+      csvContent += `"${this.formatDnNo(p.payment_no || p.item_index)}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${p.accepted_vol},${p.request_amount},${p.paid_amount},${p.remaining},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
     });
     csvContent += `\r\n`;
 
