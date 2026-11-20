@@ -323,6 +323,37 @@ export class ContractsManager {
     }
   }
 
+  getDriveDocPathForContract(contract) {
+    const curPrjId = this.currentProjectId || 'CHC1';
+    const isMain = !contract.parent_id;
+    const parent = !isMain ? this.contracts.find((c) => c.id === contract.parent_id) : null;
+    const cleanNo = (no) => String(no || '').replace(/[\/\\?%*:|"<>]/g, '_');
+
+    const groupFolder = contract.group === 'A' ? '01_Nhom_A_ChuDauTu' : '02_Nhom_B_ThauPhu_NCC';
+
+    if (contract.group === 'A') {
+      const mainNo = isMain ? cleanNo(contract.contract_no) : (parent ? cleanNo(parent.contract_no) : cleanNo(contract.parent_id));
+      return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${mainNo} / Doc /`;
+    } else {
+      const validCategories = [
+        'Construction', 'Procurement', 'Consultancy', 'Design',
+        'Equipment', 'Service', 'Maintenance', 'Rental'
+      ];
+      let cat = contract.category || 'Construction';
+      const matched = validCategories.find((c) => c.toLowerCase() === cat.toLowerCase());
+      cat = matched || 'Construction';
+
+      if (isMain) {
+        const partnerName = cleanNo(contract.company_b || 'NCC');
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${cleanNo(contract.contract_no)}_${partnerName} / Doc /`;
+      } else {
+        const rootMain = parent && parent.parent_id ? this.contracts.find((c) => c.id === parent.parent_id) || parent : parent;
+        const parentNo = rootMain ? cleanNo(rootMain.contract_no) : cleanNo(contract.parent_id);
+        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${parentNo} / Doc /`;
+      }
+    }
+  }
+
   renderProjectInfo() {
     const infoContainer = document.getElementById('project-info-bar');
     if (!infoContainer) return;
@@ -1264,8 +1295,9 @@ export class ContractsManager {
               <div>
                 <i class="fa-brands fa-google-drive" style="color: #2563eb; font-size: 1.25rem;"></i>
                 <strong style="margin-left: 8px;">Thư mục Lưu trữ trên Drive / Máy tính:</strong>
-                <div style="font-family: monospace; font-size: 0.825rem; color: var(--text-muted); margin-top: 4px;">
-                  ${this.getDrivePathForContract(contract)}
+                <div style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
+                  <div><span style="color: var(--primary); font-weight: 600;">[HĐ & Phụ lục]:</span> ${this.getDrivePathForContract(contract)}</div>
+                  <div style="margin-top: 3px;"><span style="color: #10b981; font-weight: 600;">[Doc - Tài liệu khác]:</span> ${this.getDriveDocPathForContract(contract)}</div>
                 </div>
               </div>
               <button id="btn-open-drive-folder" class="button button-primary" style="font-size: 0.8rem;">
@@ -1510,7 +1542,8 @@ export class ContractsManager {
     // Mở Drive Folder
     document.getElementById('btn-open-drive-folder')?.addEventListener('click', () => {
       const drivePath = this.getDrivePathForContract(contract);
-      alert(`Đường dẫn thư mục Google Drive:\n\n${drivePath}\n\n(Tự động đồng bộ với Google Drive Cloud & Máy tính)`);
+      const docPath = this.getDriveDocPathForContract(contract);
+      alert(`Đường dẫn thư mục Google Drive:\n\n1. Hợp đồng & Phụ lục:\n${drivePath}\n\n2. Thư mục Doc (Tài liệu khác):\n${docPath}\n\n(Tự động đồng bộ với Google Drive Cloud & Máy tính)`);
     });
 
     // Sao chép Hợp đồng

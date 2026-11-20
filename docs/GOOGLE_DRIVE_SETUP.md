@@ -86,7 +86,8 @@ MAIO tự động thiết lập và quản trị cây thư mục theo mô hình 
 │       │       │   ├── 📁 HopDong_Goc/          # Chứa các file scan hợp đồng gốc, biên bản đàm phán (nhiều file)
 │       │       │   ├── 📁 PhuLuc_01/            # Thư mục riêng cho Phụ lục số 01 (file scan & tài liệu)
 │       │       │   └── 📁 PhuLuc_02/            # Thư mục riêng cho Phụ lục số 02
-│       │       └── 📁 ThanhToan/                # 📌 Thư mục "Thanh toán" (Các đợt IPC, nghiệm thu, thanh toán)
+│       │       ├── 📁 ThanhToan/                # 📌 Thư mục "Thanh toán" (Các đợt IPC, nghiệm thu, thanh toán)
+│       │       └── 📁 Doc/                      # 📌 Thư mục "Doc" (Lưu các tài liệu khác: Công văn, Bảo lãnh, Pháp lý)
 │       │
 │       └── 📁 02_Nhom_B_ThauPhu_NCC/            # Hợp đồng Nhà thầu phụ & Nhà cung cấp
 │           │                                    # Phân loại thành 8 nhóm chuyên biệt:
@@ -104,7 +105,8 @@ MAIO tự động thiết lập và quản trị cây thư mục theo mô hình 
 │                   │   ├── 📁 HopDong_Goc/      # Chứa các file scan hợp đồng chính (nhiều file scan)
 │                   │   ├── 📁 PhuLuc_01/        # Thư mục riêng phụ lục 01 (file scan & dự toán phụ lục)
 │                   │   └── 📁 PhuLuc_02/        # Thư mục riêng phụ lục 02
-│                   └── 📁 ThanhToan/            # 📌 Thư mục "Thanh toán" (Hồ sơ thanh quyết toán đợt)
+│                   ├── 📁 ThanhToan/            # 📌 Thư mục "Thanh toán" (Hồ sơ thanh quyết toán đợt)
+│                   └── 📁 Doc/                  # 📌 Thư mục "Doc" (Lưu tài liệu khác: Công văn, Bảo lãnh, Kỹ thuật)
 │
 ├── 📁 02_QuanLy_VanPhong/                       # Quản lý văn phòng & Hành chính
 │   ├── 📁 01_TaiSan_TrangThietBi/               # Danh mục tài sản, biên bản bàn giao thiết bị
