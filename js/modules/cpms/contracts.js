@@ -10,8 +10,8 @@
  * 2. Giải ngân & Thanh toán: CHỈ cộng các dòng giao dịch thực tế (is_header !== true), tuyệt đối không cộng dòng Header tổng hợp.
  */
 
-import { db } from '../../core/db.js?v=3.7';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=3.7';
+import { db } from '../../core/db.js?v=4.0';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=4.0';
 
 export class ContractsManager {
   constructor() {
@@ -3003,7 +3003,7 @@ export class ContractsManager {
   async seedDemoData() {
     if (!confirm('Bạn có muốn nạp dữ liệu mẫu Dự án CHC1 vào tài khoản của mình không?')) return;
     try {
-      const { CHC1_SEED_DATA } = await import('../../data/chc1_seed.js?v=3.7');
+      const { CHC1_SEED_DATA } = await import('../../data/chc1_seed.js?v=4.0');
       if (!CHC1_SEED_DATA) return;
       await db.put('projects', CHC1_SEED_DATA.project);
       for (const c of CHC1_SEED_DATA.contracts) await db.put('contracts', c);

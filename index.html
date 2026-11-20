@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/main.css?v=3.7">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=3.7">
+  <link rel="stylesheet" href="css/main.css?v=4.0">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=4.0">
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -141,7 +141,7 @@
         <div class="page-title-row">
           <div>
             <h1 class="page-title">Bảng điều khiển Tổng quan</h1>
-            <p class="page-subtitle">Dự án hiện tại: <strong id="active-project-name">Dự án CHC1 (Thiết kế & Thi công)</strong></p>
+            <p class="page-subtitle">Dự án hiện tại: <strong id="active-project-name">Chưa có dự án nào</strong></p>
           </div>
           <div style="display: flex; gap: 10px;">
             <button id="btn-quick-to-cpms" class="button button-primary">
@@ -167,22 +167,22 @@
             <div class="dash-ab-grid">
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Số lượng Hợp đồng</span>
-                <div class="dash-stat-num" id="stat-group-a-count">1 Hợp đồng (29 PL)</div>
+                <div class="dash-stat-num" id="stat-group-a-count">0 Hợp đồng</div>
                 <span class="dash-stat-sub">Hợp đồng & Phụ lục</span>
               </div>
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Tổng giá trị ký kết</span>
-                <div class="dash-stat-num text-primary" id="stat-group-a-val">1.200.000.000.000 ₫</div>
+                <div class="dash-stat-num text-primary" id="stat-group-a-val">0 ₫</div>
                 <span class="dash-stat-sub">Giá trị hợp đồng A</span>
               </div>
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Bên A đã giải ngân</span>
-                <div class="dash-stat-num text-success" id="stat-group-a-paid">567.546.904.117 ₫</div>
-                <span class="dash-stat-sub" id="stat-group-a-rate">Đạt 47.3% giá trị HĐ</span>
+                <div class="dash-stat-num text-success" id="stat-group-a-paid">0 ₫</div>
+                <span class="dash-stat-sub" id="stat-group-a-rate">Đạt 0% giá trị HĐ</span>
               </div>
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
-                <div class="dash-stat-num" id="stat-group-a-ipc">40 đợt</div>
+                <div class="dash-stat-num" id="stat-group-a-ipc">0 đợt</div>
                 <span class="dash-stat-sub">Hồ sơ thanh toán A</span>
               </div>
             </div>
@@ -200,22 +200,22 @@
             <div class="dash-ab-grid">
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Số lượng Hợp đồng</span>
-                <div class="dash-stat-num" id="stat-group-b-count">61 Hợp đồng (5 PL)</div>
+                <div class="dash-stat-num" id="stat-group-b-count">0 Hợp đồng</div>
                 <span class="dash-stat-sub">HĐ Thầu phụ & NCC</span>
               </div>
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Tổng giá trị giao thầu</span>
-                <div class="dash-stat-num text-indigo" id="stat-group-b-val">1.920.047.119.800 ₫</div>
+                <div class="dash-stat-num text-indigo" id="stat-group-b-val">0 ₫</div>
                 <span class="dash-stat-sub">Giá trị giao thầu B</span>
               </div>
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Giải ngân cho bên B</span>
-                <div class="dash-stat-num text-cyan" id="stat-group-b-paid">491.122.530.718 ₫</div>
-                <span class="dash-stat-sub" id="stat-group-b-rate">Đã thanh toán thầu phụ</span>
+                <div class="dash-stat-num text-cyan" id="stat-group-b-paid">0 ₫</div>
+                <span class="dash-stat-sub" id="stat-group-b-rate">Đạt 0% giá trị giao thầu</span>
               </div>
               <div class="dash-ab-stat">
                 <span class="dash-stat-label">Đợt thanh toán (IPC)</span>
-                <div class="dash-stat-num" id="stat-group-b-ipc">303 đợt</div>
+                <div class="dash-stat-num" id="stat-group-b-ipc">0 đợt</div>
                 <span class="dash-stat-sub">Giao dịch thực trả B</span>
               </div>
             </div>
@@ -227,18 +227,18 @@
           <div class="stat-box">
             <div class="stat-label">Cân đối Dòng tiền (A Thu - B Chi)</div>
             <div class="stat-value" id="stat-cashflow-diff" style="color: var(--success);">
-              +76.424.373.399 ₫
+              0 ₫
             </div>
             <div class="stat-note">Thặng dư dòng tiền dự án</div>
           </div>
           <div class="stat-box">
             <div class="stat-label">Tổng số Hồ sơ & Công văn</div>
-            <div class="stat-value" id="stat-docs-count">220</div>
+            <div class="stat-value" id="stat-docs-count">0</div>
             <div class="stat-note">Đang theo dõi tiến độ</div>
           </div>
           <div class="stat-box">
             <div class="stat-label">Tổng số Đợt Giải ngân (ĐN)</div>
-            <div class="stat-value" id="stat-payments-count">343 đợt</div>
+            <div class="stat-value" id="stat-payments-count">0 đợt</div>
             <div class="stat-note">Toàn bộ giao dịch giải ngân</div>
           </div>
         </div>
@@ -488,6 +488,6 @@
   <script src="gdrive-config.js"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=3.7"></script>
+  <script type="module" src="js/app.js?v=4.0"></script>
 </body>
 </html>

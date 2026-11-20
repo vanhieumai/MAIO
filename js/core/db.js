@@ -3,7 +3,7 @@
  * Quản lý kho dữ liệu Local-first (IndexedDB) và liên kết đồng bộ Google Drive.
  */
 
-import { gdrive } from './gdrive.js?v=3.7';
+import { gdrive } from './gdrive.js?v=4.0';
 
 const DB_VERSION = 1;
 

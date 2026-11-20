@@ -85,9 +85,12 @@ export class GoogleDriveService {
                   if (!savedUser.isOffline && savedToken) {
                     this.ensureAppFolder().catch(() => {});
                   }
+                } else {
+                  this.notifyAuthChange(null);
                 }
               } catch (e) {
                 localStorage.removeItem('maio_gdrive_user');
+                this.notifyAuthChange(null);
               }
             } else if (savedToken) {
               this.accessToken = savedToken;
@@ -102,18 +105,30 @@ export class GoogleDriveService {
                 .catch(() => {
                   this.signOut();
                 });
+            } else {
+              // Chưa từng đăng nhập -> kích hoạt thông báo Auth Gate ngay
+              this.notifyAuthChange(null);
             }
 
             this.isInitialized = true;
             resolve(true);
           } catch (err) {
+            this.notifyAuthChange(null);
             reject(err);
           }
         } else {
-          setTimeout(checkScript, 100);
+          scriptAttempts++;
+          if (scriptAttempts > 30) {
+            // Sau 3 giây nếu Google SDK không tải được, vẫn kích hoạt Auth Gate
+            this.notifyAuthChange(null);
+            resolve(false);
+          } else {
+            setTimeout(checkScript, 100);
+          }
         }
       };
 
+      let scriptAttempts = 0;
       checkScript();
     });
   }
