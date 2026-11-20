@@ -123,23 +123,25 @@
           </div>
         </div>
 
-        <!-- Vùng PHẢI: Khối Đồng bộ Đám mây & Thư mục máy tính đã thu gọn -->
+        <!-- Vùng PHẢI: Khối Đồng bộ Đám mây & Thư mục máy tính tinh gọn -->
         <div class="cloud-banner-compact">
           <div class="cloud-info-compact">
             <i class="fa-brands fa-google-drive cloud-icon-sm"></i>
-            <div>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span class="cloud-title-sm">Đồng bộ Cloud & Máy tính</span>
-                <span id="cloud-badge" class="badge badge-warning" style="font-size: 0.7rem; padding: 2px 6px;">Cục bộ (Offline)</span>
-              </div>
-              <p id="cloud-status-text" class="cloud-subtext-sm">
-                Lưu trữ cục bộ an toàn (IndexedDB)
-              </p>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="cloud-title-sm">Đồng bộ Cloud</span>
+              <span id="cloud-badge" class="badge badge-warning" style="font-size: 0.7rem; padding: 2px 6px;">Cục bộ (Offline)</span>
             </div>
           </div>
-          <button id="btn-sync-now" class="button button-primary button-sm hidden" style="padding: 4px 10px; font-size: 0.75rem; white-space: nowrap;">
-            <i class="fa-solid fa-rotate"></i> Đồng bộ ngay
-          </button>
+          <div class="cloud-sync-actions" style="display: flex; gap: 8px; align-items: center;">
+            <button id="btn-sync-to-drive" class="button button-primary button-sm" style="padding: 5px 11px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px;" title="Sao lưu dữ liệu từ máy tính lên Google Drive">
+              <i class="fa-solid fa-cloud-arrow-up"></i>
+              <span>Đồng bộ lên Drive</span>
+            </button>
+            <button id="btn-sync-from-drive" class="button button-outline button-sm" style="padding: 5px 11px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; display: flex; align-items: center; gap: 6px; background: #fff;" title="Tải dữ liệu từ Google Drive về máy tính">
+              <i class="fa-solid fa-cloud-arrow-down"></i>
+              <span>Đồng bộ về máy</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -495,6 +497,6 @@
   <script src="gdrive-config.js"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=4.2"></script>
+  <script type="module" src="js/app.js?v=4.3"></script>
 </body>
 </html>

@@ -219,6 +219,9 @@ export class ContractsManager {
   }
 
   bindEvents() {
+    if (this.eventsBound) return;
+    this.eventsBound = true;
+
     const tabBtns = document.querySelectorAll('.group-tab-btn');
     tabBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -294,16 +297,19 @@ export class ContractsManager {
   }
 
   async deleteCurrentProject() {
-    const curProject = this.projects.find((p) => p.id === this.currentProjectId) || { id: this.currentProjectId, name: this.currentProjectId };
-    const prjName = curProject.name || curProject.id;
-
-    const confirmed = confirm(
-      `⚠️ CẢNH BÁO XÓA DỰ ÁN!\n\nBạn có chắc chắn muốn xóa vĩnh viễn dự án "${prjName}" (Mã: ${this.currentProjectId}) không?\n\nHành động này sẽ xóa vĩnh viễn:\n- Toàn bộ danh mục Hợp đồng & Phụ lục của dự án\n- Toàn bộ Sổ theo dõi thanh toán (IPC)\n- Toàn bộ Hồ sơ & Công văn liên quan\n\nDữ liệu sau khi xóa sẽ không thể phục hồi!`
-    );
-
-    if (!confirmed) return;
+    if (this.isDeletingProject) return;
+    this.isDeletingProject = true;
 
     try {
+      const curProject = this.projects.find((p) => p.id === this.currentProjectId) || { id: this.currentProjectId, name: this.currentProjectId };
+      const prjName = curProject.name || curProject.id;
+
+      const confirmed = confirm(
+        `⚠️ CẢNH BÁO XÓA DỰ ÁN!\n\nBạn có chắc chắn muốn xóa vĩnh viễn dự án "${prjName}" (Mã: ${this.currentProjectId}) không?\n\nHành động này sẽ xóa vĩnh viễn:\n- Toàn bộ danh mục Hợp đồng & Phụ lục của dự án\n- Toàn bộ Sổ theo dõi thanh toán (IPC)\n- Toàn bộ Hồ sơ & Công văn liên quan\n\nDữ liệu sau khi xóa sẽ không thể phục hồi!`
+      );
+
+      if (!confirmed) return;
+
       if (typeof db.deleteProjectCascade === 'function') {
         await db.deleteProjectCascade(this.currentProjectId);
       } else {
@@ -328,16 +334,8 @@ export class ContractsManager {
       if (this.projects.length > 0) {
         this.currentProjectId = this.projects[0].id;
       } else {
-        // Nếu không còn dự án nào, tạo một dự án mặc định mới
-        const defaultProj = {
-          id: 'PRJ_DEFAULT',
-          code: 'PRJ_DEFAULT',
-          name: 'Dự án Mới (Chưa có dữ liệu)',
-          created_at: new Date().toISOString(),
-        };
-        await db.put('projects', defaultProj);
-        this.projects = [defaultProj];
-        this.currentProjectId = defaultProj.id;
+        // Nếu không còn dự án nào, đặt rỗng hoàn toàn
+        this.currentProjectId = null;
       }
 
       await this.loadData();
@@ -356,7 +354,63 @@ export class ContractsManager {
       alert(`Đã xóa thành công toàn bộ dữ liệu của dự án "${prjName}"!`);
     } catch (err) {
       alert('Lỗi khi xóa dự án: ' + err.message);
+    } finally {
+      this.isDeletingProject = false;
     }
+  }
+
+  /**
+   * Cập nhật lại đường dẫn local cho toàn bộ hồ sơ của dự án khi đồng bộ từ Drive về thư mục máy tính mới
+   */
+  async updateDocumentLocalPaths(newBaseDir, projectId = null) {
+    const prjId = projectId || this.currentProjectId;
+    if (!prjId || !newBaseDir) return 0;
+
+    const allDocs = await db.getAll('documents');
+    const prjDocs = allDocs.filter((d) => d.project_id === prjId);
+    let count = 0;
+
+    const cleanBase = newBaseDir.replace(/\\/g, '/').replace(/\/+$/, '');
+
+    for (const d of prjDocs) {
+      const origLink = d.local_link || d.file_link || '';
+      let fileName = '';
+      if (origLink && !origLink.startsWith('http')) {
+        const parts = origLink.replace(/\\/g, '/').split('/');
+        fileName = parts[parts.length - 1];
+      }
+      if (!fileName) {
+        fileName = `${d.doc_no || d.id || 'HoSo'}.pdf`;
+      }
+
+      // Phân nhóm thư mục con chuẩn CPMS
+      let subFolder = 'Doc';
+      const cat = (d.category || '').toLowerCase();
+      if (cat.includes('hợp đồng') || cat.includes('phụ lục') || cat.includes('contract')) {
+        subFolder = 'HopDong_PhuLuc';
+      } else if (cat.includes('thanh toán') || cat.includes('nghiệm thu') || cat.includes('payment')) {
+        subFolder = 'ThanhToan';
+      }
+
+      const newLocalPath = `${cleanBase}/01_QuanLy_DuAn/DuAn_${prjId}/${subFolder}/${fileName}`;
+      d.local_link = newLocalPath;
+      d.file_link = newLocalPath; // Cập nhật lại link chính trong file CPMS
+      await db.put('documents', d);
+      count++;
+    }
+
+    // Tự động ghi đè cập nhật vào file local nếu đang mở file handle
+    if (this.activeFileHandle) {
+      try {
+        await this.saveDirectlyToLocalFile();
+      } catch (e) {
+        console.warn('Lỗi ghi đè file local khi cập nhật đường dẫn hồ sơ:', e);
+      }
+    }
+
+    await this.loadData();
+    this.render();
+    return count;
   }
 
   formatCurrency(amount) {

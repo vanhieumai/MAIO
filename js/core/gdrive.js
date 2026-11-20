@@ -442,6 +442,85 @@ export class GoogleDriveService {
     }
     return await res.json();
   }
+
+  /**
+   * Tải nội dung file nhị phân (Blob) từ Google Drive
+   */
+  async downloadBlobFile(fileId) {
+    if (!this.accessToken) throw new Error('Chưa đăng nhập Google Drive.');
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: { Authorization: `Bearer ${this.accessToken}` },
+    });
+    if (!res.ok) throw new Error(`Lỗi tải file nhị phân [${res.status}]`);
+    return await res.blob();
+  }
+
+  /**
+   * Liệt kê tất cả file và folder con trong một thư mục Drive
+   */
+  async listFolderContents(folderId) {
+    if (!this.accessToken) return [];
+    const query = `'${folderId}' in parents and trashed=false`;
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,size,modifiedTime)&pageSize=1000`,
+        { headers: { Authorization: `Bearer ${this.accessToken}` } }
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.files || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /**
+   * Tìm tất cả file snapshot dự án trên Google Drive
+   */
+  async listProjectSnapshots() {
+    if (!this.accessToken) return [];
+    await this.ensureAppFolder();
+    const query = `name contains 'MAIO_CPMS_Snapshot_' and mimeType='application/json' and trashed=false`;
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime,parents)&orderBy=modifiedTime desc`,
+        { headers: { Authorization: `Bearer ${this.accessToken}` } }
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.files || [];
+    } catch (e) {
+      console.warn('Lỗi tìm snapshot dự án:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Tải đệ quy toàn bộ thư mục từ Drive về thư mục máy tính (FileSystemDirectoryHandle)
+   */
+  async downloadDriveFolderToLocal(driveFolderId, localDirHandle) {
+    const items = await this.listFolderContents(driveFolderId);
+    let downloadedCount = 0;
+
+    for (const item of items) {
+      if (item.mimeType === 'application/vnd.google-apps.folder') {
+        const subDirHandle = await localDirHandle.getDirectoryHandle(item.name, { create: true });
+        downloadedCount += await this.downloadDriveFolderToLocal(item.id, subDirHandle);
+      } else {
+        try {
+          const blob = await this.downloadBlobFile(item.id);
+          const fileHandle = await localDirHandle.getFileHandle(item.name, { create: true });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          downloadedCount++;
+        } catch (err) {
+          console.warn(`Lỗi ghi file "${item.name}" về local:`, err);
+        }
+      }
+    }
+    return downloadedCount;
+  }
 }
 
 if (!window.__MAIO_GDRIVE_SERVICE__) {

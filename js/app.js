@@ -60,6 +60,15 @@ class App {
 
       // Cập nhật giao diện Header & Cloud
       this.updateGoogleDriveUI(user);
+
+      // Nếu có hành động đồng bộ đang chờ sau khi đăng nhập Google Drive thành công
+      if (this.pendingSyncAction === 'to-drive') {
+        this.pendingSyncAction = null;
+        setTimeout(() => this.handleSyncToDrive(), 600);
+      } else if (this.pendingSyncAction === 'from-drive') {
+        this.pendingSyncAction = null;
+        setTimeout(() => this.handleSyncFromDrive(), 600);
+      }
     } else {
       console.log('Chưa đăng nhập Google Drive - Hiển thị Auth Gate');
       authGate?.classList.remove('hidden');
@@ -344,29 +353,36 @@ class App {
       console.warn('Google Drive Service chưa sẵn sàng:', err);
     });
 
-    // Xử lý nút đồng bộ ngay
-    syncNowBtn?.addEventListener('click', async () => {
+    // 1. Nút Đồng bộ lên Drive (Local -> Drive)
+    const syncToDriveBtn = document.getElementById('btn-sync-to-drive');
+    syncToDriveBtn?.addEventListener('click', async () => {
       if (gdrive.currentUser?.isOffline || !gdrive.isSignedIn()) {
         const wantLogin = confirm(
-          'Bạn đang làm việc ở chế độ Cục bộ (Offline).\n\nĐể sao lưu và đồng bộ dữ liệu lên Google Drive, bạn cần đăng nhập tài khoản Google Drive của mình.\n\nBạn có muốn đăng nhập Google Drive ngay bây giờ không?'
+          'Bạn đang ở chế độ làm việc Cục bộ (Offline).\n\nĐể sao lưu dữ liệu lên Google Drive, bạn cần kết nối tài khoản Google Drive của mình.\n\nBạn có muốn đăng nhập Google Drive ngay bây giờ không?'
         );
         if (wantLogin) {
+          this.pendingSyncAction = 'to-drive';
           handleLogin();
         }
         return;
       }
+      await this.handleSyncToDrive();
+    });
 
-      try {
-        syncNowBtn.disabled = true;
-        syncNowBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
-        await db.syncToGoogleDrive();
-        alert('Đã đồng bộ thành công dữ liệu lên Google Drive của bạn!');
-      } catch (err) {
-        alert('Lỗi đồng bộ: ' + err.message);
-      } finally {
-        syncNowBtn.disabled = false;
-        syncNowBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Đồng bộ ngay';
+    // 2. Nút Đồng bộ về máy (Drive -> Local)
+    const syncFromDriveBtn = document.getElementById('btn-sync-from-drive');
+    syncFromDriveBtn?.addEventListener('click', async () => {
+      if (gdrive.currentUser?.isOffline || !gdrive.isSignedIn()) {
+        const wantLogin = confirm(
+          'Bạn đang ở chế độ làm việc Cục bộ (Offline).\n\nĐể đồng bộ dữ liệu từ Google Drive về máy tính, bạn cần kết nối tài khoản Google Drive của mình.\n\nBạn có muốn đăng nhập Google Drive ngay bây giờ không?'
+        );
+        if (wantLogin) {
+          this.pendingSyncAction = 'from-drive';
+          handleLogin();
+        }
+        return;
       }
+      await this.handleSyncFromDrive();
     });
 
     testSyncBtn?.addEventListener('click', async () => {
@@ -388,6 +404,171 @@ class App {
     });
   }
 
+  /**
+   * Đồng bộ dữ liệu hiện tại từ máy tính lên Google Drive
+   */
+  async handleSyncToDrive() {
+    const btn = document.getElementById('btn-sync-to-drive');
+    const origHtml = btn ? btn.innerHTML : '';
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
+      }
+
+      const curPrjId = contractsManager.currentProjectId || 'CHC1';
+      await db.syncToGoogleDrive();
+
+      // Nếu đang mở file CPMS cục bộ, tự động ghi lưu và sao lưu bản sao lên Drive
+      if (contractsManager.activeFileHandle) {
+        try {
+          const file = await contractsManager.activeFileHandle.getFile();
+          const arrayBuffer = await file.arrayBuffer();
+          const cpmsFolderId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'CPMS_Data']);
+          const fileName = file.name || `MAIO_Data_${curPrjId}.cpms`;
+          
+          // Ghi đè file CPMS lên Drive
+          const existingFiles = await gdrive.listProjectFiles(cpmsFolderId);
+          const exist = existingFiles.find((f) => f.name === fileName);
+
+          const metadata = {
+            name: fileName,
+            mimeType: 'application/octet-stream',
+            ...(!exist && { parents: [cpmsFolderId] }),
+          };
+
+          const boundary = '-------314159265358979323846';
+          const delimiter = `\r\n--${boundary}\r\n`;
+          const closeDelimiter = `\r\n--${boundary}--`;
+          const metaBlob = new Blob([delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/octet-stream\r\n\r\n']);
+          const endBlob = new Blob([closeDelimiter]);
+          const multipartBlob = new Blob([metaBlob, arrayBuffer, endBlob], { type: `multipart/related; boundary=${boundary}` });
+
+          let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+          let method = 'POST';
+          if (exist) {
+            url = `https://www.googleapis.com/upload/drive/v3/files/${exist.id}?uploadType=multipart`;
+            method = 'PATCH';
+          }
+
+          await fetch(url, {
+            method,
+            headers: { Authorization: `Bearer ${gdrive.accessToken}` },
+            body: multipartBlob,
+          });
+        } catch (e) {
+          console.warn('Lỗi tải kèm file nhị phân CPMS lên Drive:', e);
+        }
+      }
+
+      alert(`Đã đồng bộ thành công toàn bộ dữ liệu dự án "${curPrjId}" lên Google Drive!`);
+    } catch (err) {
+      alert('Lỗi đồng bộ lên Google Drive: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  }
+
+  /**
+   * Đồng bộ dữ liệu từ Google Drive về máy tính & Cập nhật lại đường dẫn hồ sơ local
+   */
+  async handleSyncFromDrive() {
+    const btn = document.getElementById('btn-sync-from-drive');
+    const origHtml = btn ? btn.innerHTML : '';
+    try {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải về...';
+      }
+
+      // 1. Quét tìm các snapshot trên Drive
+      const snapshots = await gdrive.listProjectSnapshots();
+      if (!snapshots || snapshots.length === 0) {
+        alert('Chưa tìm thấy bản sao lưu dự án (MAIO_CPMS_Snapshot_*.json) nào trên Google Drive của bạn.');
+        return;
+      }
+
+      // 2. Xác định snapshot cần nạp
+      let targetFile = snapshots[0];
+      const curPrjId = contractsManager.currentProjectId;
+      if (curPrjId) {
+        const matched = snapshots.find((s) => s.name.includes(`_${curPrjId}.json`));
+        if (matched) targetFile = matched;
+      }
+
+      if (snapshots.length > 1) {
+        const optionsList = snapshots.map((s, idx) => `${idx + 1}. ${s.name}`).join('\n');
+        const chosen = prompt(`Tìm thấy ${snapshots.length} bản sao lưu trên Drive:\n\n${optionsList}\n\nNhập số thứ tự file bạn muốn đồng bộ về máy:`, '1');
+        if (!chosen) return;
+        const idx = parseInt(chosen, 10) - 1;
+        if (snapshots[idx]) targetFile = snapshots[idx];
+      }
+
+      // 3. Cho phép chọn thư mục máy tính để lưu hồ sơ tài liệu
+      let selectedDirHandle = this.localDirectoryHandle;
+      let selectedDirName = selectedDirHandle ? selectedDirHandle.name : '';
+
+      if ('showDirectoryPicker' in window) {
+        const confirmPickDir = confirm(
+          `Bạn có muốn chọn thư mục trên máy tính để đồng bộ cây thư mục hồ sơ tài liệu về và cập nhật đường dẫn local không?\n\n- Bấm OK để chọn thư mục lưu trữ trên máy tính\n- Bấm Cancel để giữ nguyên dữ liệu local hiện tại`
+        );
+        if (confirmPickDir) {
+          try {
+            selectedDirHandle = await window.showDirectoryPicker();
+            this.localDirectoryHandle = selectedDirHandle;
+            selectedDirName = selectedDirHandle.name;
+          } catch (e) {
+            if (e.name !== 'AbortError') console.warn('Lỗi chọn thư mục:', e);
+          }
+        }
+      }
+
+      // 4. Đọc nội dung snapshot từ Drive và import vào DB
+      const snapshotData = await gdrive.readJsonFile(targetFile.id);
+      await db.importSnapshot(snapshotData);
+
+      // 5. Cập nhật lại đường dẫn local cho các hồ sơ tài liệu theo thư mục đã chọn
+      const prjId = snapshotData.projects?.[0]?.id || curPrjId || 'CHC1';
+      let updatedDocCount = 0;
+      if (selectedDirName) {
+        updatedDocCount = await contractsManager.updateDocumentLocalPaths(selectedDirName, prjId);
+      }
+
+      // 6. Tải cây hồ sơ trên Drive về local nếu có thư mục local đã chọn
+      if (selectedDirHandle) {
+        try {
+          const prjFolderId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${prjId}`]);
+          if (prjFolderId) {
+            const prjSubHandle = await selectedDirHandle.getDirectoryHandle(`DuAn_${prjId}`, { create: true });
+            await gdrive.downloadDriveFolderToLocal(prjFolderId, prjSubHandle);
+          }
+        } catch (e) {
+          console.warn('Lỗi tải cây thư mục từ Drive về máy:', e);
+        }
+      }
+
+      // 7. Reload lại dữ liệu CPMS & Dashboard
+      await contractsManager.loadData();
+      contractsManager.render();
+      await this.updateDashboardStats();
+
+      const dirMsg = selectedDirName
+        ? `\n- Thư mục lưu trữ: ${selectedDirName}\n- Đã cập nhật lại đường dẫn ${updatedDocCount} hồ sơ tài liệu theo thư mục mới.`
+        : '';
+      alert(`Đã đồng bộ thành công dữ liệu dự án từ Google Drive về máy!${dirMsg}`);
+    } catch (err) {
+      alert('Lỗi đồng bộ từ Google Drive về máy: ' + err.message);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  }
+
   updateGoogleDriveUI(user) {
     const loginBtn = document.getElementById('btn-gdrive-login');
     const loginBtnLabel = document.getElementById('btn-gdrive-login-label');
@@ -397,7 +578,6 @@ class App {
     const userName = document.getElementById('user-name');
     const cloudStatusText = document.getElementById('cloud-status-text');
     const cloudBadge = document.getElementById('cloud-badge');
-    const syncNowBtn = document.getElementById('btn-sync-now');
     const testSyncBtn = document.getElementById('btn-test-sync');
 
     if (user) {
@@ -412,15 +592,11 @@ class App {
         if (userName) userName.textContent = 'Cục bộ (Offline)';
 
         if (cloudStatusText) {
-          cloudStatusText.innerHTML = 'Đang làm việc với tệp dữ liệu cục bộ trên máy tính. Bấm Đăng nhập Google Drive khi bạn muốn sao lưu trực tuyến.';
+          cloudStatusText.innerHTML = 'Đang làm việc với tệp dữ liệu cục bộ trên máy tính.';
         }
         if (cloudBadge) {
           cloudBadge.className = 'badge badge-warning';
           cloudBadge.textContent = 'Cục bộ (Offline)';
-        }
-        if (syncNowBtn) {
-          syncNowBtn.classList.remove('hidden');
-          syncNowBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Đăng nhập Drive để Đồng bộ';
         }
         if (testSyncBtn) testSyncBtn.disabled = true;
       } else {
@@ -434,17 +610,11 @@ class App {
         if (userName) userName.textContent = user.name || user.email;
 
         if (cloudStatusText) {
-          cloudStatusText.innerHTML = `Đã kết nối với Google Drive của <strong>${user.email}</strong>. Thư mục: <code>${
-            window.MAIO_GDRIVE_CONFIG?.appFolderName || 'MAIO_Data'
-          }</code>.`;
+          cloudStatusText.innerHTML = `Đã kết nối với Google Drive của <strong>${user.email}</strong>.`;
         }
         if (cloudBadge) {
           cloudBadge.className = 'badge badge-success';
-          cloudBadge.textContent = 'Đã kết nối Cloud';
-        }
-        if (syncNowBtn) {
-          syncNowBtn.classList.remove('hidden');
-          syncNowBtn.innerHTML = '<i class="fa-solid fa-rotate"></i> Đồng bộ ngay';
+          cloudBadge.textContent = 'Đã kết nối Drive';
         }
         if (testSyncBtn) testSyncBtn.disabled = false;
       }
