@@ -144,7 +144,7 @@ class App {
     const el = (id) => document.getElementById(id);
 
     if (el('stat-group-a-count')) {
-      el('stat-group-a-count').textContent = `${mainA.length} HĐ gốc (${appA.length} PL)`;
+      el('stat-group-a-count').textContent = `${mainA.length} Hợp đồng (${appA.length} PL)`;
     }
     if (el('stat-group-a-val')) {
       el('stat-group-a-val').textContent = contractsManager.formatCurrency(totalSignedA);
@@ -161,7 +161,7 @@ class App {
     }
 
     if (el('stat-group-b-count')) {
-      el('stat-group-b-count').textContent = `${mainB.length} HĐ gốc (${appB.length} PL)`;
+      el('stat-group-b-count').textContent = `${mainB.length} Hợp đồng (${appB.length} PL)`;
     }
     if (el('stat-group-b-val')) {
       el('stat-group-b-val').textContent = contractsManager.formatCurrency(totalSignedB);

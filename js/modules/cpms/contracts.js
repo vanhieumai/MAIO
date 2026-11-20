@@ -515,11 +515,11 @@ export class ContractsManager {
         </span>
         <span class="proj-meta-divider">|</span>
         <span class="proj-meta-item">
-          <i class="fa-solid fa-file-contract" style="color: #2563eb;"></i> HĐ với A: <strong>${mainA.length} HĐ gốc${appA.length > 0 ? ` (${appA.length} PL)` : ''}</strong> — <span style="color: var(--primary); font-weight: 700;">${this.formatCurrency(totalSignedA)}</span>
+          <i class="fa-solid fa-file-contract" style="color: #2563eb;"></i> HĐ với A: <strong>${mainA.length} Hợp đồng${appA.length > 0 ? ` (${appA.length} PL)` : ''}</strong> — <span style="color: var(--primary); font-weight: 700;">${this.formatCurrency(totalSignedA)}</span>
         </span>
         <span class="proj-meta-divider">|</span>
         <span class="proj-meta-item">
-          <i class="fa-solid fa-handshake" style="color: #6366f1;"></i> HĐ với B: <strong>${mainB.length} HĐ gốc${appB.length > 0 ? ` (${appB.length} PL)` : ''}</strong> — <span style="color: #4f46e5; font-weight: 700;">${this.formatCurrency(totalSignedB)}</span>
+          <i class="fa-solid fa-handshake" style="color: #6366f1;"></i> HĐ với B: <strong>${mainB.length} Hợp đồng${appB.length > 0 ? ` (${appB.length} PL)` : ''}</strong> — <span style="color: #4f46e5; font-weight: 700;">${this.formatCurrency(totalSignedB)}</span>
         </span>
         <span class="proj-meta-divider">|</span>
         <span class="proj-meta-item">
@@ -816,7 +816,7 @@ export class ContractsManager {
       <div class="modal-container" style="max-width: 540px;">
         <div class="modal-header">
           <h2 style="font-size: 1.15rem; font-weight: 700;">
-            <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép (Clone) ${isMain ? 'Hợp đồng gốc' : 'Phụ lục'}
+            <i class="fa-solid fa-copy" style="color: #6366f1;"></i> Sao chép (Clone) ${isMain ? 'Hợp đồng' : 'Phụ lục'}
           </h2>
           <button id="btn-close-clone-ctr" class="button button-outline" style="padding: 4px 10px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
@@ -1287,7 +1287,7 @@ export class ContractsManager {
 
         return `
           <div class="contract-group-wrapper" data-contract-id="${c.id}">
-            <!-- Card Hợp đồng gốc -->
+            <!-- Card Hợp đồng -->
             <div class="contract-card-main" data-open-detail="${c.id}">
               <div class="contract-header">
                 <div class="contract-header-left">
@@ -1306,7 +1306,7 @@ export class ContractsManager {
                     <i class="fa-solid fa-copy" style="color: #6366f1;"></i>
                   </button>
                   <div class="contract-val-block">
-                    <span class="contract-val-label">Giá trị Hợp đồng gốc</span>
+                    <span class="contract-val-label">Giá trị Hợp đồng</span>
                     <div class="contract-val-amount">
                       ${this.formatCurrency(stats.totalSigned)}
                     </div>
@@ -1317,7 +1317,10 @@ export class ContractsManager {
 
               <div class="contract-meta">
                 <span><i class="fa-solid fa-handshake"></i> Bên A: <strong>${c.company_a || 'Chủ đầu tư'}</strong></span>
-                <span><i class="fa-solid fa-building"></i> Bên B: <strong>${c.company_b || 'Đơn vị thực hiện'}</strong></span>
+                <span>
+                  <i class="fa-solid fa-building"></i> Bên B: <strong>${c.company_b || 'Đơn vị thực hiện'}</strong>
+                  ${c.company_b2 ? ` & <strong>${c.company_b2}</strong> <span class="badge" style="font-size: 0.68rem; background: #e0e7ff; color: #4338ca; padding: 1px 5px; vertical-align: middle;">Liên danh</span>` : ''}
+                </span>
                 <span><i class="fa-solid fa-calendar-check"></i> Ngày ký: ${this.formatDate(c.signing_date)}</span>
               </div>
 
@@ -1496,7 +1499,7 @@ export class ContractsManager {
                 ? `
               <div class="modal-breadcrumb">
                 <span class="breadcrumb-link" id="btn-back-to-parent" data-parent-id="${parentContract.id}">
-                  <i class="fa-solid fa-arrow-left"></i> ${parentContract.contract_no || parentContract.id} (${parentContract.parent_id ? 'Phụ lục cha' : 'HĐ gốc'})
+                  <i class="fa-solid fa-arrow-left"></i> ${parentContract.contract_no || parentContract.id} (${parentContract.parent_id ? 'Phụ lục cha' : 'Hợp đồng cha'})
                 </span>
                 <span>/</span>
                 <span><strong>${contract.contract_no}</strong></span>
@@ -1548,38 +1551,51 @@ export class ContractsManager {
           <!-- PHÂN KHU 1: THÔNG TIN -->
           <div id="m-tab-info" class="modal-tab-pane">
             <div class="card" style="margin-bottom: 20px;">
-              <h3 class="card-title"><i class="fa-solid fa-file-contract"></i> Thông tin ${isMain ? 'Hợp đồng gốc' : 'Phụ lục'}</h3>
+              <h3 class="card-title"><i class="fa-solid fa-file-contract"></i> Thông tin ${isMain ? 'Hợp đồng' : 'Phụ lục'}</h3>
               <div class="form-grid-2">
-                <div><strong>Mã nội bộ:</strong> <p style="color: var(--text-muted);">${contract.id}</p></div>
+                <div><strong>Mã nội bộ (Contract ID):</strong> <p style="color: var(--text-muted); font-family: monospace; font-weight: 600;">${contract.id}</p></div>
                 <div><strong>Số hiệu chính thức:</strong> <p style="font-weight: 700; color: var(--primary);">${contract.contract_no}</p></div>
-                <div><strong>Bên A (Chủ đầu tư / Tổng thầu):</strong> <p style="color: var(--text-muted);">${contract.company_a || '—'}</p></div>
-                <div><strong>Bên B (Thầu phụ / Nhà cung cấp):</strong> <p style="color: var(--text-muted);">${contract.company_b || '—'}</p></div>
                 <div><strong>Loại hợp đồng:</strong> <p><span class="badge" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${contract.category || 'Chưa phân loại'}</span></p></div>
+                <div><strong>Tình trạng:</strong> <p><span class="badge badge-success">${contract.status || 'Active'}</span></p></div>
                 <div><strong>Ngày ký kết:</strong> <p style="color: var(--text-muted);">${this.formatDate(contract.signing_date)}</p></div>
-                <div><strong>Giá trị ký kết HĐ gốc:</strong> <p style="font-weight: 700; color: var(--primary);">${this.formatCurrency(contract.contract_val)}</p></div>
+                <div><strong>Thời hạn kết thúc:</strong> <p style="color: var(--text-muted);">${contract.end_date ? this.formatDate(contract.end_date) : '—'}</p></div>
+                <div><strong>Giá trị ký kết Hợp đồng:</strong> <p style="font-weight: 700; color: var(--primary);">${this.formatCurrency(contract.contract_val)} <small style="font-weight: normal; color: var(--text-muted);">(Tỷ giá: ${contract.exchange_rate || 1})</small></p></div>
                 ${
                   isMain && directChildren.length > 0
                     ? `<div><strong>Tổng giá trị các Phụ lục đã giao:</strong> <p style="font-weight: 700; color: #0284c7;">${this.formatCurrency(stats.appendixSum)}</p></div>`
                     : (!isMain ? `<div><strong>Thuộc HĐ / Phụ lục cha:</strong> <p style="color: var(--primary); font-weight: 600;">${parentContract?.contract_no || contract.parent_id}</p></div>` : '')
                 }
-                <div><strong>Tài khoản ngân hàng:</strong> <p style="color: var(--text-muted);">${contract.bank_account || '—'} - ${contract.bank_name || ''}</p></div>
+                <div><strong>Bên A (Chủ đầu tư / Tổng thầu):</strong> <p style="color: var(--text-muted);">${contract.company_a || '—'} ${contract.rep_a ? `<span style="color: #64748b; font-size: 0.8rem;">(Đại diện: ${contract.rep_a})</span>` : ''}</p></div>
+                <div><strong>Bên B (Nhà thầu B1):</strong> <p style="color: var(--text-muted);">${contract.company_b || '—'} ${contract.rep_b ? `<span style="color: #64748b; font-size: 0.8rem;">(Đại diện: ${contract.rep_b})</span>` : ''}</p></div>
+                ${
+                  contract.company_b2
+                    ? `<div><strong>Bên B2 (Nhà thầu Liên danh):</strong> <p style="color: var(--text-muted);">${contract.company_b2} ${contract.rep_b2 ? `<span style="color: #64748b; font-size: 0.8rem;">(Đại diện: ${contract.rep_b2})</span>` : ''}</p></div>`
+                    : ''
+                }
+                ${
+                  contract.contact_person_b
+                    ? `<div><strong>Người liên hệ Bên B:</strong> <p style="color: var(--text-muted);">${contract.contact_person_b}</p></div>`
+                    : ''
+                }
+                <div><strong>Đơn vị thụ hưởng (Payee):</strong> <p style="color: var(--text-muted);">${contract.payee || contract.company_b || '—'}</p></div>
+                <div><strong>Tài khoản ngân hàng:</strong> <p style="color: var(--text-muted);">${contract.bank_account || '—'} ${contract.bank_name ? `(${contract.bank_name})` : ''}</p></div>
               </div>
             </div>
 
-            <!-- Nếu có phụ lục / gói con trực tiếp thì hiển thị bảng các con -->
+            <!-- Danh sách phụ lục / gói con trực tiếp -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+              <h3 style="font-size: 1rem; font-weight: 700;">
+                <i class="fa-solid fa-layer-group"></i> ${isMain ? 'Danh sách Phụ lục trực tiếp' : 'Các Gói con trực thuộc'} (${directChildren.length})
+                <small style="font-weight: normal; color: var(--text-muted); font-size: 0.8rem;">(Bấm vào bất kỳ dòng nào để vào riêng gói đó)</small>
+              </h3>
+              <button id="btn-add-appendix" class="button button-primary" style="font-size: 0.8rem; padding: 4px 10px;">
+                <i class="fa-solid fa-plus"></i> ${isMain ? 'Thêm Phụ lục mới' : 'Thêm Gói con mới'}
+              </button>
+            </div>
+
             ${
               directChildren.length > 0
                 ? `
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-                <h3 style="font-size: 1rem; font-weight: 700;">
-                  <i class="fa-solid fa-layer-group"></i> ${isMain ? 'Danh sách Phụ lục trực tiếp' : 'Các Gói con trực thuộc'} (${directChildren.length})
-                  <small style="font-weight: normal; color: var(--text-muted); font-size: 0.8rem;">(Bấm vào bất kỳ dòng nào để vào riêng gói đó)</small>
-                </h3>
-                <button id="btn-add-appendix" class="button button-outline" style="font-size: 0.8rem; padding: 4px 10px;">
-                  <i class="fa-solid fa-plus"></i> ${isMain ? 'Thêm Phụ lục mới' : 'Thêm Gói con mới'}
-                </button>
-              </div>
-
               <div class="data-table-wrap">
                 <table class="data-table">
                   <thead>
@@ -1609,7 +1625,17 @@ export class ContractsManager {
                 </table>
               </div>
             `
-                : ''
+                : `
+              <div style="text-align: center; padding: 22px; background: #f8fafc; border: 1px dashed var(--border-color); border-radius: var(--radius-md); color: var(--text-muted); font-size: 0.85rem;">
+                <i class="fa-solid fa-file-circle-plus" style="font-size: 1.5rem; color: #94a3b8; margin-bottom: 6px; display: block;"></i>
+                Chưa có ${isMain ? 'phụ lục' : 'gói con'} nào cho hợp đồng này.
+                <div style="margin-top: 8px;">
+                  <button id="btn-add-appendix-empty" class="button button-outline" style="font-size: 0.8rem; padding: 4px 12px;">
+                    <i class="fa-solid fa-plus"></i> ${isMain ? 'Thêm Phụ lục ngay' : 'Thêm Gói con ngay'}
+                  </button>
+                </div>
+              </div>
+            `
             }
           </div>
 
@@ -1885,6 +1911,9 @@ export class ContractsManager {
 
     // Thêm phụ lục mới
     document.getElementById('btn-add-appendix')?.addEventListener('click', () => {
+      this.openAppendixFormModal(contract);
+    });
+    document.getElementById('btn-add-appendix-empty')?.addEventListener('click', () => {
       this.openAppendixFormModal(contract);
     });
 
@@ -2169,106 +2198,237 @@ export class ContractsManager {
   }
 
   // ==========================================
-  // FORM NHẬP / SỬA HỢP ĐỒNG GỐC HOẶC PHỤ LỤC
+  // FORM NHẬP / SỬA HỢP ĐỒNG HOẶC PHỤ LỤC (CHUẨN CPMS PLUS)
   // ==========================================
-  openContractFormModal(editContract = null) {
+  openContractFormModal(editContract = null, parentContract = null) {
     const isEdit = !!editContract;
-    const isAppendix = editContract && !!editContract.parent_id;
-    let currentSelectGroup = editContract ? editContract.group : this.currentGroup;
+    const isAddingAppendix = !isEdit && !!parentContract;
+    const targetParent = isEdit ? (editContract.parent_id ? this.contracts.find((c) => c.id === editContract.parent_id) : null) : parentContract;
+    const isAppendix = (isEdit && !!editContract.parent_id) || isAddingAppendix;
 
-    // Sinh mã tự động chuẩn CPMS
-    const formId = editContract
-      ? editContract.id
-      : CPMSImporterExporter.generateNextContractID(null, this.contracts, currentSelectGroup);
+    let currentSelectGroup = editContract
+      ? editContract.group
+      : parentContract
+      ? parentContract.group
+      : this.currentGroup;
+
+    // Sinh mã tự động chuẩn CPMS phân cấp đa tầng (disabled không cho sửa tay)
+    let formId = '';
+    if (isEdit) {
+      formId = editContract.id;
+    } else if (isAddingAppendix) {
+      formId = CPMSImporterExporter.generateNextContractID(parentContract, this.contracts, parentContract.group);
+    } else {
+      formId = CPMSImporterExporter.generateNextContractID(null, this.contracts, currentSelectGroup);
+    }
+
+    // Giá trị ban đầu (nếu thêm phụ lục thì kế thừa từ hợp đồng cha)
+    const baseSource = editContract || parentContract || {};
+    const defaultContractType = isAddingAppendix
+      ? (parentContract.parent_id ? 'Sub-Package' : 'Appendix')
+      : isEdit
+      ? (editContract.contract_type || (isAppendix ? 'Appendix' : 'MAIN'))
+      : 'MAIN';
+
+    const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || {};
+
+    let formTitle = 'Thêm Hợp đồng mới';
+    if (isEdit) {
+      formTitle = isAppendix ? `Chỉnh sửa Phụ lục: ${editContract.contract_no || editContract.id}` : `Chỉnh sửa Hợp đồng: ${editContract.contract_no || editContract.id}`;
+    } else if (isAddingAppendix) {
+      formTitle = `Thêm Phụ lục cho Hợp đồng: ${parentContract.contract_no || parentContract.id}`;
+    }
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 700px;">
-        <div class="modal-header">
-          <h3 style="font-size: 1.15rem; font-weight: 700;">
-            ${isEdit ? (isAppendix ? 'Chỉnh sửa Phụ lục' : 'Chỉnh sửa Hợp đồng') : 'Thêm Hợp đồng gốc mới'}
-          </h3>
+      <div class="modal-container" style="max-width: 820px; max-height: 92vh; display: flex; flex-direction: column;">
+        <div class="modal-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); padding: 14px 20px;">
+          <div>
+            <div style="font-size: 0.8rem; color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
+              <i class="fa-solid fa-folder-open"></i> ${curPrj.name || 'Dự án CPMS'}
+            </div>
+            <h3 style="font-size: 1.15rem; font-weight: 800; margin-top: 2px;">
+              ${formTitle}
+            </h3>
+          </div>
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="modal-body">
+
+        <div class="modal-body" style="overflow-y: auto; padding: 20px;">
           <form id="form-contract">
+            <!-- 1. CONTRACT INFORMATION -->
+            <div style="font-weight: 700; font-size: 0.95rem; color: var(--primary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+              <i class="fa-solid fa-file-invoice"></i> Contract Information (Thông tin Hợp đồng & Phân cấp)
+            </div>
+
             <div class="form-grid-2">
               <div class="form-group">
-                <label class="form-label">Mã định danh (ID chuẩn CPMS)</label>
-                <input type="text" class="form-control" id="contract-input-id" name="id" value="${formId}" ${isEdit ? 'readonly' : ''} required>
-                <small style="color: var(--text-muted); font-size: 0.75rem;">Quy tắc: Nhóm-Năm-SốThứTự (Vd: A-2026-01)</small>
+                <label class="form-label" style="display: flex; justify-content: space-between;">
+                  <span>Mã định danh (Contract ID) *</span>
+                  <span style="font-weight: normal; color: var(--danger); font-size: 0.75rem;"><i class="fa-solid fa-lock"></i> Tự động nhảy - Không sửa tay</span>
+                </label>
+                <input type="text" class="form-control" id="contract-input-id" name="id" value="${formId}" readonly style="background: #f1f5f9; color: #334155; font-weight: 700; font-family: monospace; cursor: not-allowed;" required>
+                <small style="color: var(--text-muted); font-size: 0.72rem;">Phân cấp chuẩn CPMS: Root (A-2026-01) ➔ Cấp 1 (A-2026-01-08) ➔ Cấp 2 (A-2026-01-08-01)</small>
               </div>
+
               <div class="form-group">
-                <label class="form-label">Phân nhóm</label>
-                <select class="form-control" id="contract-select-group" name="group" ${isAppendix ? 'disabled' : ''}>
-                  <option value="A" ${currentSelectGroup === 'A' ? 'selected' : ''}>Nhóm A: Chủ đầu tư / Tổng thầu</option>
-                  <option value="B" ${currentSelectGroup === 'B' ? 'selected' : ''}>Nhóm B: Thầu phụ / Nhà cung cấp</option>
+                <label class="form-label">Phân nhóm *</label>
+                <select class="form-control" id="contract-select-group" name="group" ${isAppendix || isEdit ? 'disabled' : ''} style="${isAppendix || isEdit ? 'background: #f1f5f9; cursor: not-allowed;' : ''}">
+                  <option value="A" ${currentSelectGroup === 'A' ? 'selected' : ''}>Nhóm A: Chủ đầu tư / Tổng thầu (Dòng tiền thu)</option>
+                  <option value="B" ${currentSelectGroup === 'B' ? 'selected' : ''}>Nhóm B: Nhà thầu phụ / Nhà cung cấp (Dòng tiền chi)</option>
+                </select>
+                ${isAppendix || isEdit ? `<input type="hidden" name="group" value="${currentSelectGroup}">` : ''}
+              </div>
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Số hiệu HĐ / Phụ lục (Contract No.) *</label>
+                <input type="text" class="form-control" name="contract_no" value="${editContract?.contract_no || (isAddingAppendix ? `APP-${String((this.getDirectChildren(parentContract.id).length || 0) + 1).padStart(2, '0')}` : '')}" placeholder="Vd: 114/2023/HĐXD/VINAE&C-CTC hoặc APP-08" required>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Loại hợp đồng (Contract Type) *</label>
+                <select class="form-control" name="contract_type" ${isAddingAppendix ? '' : ''}>
+                  <option value="MAIN" ${defaultContractType === 'MAIN' ? 'selected' : ''}>MAIN (Hợp đồng chính)</option>
+                  <option value="Appendix" ${defaultContractType === 'Appendix' ? 'selected' : ''}>Appendix (Phụ lục hợp đồng)</option>
+                  <option value="Sub-Package" ${defaultContractType === 'Sub-Package' ? 'selected' : ''}>Sub-Package (Gói thầu con)</option>
                 </select>
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Số hiệu chính thức</label>
-              <input type="text" class="form-control" name="contract_no" value="${editContract?.contract_no || ''}" placeholder="Vd: 68/2022/HĐKT/CHC1/VEC" required>
-            </div>
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label class="form-label">Ngày ký (Signing Date)</label>
+                <input type="date" class="form-control" name="signing_date" value="${this.formatDateForInput(editContract?.signing_date) || (isAddingAppendix ? new Date().toISOString().slice(0, 10) : '')}">
+              </div>
 
-            <div class="form-group">
-              <label class="form-label">Phạm vi công việc / Nội dung gói thầu</label>
-              <textarea class="form-control" name="scope_of_work" rows="2" placeholder="Tên gói thầu, phạm vi thiết kế hoặc thi công...">${editContract?.scope_of_work || ''}</textarea>
-            </div>
+              <div class="form-group">
+                <label class="form-label">Thời hạn / Ngày kết thúc (End Date)</label>
+                <input type="date" class="form-control" name="end_date" value="${this.formatDateForInput(editContract?.end_date)}">
+              </div>
 
-            <div class="form-grid-2">
               <div class="form-group">
-                <label class="form-label">Bên A (Chủ đầu tư / Tổng thầu)</label>
-                <input type="text" class="form-control" name="company_a" value="${editContract?.company_a || ''}" placeholder="Tên cơ quan Bên A">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Bên B (Nhà thầu / Đối tác)</label>
-                <input type="text" class="form-control" name="company_b" value="${editContract?.company_b || ''}" placeholder="Tên nhà thầu Bên B">
-              </div>
-            </div>
-
-            <div class="form-grid-2">
-              <div class="form-group">
-                <label class="form-label">Giá trị ký kết (VNĐ)</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="${this.formatNumberWithDots(editContract?.contract_val || 0)}" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Ngày ký</label>
-                <input type="date" class="form-control" name="signing_date" value="${this.formatDateForInput(editContract?.signing_date)}">
-              </div>
-            </div>
-
-            <div class="form-grid-2">
-              <div class="form-group">
-                <label class="form-label">Loại hợp đồng (Category)</label>
-                <select class="form-control" name="category">
-                  <option value="Construction" ${editContract?.category === 'Construction' ? 'selected' : ''}>Construction (Thi công / Xây lắp)</option>
-                  <option value="Procurement" ${editContract?.category === 'Procurement' ? 'selected' : ''}>Procurement (Mua sắm vật tư)</option>
-                  <option value="Consultancy" ${editContract?.category === 'Consultancy' ? 'selected' : ''}>Consultancy (Tư vấn giám sát / Thẩm tra)</option>
-                  <option value="Design" ${editContract?.category === 'Design' ? 'selected' : ''}>Design (Thiết kế / Khảo sát)</option>
-                  <option value="Equipment" ${editContract?.category === 'Equipment' ? 'selected' : ''}>Equipment (Thiết bị MEP / Cơ điện)</option>
-                  <option value="Service" ${editContract?.category === 'Service' ? 'selected' : ''}>Service (Dịch vụ thí nghiệm / Vệ sinh / Bảo vệ)</option>
-                  <option value="Maintenance" ${editContract?.category === 'Maintenance' ? 'selected' : ''}>Maintenance (Bảo trì / Vận hành)</option>
-                  <option value="Rental" ${editContract?.category === 'Rental' ? 'selected' : ''}>Rental (Thuê thiết bị / Nhân công)</option>
-                  <option value="Design & Build" ${editContract?.category === 'Design & Build' ? 'selected' : ''}>Design & Build (Tổng thầu EPC / D&B)</option>
-                  <option value="Khác" ${!editContract?.category || editContract?.category === 'Khác' ? 'selected' : ''}>Khác / Chưa phân loại</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tình trạng</label>
+                <label class="form-label">Tình trạng (Status)</label>
                 <select class="form-control" name="status">
-                  <option value="Active" ${editContract?.status === 'Active' || !editContract ? 'selected' : ''}>Đang thực hiện (Active)</option>
-                  <option value="Completed" ${editContract?.status === 'Completed' ? 'selected' : ''}>Đã hoàn thành / Quyết toán (Completed)</option>
-                  <option value="Suspended" ${editContract?.status === 'Suspended' ? 'selected' : ''}>Tạm ngưng (Suspended)</option>
+                  <option value="Active" ${editContract?.status === 'Active' || !editContract ? 'selected' : ''}>Active (Đang thực hiện)</option>
+                  <option value="Completed" ${editContract?.status === 'Completed' ? 'selected' : ''}>Completed (Đã quyết toán)</option>
+                  <option value="Suspended" ${editContract?.status === 'Suspended' ? 'selected' : ''}>Suspended (Tạm ngưng)</option>
                 </select>
               </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+            <!-- 2. PARTNERS - PROJECT -->
+            <div style="font-weight: 700; font-size: 0.95rem; color: #4f46e5; margin: 18px 0 12px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+              <i class="fa-solid fa-handshake"></i> Partners - Project (Đối tác & Thông tin gói thầu)
+            </div>
+
+            <div class="form-grid-2">
+              <div class="form-group">
+                <label class="form-label">Bên A (Company A - Chủ đầu tư / Tổng thầu)</label>
+                <input type="text" class="form-control" name="company_a" value="${editContract?.company_a || baseSource.company_a || curPrj.client || ''}" placeholder="Tên đơn vị Bên A">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Người đại diện Bên A (Representative A)</label>
+                <input type="text" class="form-control" name="rep_a" value="${editContract?.rep_a || baseSource.rep_a || ''}" placeholder="Họ tên người đại diện pháp luật Bên A">
+              </div>
+            </div>
+
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 14px;">
+              <div style="font-weight: 700; font-size: 0.85rem; color: #334155; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                <i class="fa-solid fa-users-gear" style="color: #6366f1;"></i> Liên danh Nhà thầu Bên B (Nhà thầu phụ / Nhà cung cấp)
+              </div>
+              
+              <div class="form-grid-2">
+                <div class="form-group">
+                  <label class="form-label">Nhà thầu B1 (Company B1 - Đơn vị đứng đầu liên danh / Nhà thầu chính) *</label>
+                  <input type="text" class="form-control" name="company_b" value="${editContract?.company_b || baseSource.company_b || ''}" placeholder="Tên công ty Bên B1" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Người đại diện B1 (Representative B1)</label>
+                  <input type="text" class="form-control" name="rep_b" value="${editContract?.rep_b || baseSource.rep_b || ''}" placeholder="Họ tên đại diện Bên B1">
+                </div>
+              </div>
+
+              <div class="form-grid-2" style="margin-top: 8px;">
+                <div class="form-group">
+                  <label class="form-label">Nhà thầu B2 (Company B2 - Đơn vị Liên danh nếu có)</label>
+                  <input type="text" class="form-control" name="company_b2" value="${editContract?.company_b2 || baseSource.company_b2 || ''}" placeholder="Tên công ty liên danh B2 (để trống nếu không có liên danh)">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Người đại diện B2 (Representative B2)</label>
+                  <input type="text" class="form-control" name="rep_b2" value="${editContract?.rep_b2 || baseSource.rep_b2 || ''}" placeholder="Họ tên đại diện Bên B2">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Phạm vi công việc / Nội dung gói thầu (Scope of work)</label>
+              <textarea class="form-control" name="scope_of_work" rows="2" placeholder="Tên hạng mục thi công, mua sắm thiết bị, tư vấn...">${editContract?.scope_of_work || (isAddingAppendix ? `Phụ lục bổ sung khối lượng cho ${parentContract.contract_no}` : '')}</textarea>
+            </div>
+
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label class="form-label">Giá trị ký kết (Contract Value - VNĐ) *</label>
+                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="${this.formatNumberWithDots(editContract?.contract_val || 0)}" required style="font-weight: 700; color: var(--primary);">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Tỷ giá (Exchange Rate)</label>
+                <input type="number" step="any" class="form-control" name="exchange_rate" value="${editContract?.exchange_rate || baseSource.exchange_rate || 1}">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Phân loại HĐ (Contract Category)</label>
+                <select class="form-control" name="category">
+                  <option value="Construction" ${(editContract?.category || baseSource.category) === 'Construction' ? 'selected' : ''}>Construction (Thi công / Xây lắp)</option>
+                  <option value="Procurement" ${(editContract?.category || baseSource.category) === 'Procurement' ? 'selected' : ''}>Procurement (Mua sắm vật tư)</option>
+                  <option value="Consultancy" ${(editContract?.category || baseSource.category) === 'Consultancy' ? 'selected' : ''}>Consultancy (Tư vấn giám sát / Thẩm tra)</option>
+                  <option value="Design" ${(editContract?.category || baseSource.category) === 'Design' ? 'selected' : ''}>Design (Thiết kế / Khảo sát)</option>
+                  <option value="Equipment" ${(editContract?.category || baseSource.category) === 'Equipment' ? 'selected' : ''}>Equipment (Thiết bị MEP / Cơ điện)</option>
+                  <option value="Service" ${(editContract?.category || baseSource.category) === 'Service' ? 'selected' : ''}>Service (Dịch vụ thí nghiệm / Vệ sinh / Bảo vệ)</option>
+                  <option value="Maintenance" ${(editContract?.category || baseSource.category) === 'Maintenance' ? 'selected' : ''}>Maintenance (Bảo trì / Vận hành)</option>
+                  <option value="Rental" ${(editContract?.category || baseSource.category) === 'Rental' ? 'selected' : ''}>Rental (Thuê thiết bị / Nhân công)</option>
+                  <option value="Design & Build" ${(editContract?.category || baseSource.category) === 'Design & Build' ? 'selected' : ''}>Design & Build (Tổng thầu EPC / D&B)</option>
+                  <option value="Khác" ${(editContract?.category || baseSource.category) === 'Khác' || !(editContract?.category || baseSource.category) ? 'selected' : ''}>Khác / Chưa phân loại</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Người liên hệ Bên B (Contact Person B)</label>
+              <input type="text" class="form-control" name="contact_person_b" value="${editContract?.contact_person_b || baseSource.contact_person_b || ''}" placeholder="Họ tên & số điện thoại người liên hệ Bên B">
+            </div>
+
+            <!-- 3. PAYMENT - BANKING -->
+            <div style="font-weight: 700; font-size: 0.95rem; color: #0891b2; margin: 18px 0 12px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
+              <i class="fa-solid fa-building-columns"></i> Payment - Banking (Thông tin Thụ hưởng & Tài khoản Ngân hàng)
+            </div>
+
+            <div class="form-grid-3">
+              <div class="form-group">
+                <label class="form-label">Đơn vị thụ hưởng (Payee)</label>
+                <input type="text" class="form-control" name="payee" value="${editContract?.payee || baseSource.payee || editContract?.company_b || baseSource.company_b || ''}" placeholder="Tên đơn vị thụ hưởng thanh toán">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Số tài khoản (Bank Acc Number)</label>
+                <input type="text" class="form-control" name="bank_account" value="${editContract?.bank_account || baseSource.bank_account || ''}" placeholder="Vd: 1221 0000 7136 52">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Ngân hàng & Chi nhánh (Bank)</label>
+                <input type="text" class="form-control" name="bank_name" value="${editContract?.bank_name || baseSource.bank_name || ''}" placeholder="Vd: BIDV - Chi nhánh Hà Thành">
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color);">
               <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary">Lưu Hợp đồng</button>
+              <button type="submit" class="button button-primary">
+                <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Lưu thay đổi Hợp đồng' : (isAddingAppendix ? 'Lưu Phụ lục' : 'Lưu Hợp đồng mới')}
+              </button>
             </div>
           </form>
         </div>
@@ -2281,8 +2441,8 @@ export class ContractsManager {
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
 
-    // Nếu tạo mới và thay đổi nhóm A/B thì tự sinh lại ContractID tương ứng
-    if (!isEdit) {
+    // Nếu tạo mới Hợp đồng cấp 0 và thay đổi nhóm A/B thì tự sinh lại ContractID tương ứng
+    if (!isEdit && !isAddingAppendix) {
       const grpSelect = modal.querySelector('#contract-select-group');
       const idInput = modal.querySelector('#contract-input-id');
       grpSelect?.addEventListener('change', (e) => {
@@ -2294,119 +2454,67 @@ export class ContractsManager {
     modal.querySelector('#form-contract').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
+
+      const targetGroupId = isAddingAppendix
+        ? parentContract.group
+        : isEdit
+        ? editContract.group
+        : formData.get('group') || currentSelectGroup;
+
+      const targetParentId = isAddingAppendix
+        ? parentContract.id
+        : isEdit
+        ? editContract.parent_id || null
+        : null;
+
+      const targetLevel = isAddingAppendix
+        ? (parentContract.level || 0) + 1
+        : isEdit
+        ? editContract.level || 0
+        : 0;
+
       const updatedData = {
         ...(editContract || {}),
         id: formData.get('id'),
-        project_id: editContract?.project_id || this.currentProjectId,
-        group: editContract?.group || formData.get('group'),
-        level: 0,
-        parent_id: null,
+        project_id: (editContract && editContract.project_id) || (parentContract && parentContract.project_id) || this.currentProjectId,
+        group: targetGroupId,
+        level: targetLevel,
+        parent_id: targetParentId,
         contract_no: formData.get('contract_no'),
-        contract_type: 'MAIN',
-        scope_of_work: formData.get('scope_of_work'),
-        company_a: formData.get('company_a'),
-        company_b: formData.get('company_b'),
+        contract_type: formData.get('contract_type') || (targetLevel === 0 ? 'MAIN' : 'Appendix'),
+        signing_date: formData.get('signing_date') || null,
+        end_date: formData.get('end_date') || null,
+        status: formData.get('status') || 'Active',
+        company_a: formData.get('company_a') || '',
+        rep_a: formData.get('rep_a') || '',
+        company_b: formData.get('company_b') || '',
+        rep_b: formData.get('rep_b') || '',
+        company_b2: formData.get('company_b2') || '',
+        rep_b2: formData.get('rep_b2') || '',
+        scope_of_work: formData.get('scope_of_work') || '',
         contract_val: this.parseNumberFromDots(formData.get('contract_val')),
-        signing_date: formData.get('signing_date'),
-        category: formData.get('category') || editContract?.category || 'Construction',
-        status: formData.get('status') || editContract?.status || 'Active',
+        exchange_rate: parseFloat(formData.get('exchange_rate')) || 1.0,
+        category: formData.get('category') || 'Construction',
+        contact_person_b: formData.get('contact_person_b') || '',
+        payee: formData.get('payee') || formData.get('company_b') || '',
+        bank_account: formData.get('bank_account') || '',
+        bank_name: formData.get('bank_name') || '',
       };
 
       await db.put('contracts', updatedData);
       await this.loadData();
       this.render();
       closeSubModal();
-      alert('Đã lưu thành công!');
+      alert('Đã lưu dữ liệu Hợp đồng thành công!');
       this.openContractDetail(updatedData.id);
     });
   }
 
   // ==========================================
-  // FORM THÊM PHỤ LỤC MỚI HOẶC GÓI CON CẤP 2
+  // THÊM PHỤ LỤC MỚI (TỰ ĐỘNG CHUYỂN SANG FORM CHUẨN CPMS)
   // ==========================================
   openAppendixFormModal(parentContract) {
-    const isLevel1 = !parentContract.parent_id;
-    const levelTitle = isLevel1 ? 'Phụ lục cấp 1' : 'Gói con cấp 2';
-    const newAppId = CPMSImporterExporter.generateNextContractID(parentContract, this.contracts, parentContract.group);
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal-container" style="max-width: 600px;">
-        <div class="modal-header">
-          <h3 style="font-size: 1.15rem; font-weight: 700;">
-            Thêm ${levelTitle} cho ${parentContract.contract_no}
-          </h3>
-          <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="modal-body">
-          <form id="form-appendix">
-            <div class="form-group">
-              <label class="form-label">Mã định danh (ID chuẩn CPMS phân cấp)</label>
-              <input type="text" class="form-control" name="id" value="${newAppId}" readonly>
-              <small style="color: var(--text-muted); font-size: 0.75rem;">Định dạng chuẩn cha-con: ${parentContract.id}-XX</small>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Số hiệu ${levelTitle}</label>
-              <input type="text" class="form-control" name="contract_no" placeholder="Vd: ${isLevel1 ? 'APP-01 hoặc PL-01' : 'PKG-01'}" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Nội dung công việc / Phạm vi</label>
-              <textarea class="form-control" name="scope_of_work" rows="2" placeholder="Hạng mục thi công bổ sung, gia hạn thời gian..." required></textarea>
-            </div>
-            <div class="form-grid-2">
-              <div class="form-group">
-                <label class="form-label">Giá trị ký kết (VNĐ)</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="0" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Ngày ký</label>
-                <input type="date" class="form-control" name="signing_date" value="${new Date().toISOString().slice(0, 10)}" required>
-              </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
-              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary">Lưu ${levelTitle}</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-    this.setupCurrencyInputListeners(modal);
-
-    const closeSubModal = () => modal.remove();
-    modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
-
-    modal.querySelector('#form-appendix').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(e.target);
-      const appendixData = {
-        id: formData.get('id'),
-        project_id: parentContract.project_id || this.currentProjectId,
-        parent_id: parentContract.id,
-        group: parentContract.group,
-        level: (parentContract.level || 0) + 1,
-        contract_no: formData.get('contract_no'),
-        contract_type: isLevel1 ? 'Appendix' : 'Sub-Package',
-        scope_of_work: formData.get('scope_of_work'),
-        contract_val: this.parseNumberFromDots(formData.get('contract_val')),
-        signing_date: formData.get('signing_date'),
-        company_a: parentContract.company_a,
-        company_b: parentContract.company_b,
-        category: parentContract.category || 'Construction',
-        status: 'Active',
-      };
-
-      await db.put('contracts', appendixData);
-      await this.loadData();
-      this.render();
-      closeSubModal();
-      this.openContractDetail(parentContract.id);
-      alert(`Đã thêm thành công ${levelTitle}!`);
-    });
+    this.openContractFormModal(null, parentContract);
   }
 
   // ==========================================
@@ -2727,7 +2835,7 @@ export class ContractsManager {
     const prjName = prj ? (prj.name || prj.id) : (contract.project_id || this.currentProjectId);
 
     let csvContent = '\uFEFF';
-    csvContent += `BÁO CÁO QUẢN LÝ ${isMain ? 'HỢP ĐỒNG GỐC' : 'PHỤ LỤC'} & GIẢI NGÂN (CPMS)\r\n`;
+    csvContent += `BÁO CÁO QUẢN LÝ ${isMain ? 'HỢP ĐỒNG' : 'PHỤ LỤC'} & GIẢI NGÂN (CPMS)\r\n`;
     csvContent += `Dự án: ${prjName}\r\n`;
     csvContent += `Số hiệu: ${contract.contract_no} - ${contract.scope_of_work}\r\n`;
     csvContent += `Giá trị ký kết: ${stats.totalSigned}\r\n`;

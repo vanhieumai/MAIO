@@ -33,21 +33,66 @@ export class CPMSImporterExporter {
 
   /**
    * Sinh mã ContractID tự động theo quy tắc chuẩn:
-   * - HĐ gốc: Nhóm + Năm + Số thứ tự (vd: A-2026-01, B-2026-03)
-   * - Phụ lục / Gói con: Thêm -XX vào sau mã của Cha (vd: A-2026-01-02, A-2026-01-02-01)
+   * - Hợp đồng (Cấp 0 / Root): Nhóm + Năm + Số thứ tự 2 chữ số (vd: A-2026-01, B-2026-03, B-2026-59)
+   * - Phụ lục / Gói con (Cấp 1, 2, ...): Thêm -XX vào sau mã của Cha (vd: A-2026-01-08, A-2026-01-06-01)
    */
-  static generateNextContractID(parentContract, allContracts, group = 'A') {
+  static generateNextContractID(parentContract, allContracts = [], group = 'A') {
     const year = new Date().getFullYear();
     if (!parentContract) {
-      // HĐ gốc
+      // Hợp đồng cấp 0 (Root)
       const rootContracts = allContracts.filter((c) => !c.parent_id && c.group === group);
-      const nextIndex = rootContracts.length + 1;
+      
+      // Quét các ID cùng năm hoặc cùng nhóm để tìm số thứ tự lớn nhất
+      let maxSameYearIdx = 0;
+      let maxAnyIdx = 0;
+      
+      const sameYearRegex = new RegExp(`^${group}-${year}-(\\d+)$`);
+      const anyRootRegex = new RegExp(`^${group}-\\d{4}-(\\d+)$`);
+
+      rootContracts.forEach((c) => {
+        if (!c.id) return;
+        const sameMatch = c.id.match(sameYearRegex);
+        if (sameMatch) {
+          const idx = parseInt(sameMatch[1], 10);
+          if (!isNaN(idx) && idx > maxSameYearIdx) maxSameYearIdx = idx;
+        }
+        const anyMatch = c.id.match(anyRootRegex);
+        if (anyMatch) {
+          const idx = parseInt(anyMatch[1], 10);
+          if (!isNaN(idx) && idx > maxAnyIdx) maxAnyIdx = idx;
+        }
+      });
+
+      let nextIndex = 1;
+      if (maxSameYearIdx > 0) {
+        nextIndex = maxSameYearIdx + 1;
+      } else if (maxAnyIdx > 0) {
+        nextIndex = Math.max(maxAnyIdx + 1, rootContracts.length + 1);
+      } else {
+        nextIndex = rootContracts.length + 1;
+      }
+
       return `${group}-${year}-${String(nextIndex).padStart(2, '0')}`;
     } else {
-      // Con của parentContract
-      const directChildren = allContracts.filter((c) => c.parent_id === parentContract.id);
-      const nextIndex = directChildren.length + 1;
-      return `${parentContract.id}-${String(nextIndex).padStart(2, '0')}`;
+      // Phụ lục / Gói con (Cấp 1, 2, ...) của parentContract
+      const parentId = parentContract.id;
+      const prefix = `${parentId}-`;
+      const directChildren = allContracts.filter((c) => c.parent_id === parentId || (c.id && c.id.startsWith(prefix)));
+      
+      let maxChildIdx = 0;
+      directChildren.forEach((c) => {
+        if (!c.id || !c.id.startsWith(prefix)) return;
+        const tail = c.id.substring(prefix.length);
+        // Chỉ lấy số trực tiếp (ví dụ "01" hoặc "08" không chứa dấu gạch ngang tiếp theo)
+        const firstSegment = tail.split('-')[0];
+        const num = parseInt(firstSegment, 10);
+        if (!isNaN(num) && num > maxChildIdx) {
+          maxChildIdx = num;
+        }
+      });
+
+      const nextChildIndex = Math.max(maxChildIdx + 1, directChildren.length + 1);
+      return `${parentId}-${String(nextChildIndex).padStart(2, '0')}`;
     }
   }
 
@@ -155,6 +200,8 @@ export class CPMSImporterExporter {
           status: String(r[5] || 'Active'),
           company_a: String(r[6] || ''),
           company_b: String(r[7] || ''),
+          company_b2: String(r[8] || ''),
+          rep_b2: String(r[9] || ''),
           scope_of_work: String(r[10] || ''),
           exchange_rate: parseFloat(r[12] || 1.0) || 1.0,
           estimated_val: parseFloat(r[13] || 0) || 0,
@@ -165,6 +212,8 @@ export class CPMSImporterExporter {
           payee: String(r[18] || ''),
           bank_account: String(r[19] || ''),
           bank_name: String(r[20] || ''),
+          contact_person_b: String(r[21] || ''),
+          created_at: r[22] || null,
           display_no: String(r[23] || ''),
           sort_order: parseFloat(r[24] || 0) || 0,
         });
@@ -323,9 +372,9 @@ export class CPMSImporterExporter {
     allContracts.filter(c => c.group === 'A').forEach(c => {
       contractRows.push([
         c.id, c.contract_no, c.contract_type || (c.parent_id ? 'Appendix' : 'MAIN'), c.signing_date, c.end_date, c.status || 'Active',
-        c.company_a || '', c.company_b || '', '', '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
+        c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
-        c.bank_account || '', c.bank_name || '', '', c.created_at || '', c.display_no || '', c.sort_order || 0
+        c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0
       ]);
     });
 
@@ -334,9 +383,9 @@ export class CPMSImporterExporter {
     allContracts.filter(c => c.group === 'B').forEach(c => {
       contractRows.push([
         c.id, c.contract_no, c.contract_type || (c.parent_id ? 'Appendix' : 'MAIN'), c.signing_date, c.end_date, c.status || 'Active',
-        c.company_a || '', c.company_b || '', '', '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
+        c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
-        c.bank_account || '', c.bank_name || '', '', c.created_at || '', c.display_no || '', c.sort_order || 0
+        c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0
       ]);
     });
 
