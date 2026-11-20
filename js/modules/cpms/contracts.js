@@ -644,19 +644,12 @@ export class ContractsManager {
       if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
       if (topProjLoc) topProjLoc.textContent = '—';
 
-      infoContainer.innerHTML = `
-        <div style="padding: 12px 18px; background: #f8fafc; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; width: 100%; border: 1px dashed var(--border-color);">
-          <span><i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> Tài khoản của bạn hiện chưa liên kết dự án nào. Bấm <strong>"Nhập dữ liệu CPMS (Dẫn file Local)"</strong> để chọn file dữ liệu dự án trên máy tính của bạn.</span>
-          <div>
-            <button id="btn-empty-import" class="button button-primary" style="font-size: 0.8rem; padding: 6px 16px;">
-              <i class="fa-solid fa-laptop-file"></i> Dẫn file CPMS Local từ máy tính
-            </button>
-          </div>
-        </div>
-      `;
-      document.getElementById('btn-empty-import')?.addEventListener('click', () => this.pickAndLoadLocalCPMSFile());
+      infoContainer.innerHTML = '';
+      infoContainer.style.display = 'none';
       return;
     }
+
+    infoContainer.style.display = '';
 
     const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || this.projects[0];
     if (!curPrj) return;
