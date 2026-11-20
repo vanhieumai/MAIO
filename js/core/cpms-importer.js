@@ -3,7 +3,7 @@
  * Đọc và xuất file dữ liệu định dạng .cpms (.xlsb / .xlsx) chuẩn xác 100% với phần mềm CPMS Plus.
  */
 
-import { db } from './db.js';
+import { db } from './db.js?v=3.7';
 
 export class CPMSImporterExporter {
   /**

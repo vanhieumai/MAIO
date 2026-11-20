@@ -3,10 +3,10 @@
  * Quản lý khởi tạo IndexedDB, nạp dữ liệu hạt giống CHC1, điều hướng phân hệ và kết nối đồng bộ.
  */
 
-import { gdrive } from './core/gdrive.js';
-import { db } from './core/db.js';
-import { CHC1_SEED_DATA } from './data/chc1_seed.js';
-import { contractsManager } from './modules/cpms/contracts.js';
+import { gdrive } from './core/gdrive.js?v=3.7';
+import { db } from './core/db.js?v=3.7';
+import { CHC1_SEED_DATA } from './data/chc1_seed.js?v=3.7';
+import { contractsManager } from './modules/cpms/contracts.js?v=3.7';
 
 class App {
   constructor() {
@@ -17,76 +17,78 @@ class App {
   async init() {
     console.log('Khởi động MAIO Application...');
 
-    // 1. Khởi tạo IndexedDB
-    try {
-      await db.init();
-      console.log('IndexedDB đã sẵn sàng.');
-
-      // 2. Nạp dữ liệu hạt giống (Seed Data) nếu chưa có
-      await this.ensureSeedData();
-    } catch (e) {
-      console.warn('Lỗi khởi tạo IndexedDB:', e);
-    }
-
-    // 3. Khởi tạo CPMS Contracts Manager
-    try {
-      await contractsManager.init();
-    } catch (e) {
-      console.warn('Lỗi khởi tạo CPMS Manager:', e);
-    }
-
-    // 4. Thiết lập điều hướng (Navigation)
+    // 1. Thiết lập điều hướng (Navigation)
     this.bindNavigation();
 
-    // 5. Khởi tạo dịch vụ Google Drive
+    // 2. Thiết lập dịch vụ Google Drive & Cổng Đăng nhập Auth Gate
     this.setupGoogleDrive();
 
-    // 6. Thiết lập chọn thư mục máy tính (Local Folder)
+    // 3. Thiết lập chọn thư mục máy tính (Local Folder)
     this.setupLocalDirectoryPicker();
 
-    // 7. Cập nhật số liệu Dashboard
-    await this.updateDashboardStats();
-
-    // 8. Cập nhật cấu hình lên màn hình Settings
+    // 4. Cập nhật cấu hình lên màn hình Settings
     this.renderSettingsInfo();
   }
 
-  async ensureSeedData() {
-    const SEED_VERSION = 'v2_strict_hierarchy';
-    const currentVersion = localStorage.getItem('maio_seed_version');
+  async handleUserAuthChange(user) {
+    const authGate = document.getElementById('auth-gate');
+    const mainContent = document.querySelector('.main-content');
+    const headerNav = document.querySelector('.header-nav');
 
-    if (currentVersion !== SEED_VERSION && CHC1_SEED_DATA) {
-      console.log('Đang nạp lại dữ liệu chuẩn xác dự án CHC1 (Strict Hierarchy & Anti-Double-Counting)...');
-      
-      // Xóa dữ liệu cũ
-      const oldContracts = await db.getAll('contracts');
-      for (const c of oldContracts) await db.delete('contracts', c.id);
-      const oldPayments = await db.getAll('payments');
-      for (const p of oldPayments) await db.delete('payments', p.id);
-      const oldDocs = await db.getAll('documents');
-      for (const d of oldDocs) await db.delete('documents', d.id);
+    if (user && user.email) {
+      console.log('Đã đăng nhập người dùng:', user.email);
+      authGate?.classList.add('hidden');
+      if (mainContent) mainContent.style.display = '';
+      if (headerNav) headerNav.style.pointerEvents = '';
 
-      // Nạp dự án
-      await db.put('projects', CHC1_SEED_DATA.project);
+      // Chuyển đổi IndexedDB sang cơ sở dữ liệu riêng của tài khoản này
+      await db.switchUser(user.email);
 
-      // Nạp hợp đồng
-      for (const c of CHC1_SEED_DATA.contracts) {
-        await db.put('contracts', c);
+      // Nạp dữ liệu và khởi tạo phân hệ Quản lý Dự án & Hợp đồng
+      try {
+        await contractsManager.init();
+      } catch (e) {
+        console.warn('Lỗi khởi tạo CPMS Manager:', e);
       }
 
-      // Nạp thanh toán (đã có cờ is_header chuẩn)
-      for (const p of CHC1_SEED_DATA.payments) {
-        await db.put('payments', p);
-      }
+      // Cập nhật số liệu Dashboard
+      await this.updateDashboardStats();
 
-      // Nạp hồ sơ
-      for (const d of CHC1_SEED_DATA.documents) {
-        await db.put('documents', d);
-      }
+      // Cập nhật giao diện Header & Cloud
+      this.updateGoogleDriveUI(user);
+    } else {
+      console.log('Chưa đăng nhập Google Drive - Hiển thị Auth Gate');
+      authGate?.classList.remove('hidden');
+      if (mainContent) mainContent.style.display = 'none';
+      if (headerNav) headerNav.style.pointerEvents = 'none';
 
-      localStorage.setItem('maio_seed_version', SEED_VERSION);
-      console.log('Nạp hoàn tất dữ liệu chuẩn xác v2.');
+      // Đóng database
+      db.close();
+
+      // Cập nhật giao diện Header & Cloud về trạng thái chưa đăng nhập
+      this.updateGoogleDriveUI(null);
+      this.resetDashboardStats();
     }
+  }
+
+  resetDashboardStats() {
+    const el = (id) => document.getElementById(id);
+    if (el('top-project-name')) el('top-project-name').textContent = 'Chưa đăng nhập';
+    if (el('top-project-location')) el('top-project-location').textContent = 'Vui lòng đăng nhập Google Drive';
+    if (el('active-project-name')) el('active-project-name').textContent = 'Chưa đăng nhập';
+    if (el('stat-group-a-count')) el('stat-group-a-count').textContent = '0 Hợp đồng';
+    if (el('stat-group-a-val')) el('stat-group-a-val').textContent = '0 ₫';
+    if (el('stat-group-a-paid')) el('stat-group-a-paid').textContent = '0 ₫';
+    if (el('stat-group-a-rate')) el('stat-group-a-rate').textContent = 'Đạt 0% giá trị HĐ';
+    if (el('stat-group-a-ipc')) el('stat-group-a-ipc').textContent = '0 đợt';
+    if (el('stat-group-b-count')) el('stat-group-b-count').textContent = '0 Hợp đồng';
+    if (el('stat-group-b-val')) el('stat-group-b-val').textContent = '0 ₫';
+    if (el('stat-group-b-paid')) el('stat-group-b-paid').textContent = '0 ₫';
+    if (el('stat-group-b-rate')) el('stat-group-b-rate').textContent = 'Đạt 0% giá trị giao thầu';
+    if (el('stat-group-b-ipc')) el('stat-group-b-ipc').textContent = '0 đợt';
+    if (el('stat-cash-in')) el('stat-cash-in').textContent = '0 ₫';
+    if (el('stat-cash-out')) el('stat-cash-out').textContent = '0 ₫';
+    if (el('stat-cash-balance')) el('stat-cash-balance').textContent = '0 ₫';
   }
 
   async updateDashboardStats() {
@@ -283,6 +285,8 @@ class App {
     const loginBtn = document.getElementById('btn-gdrive-login');
     const logoutBtn = document.getElementById('btn-gdrive-logout');
     const settingsLoginBtn = document.getElementById('btn-settings-login');
+    const gateLoginBtn = document.getElementById('btn-login-gate');
+    const gateOfflineBtn = document.getElementById('btn-login-offline');
     const testSyncBtn = document.getElementById('btn-test-sync');
     const syncNowBtn = document.getElementById('btn-sync-now');
 
@@ -296,14 +300,24 @@ class App {
 
     loginBtn?.addEventListener('click', handleLogin);
     settingsLoginBtn?.addEventListener('click', handleLogin);
+    gateLoginBtn?.addEventListener('click', handleLogin);
 
-    logoutBtn?.addEventListener('click', () => {
-      gdrive.signOut();
+    gateOfflineBtn?.addEventListener('click', () => {
+      const email = prompt('Nhập địa chỉ email tài khoản của bạn (mỗi tài khoản sẽ quản lý độc lập các dự án của riêng mình):', 'demo@maio.local');
+      if (email && email.trim()) {
+        gdrive.signInOffline(email.trim());
+      }
     });
 
-    // Lắng nghe thay đổi trạng thái đăng nhập Google
-    gdrive.onAuthStateChanged((user) => {
-      this.updateGoogleDriveUI(user);
+    logoutBtn?.addEventListener('click', () => {
+      if (confirm('Bạn có chắc muốn đăng xuất khỏi tài khoản này không?')) {
+        gdrive.signOut();
+      }
+    });
+
+    // Lắng nghe thay đổi trạng thái đăng nhập Google (mỗi tài khoản gắn với DB riêng)
+    gdrive.onAuthStateChanged(async (user) => {
+      await this.handleUserAuthChange(user);
     });
 
     // Khởi tạo dịch vụ Google Drive

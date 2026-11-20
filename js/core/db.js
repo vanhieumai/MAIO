@@ -3,20 +3,52 @@
  * Quản lý kho dữ liệu Local-first (IndexedDB) và liên kết đồng bộ Google Drive.
  */
 
-import { gdrive } from './gdrive.js';
+import { gdrive } from './gdrive.js?v=3.7';
 
-const DB_NAME = 'MAIO_LocalDB';
 const DB_VERSION = 1;
 
 class DatabaseEngine {
   constructor() {
     this.db = null;
     this.activeProjectId = 'CHC1';
+    this.currentUserEmail = null;
+    this.currentDbName = 'MAIO_GuestDB';
+  }
+
+  getDbNameForUser(email) {
+    if (!email) return 'MAIO_GuestDB';
+    const safe = email.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+    return `MAIO_UserDB_${safe}`;
+  }
+
+  async switchUser(userEmail) {
+    if (this.db) {
+      try {
+        this.db.close();
+      } catch (e) {}
+      this.db = null;
+    }
+    this.currentUserEmail = userEmail ? userEmail.trim().toLowerCase() : null;
+    this.currentDbName = this.getDbNameForUser(this.currentUserEmail);
+    return await this.init();
+  }
+
+  close() {
+    if (this.db) {
+      try {
+        this.db.close();
+      } catch (e) {}
+      this.db = null;
+    }
+    this.currentUserEmail = null;
+    this.currentDbName = 'MAIO_GuestDB';
   }
 
   async init() {
+    const targetDbName = this.currentDbName || 'MAIO_GuestDB';
+
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      const request = indexedDB.open(targetDbName, DB_VERSION);
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
@@ -207,4 +239,7 @@ class DatabaseEngine {
   }
 }
 
-export const db = new DatabaseEngine();
+if (!window.__MAIO_DB_ENGINE__) {
+  window.__MAIO_DB_ENGINE__ = new DatabaseEngine();
+}
+export const db = window.__MAIO_DB_ENGINE__;

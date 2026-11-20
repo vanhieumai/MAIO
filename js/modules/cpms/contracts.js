@@ -10,8 +10,8 @@
  * 2. Giải ngân & Thanh toán: CHỈ cộng các dòng giao dịch thực tế (is_header !== true), tuyệt đối không cộng dòng Header tổng hợp.
  */
 
-import { db } from '../../core/db.js';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js';
+import { db } from '../../core/db.js?v=3.7';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=3.7';
 
 export class ContractsManager {
   constructor() {
@@ -37,19 +37,26 @@ export class ContractsManager {
     this.projects = await db.getAll('projects');
     this.updateProjectSelectorUI();
 
+    if (!this.currentProjectId) {
+      this.contracts = [];
+      this.payments = [];
+      this.documents = [];
+      return;
+    }
+
     const allContracts = await db.getAll('contracts');
     const allPayments = await db.getAll('payments');
     const allDocs = await db.getAll('documents');
 
     // Lọc theo currentProjectId
     this.contracts = allContracts.filter(
-      (c) => !c.project_id || c.project_id === this.currentProjectId
+      (c) => c.project_id === this.currentProjectId
     );
     this.payments = allPayments.filter(
-      (p) => !p.project_id || p.project_id === this.currentProjectId
+      (p) => p.project_id === this.currentProjectId
     );
     this.documents = allDocs.filter(
-      (d) => !d.project_id || d.project_id === this.currentProjectId
+      (d) => d.project_id === this.currentProjectId
     );
   }
 
@@ -57,15 +64,24 @@ export class ContractsManager {
     const selector = document.getElementById('project-selector');
     if (!selector) return;
 
-    let optionsHtml = '';
-    const projectsList = this.projects.length > 0 ? this.projects : [{ id: 'CHC1', name: 'Dự án CHC1 (Thiết kế & Thi công)' }];
-
-    // Đảm bảo currentProjectId hợp lệ
-    if (!projectsList.some((p) => p.id === this.currentProjectId)) {
-      this.currentProjectId = projectsList[0].id;
+    if (!this.projects || this.projects.length === 0) {
+      this.currentProjectId = null;
+      selector.innerHTML = `
+        <option value="" disabled selected>-- Chưa có dự án nào --</option>
+        <option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>
+      `;
+      const activePrjName = document.getElementById('active-project-name');
+      if (activePrjName) activePrjName.textContent = 'Chưa có dự án nào';
+      return;
     }
 
-    projectsList.forEach((p) => {
+    let optionsHtml = '';
+    // Đảm bảo currentProjectId hợp lệ
+    if (!this.projects.some((p) => p.id === this.currentProjectId)) {
+      this.currentProjectId = this.projects[0].id;
+    }
+
+    this.projects.forEach((p) => {
       const isSel = p.id === this.currentProjectId ? 'selected' : '';
       optionsHtml += `<option value="${p.id}" ${isSel}>📁 ${p.name || p.id}</option>`;
     });
@@ -76,7 +92,7 @@ export class ContractsManager {
     // Cập nhật tên dự án trên Dashboard nếu có
     const activePrjName = document.getElementById('active-project-name');
     if (activePrjName) {
-      const curPrj = projectsList.find((p) => p.id === this.currentProjectId);
+      const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
       if (curPrj) activePrjName.textContent = curPrj.name || curPrj.id;
     }
   }
@@ -447,10 +463,28 @@ export class ContractsManager {
     const infoContainer = document.getElementById('project-info-bar');
     if (!infoContainer) return;
 
-    const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || {
-      id: this.currentProjectId,
-      code: this.currentProjectId,
-      name: 'Dự án ' + this.currentProjectId,
+    if (!this.projects || this.projects.length === 0) {
+      const topProjName = document.getElementById('top-project-name');
+      const topProjLoc = document.getElementById('top-project-location');
+      if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
+      if (topProjLoc) topProjLoc.textContent = 'Vui lòng thêm dự án mới hoặc nhập dữ liệu CPMS';
+
+      infoContainer.innerHTML = `
+        <div style="padding: 10px 16px; background: #f8fafc; border-radius: var(--radius-sm); font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; width: 100%;">
+          <span><i class="fa-solid fa-circle-info" style="color: var(--primary);"></i> Tài khoản của bạn hiện chưa có dự án nào. Bấm <strong>"Nhập dữ liệu CPMS"</strong> để tải file lên hoặc nạp mẫu để thử nghiệm.</span>
+          <button id="btn-seed-sample-chc1" class="button button-outline" style="font-size: 0.78rem; padding: 4px 12px; color: var(--primary); border-color: #93c5fd; background: #fff;">
+            <i class="fa-solid fa-cloud-arrow-down"></i> Nạp Dự án mẫu CHC1
+          </button>
+        </div>
+      `;
+      document.getElementById('btn-seed-sample-chc1')?.addEventListener('click', () => this.seedDemoData());
+      return;
+    }
+
+    const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || this.projects[0] || {
+      id: this.currentProjectId || 'PRJ_1',
+      code: this.currentProjectId || 'PRJ_1',
+      name: 'Dự án mới',
     };
 
     // Chuẩn hóa Tên và Địa điểm dự án cho CHC1
@@ -1252,6 +1286,42 @@ export class ContractsManager {
 
     const container = document.getElementById('contracts-list-container');
     if (!container) return;
+
+    // Nếu tài khoản mới chưa có dự án nào
+    if (!this.projects || this.projects.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 48px 24px; background: #fff; border-radius: var(--radius-md); border: 1px dashed var(--border-color); max-width: 650px; margin: 20px auto;">
+          <div style="width: 64px; height: 64px; border-radius: 50%; background: #eff6ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.8rem; margin: 0 auto 16px;">
+            <i class="fa-solid fa-folder-plus"></i>
+          </div>
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: #0f172a; margin-bottom: 8px;">Tài khoản của bạn chưa có dự án nào</h2>
+          <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 24px; line-height: 1.5;">
+            Hệ thống MAIO quản lý dữ liệu độc lập theo từng tài khoản Google cá nhân. Hãy bắt đầu bằng cách thêm dự án mới hoặc tải file dữ liệu dự án của bạn lên.
+          </p>
+          <div style="display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;">
+            <button id="btn-empty-add-proj" class="button button-primary">
+              <i class="fa-solid fa-plus"></i> Thêm Dự án mới
+            </button>
+            <button id="btn-empty-import" class="button button-outline">
+              <i class="fa-solid fa-file-arrow-up" style="color: var(--primary);"></i> Nhập dữ liệu CPMS
+            </button>
+            <button id="btn-empty-seed" class="button button-outline" style="color: #6366f1; border-color: #c7d2fe;">
+              <i class="fa-solid fa-cloud-arrow-down"></i> Nạp Dự án mẫu CHC1
+            </button>
+          </div>
+        </div>
+      `;
+      document.getElementById('btn-empty-add-proj')?.addEventListener('click', () => {
+        this.openCreateProjectModal();
+      });
+      document.getElementById('btn-empty-import')?.addEventListener('click', () => {
+        document.getElementById('btn-import-project')?.click();
+      });
+      document.getElementById('btn-empty-seed')?.addEventListener('click', () => {
+        this.seedDemoData();
+      });
+      return;
+    }
 
     const mainContracts = this.getMainContracts();
 
@@ -2877,6 +2947,27 @@ export class ContractsManager {
       setTimeout(() => (msg.textContent = ''), 3000);
     }
   }
+
+  async seedDemoData() {
+    if (!confirm('Bạn có muốn nạp dữ liệu mẫu Dự án CHC1 vào tài khoản của mình không?')) return;
+    try {
+      const { CHC1_SEED_DATA } = await import('../../data/chc1_seed.js?v=3.7');
+      if (!CHC1_SEED_DATA) return;
+      await db.put('projects', CHC1_SEED_DATA.project);
+      for (const c of CHC1_SEED_DATA.contracts) await db.put('contracts', c);
+      for (const p of CHC1_SEED_DATA.payments) await db.put('payments', p);
+      for (const d of CHC1_SEED_DATA.documents) await db.put('documents', d);
+      this.currentProjectId = CHC1_SEED_DATA.project.id;
+      await this.loadData();
+      this.render();
+      alert('Đã nạp thành công dữ liệu mẫu Dự án CHC1 vào tài khoản của bạn!');
+    } catch (err) {
+      alert('Lỗi nạp dữ liệu mẫu: ' + err.message);
+    }
+  }
 }
 
-export const contractsManager = new ContractsManager();
+if (!window.__MAIO_CONTRACTS_MANAGER__) {
+  window.__MAIO_CONTRACTS_MANAGER__ = new ContractsManager();
+}
+export const contractsManager = window.__MAIO_CONTRACTS_MANAGER__;

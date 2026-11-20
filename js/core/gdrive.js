@@ -59,6 +59,9 @@ export class GoogleDriveService {
                   this.accessToken = tokenResponse.access_token;
                   sessionStorage.setItem('maio_gdrive_token', this.accessToken);
                   await this.fetchUserInfo();
+                  if (this.currentUser) {
+                    localStorage.setItem('maio_gdrive_user', JSON.stringify(this.currentUser));
+                  }
                   try {
                     await this.ensureAppFolder();
                   } catch (err) {
@@ -69,12 +72,32 @@ export class GoogleDriveService {
               },
             });
 
-            // Khôi phục token nếu còn hiệu lực trong phiên
+            // Khôi phục phiên người dùng nếu đã đăng nhập trước đó
+            const savedUserJson = localStorage.getItem('maio_gdrive_user');
             const savedToken = sessionStorage.getItem('maio_gdrive_token');
-            if (savedToken) {
+            if (savedUserJson) {
+              try {
+                const savedUser = JSON.parse(savedUserJson);
+                if (savedUser && savedUser.email) {
+                  this.currentUser = savedUser;
+                  this.accessToken = savedToken || 'saved_session';
+                  this.notifyAuthChange(this.currentUser);
+                  if (!savedUser.isOffline && savedToken) {
+                    this.ensureAppFolder().catch(() => {});
+                  }
+                }
+              } catch (e) {
+                localStorage.removeItem('maio_gdrive_user');
+              }
+            } else if (savedToken) {
               this.accessToken = savedToken;
               this.fetchUserInfo()
-                .then(() => this.ensureAppFolder())
+                .then(() => {
+                  if (this.currentUser) {
+                    localStorage.setItem('maio_gdrive_user', JSON.stringify(this.currentUser));
+                  }
+                  return this.ensureAppFolder();
+                })
                 .then(() => this.notifyAuthChange(this.currentUser))
                 .catch(() => {
                   this.signOut();
@@ -106,16 +129,38 @@ export class GoogleDriveService {
   }
 
   /**
+   * Đăng nhập chế độ Offline / Demo (lưu trữ cục bộ an toàn theo email)
+   */
+  signInOffline(email = 'demo_user@maio.local', name = 'Người dùng Demo') {
+    this.currentUser = {
+      email: email.trim().toLowerCase(),
+      name: name || email.split('@')[0],
+      picture: '',
+      isOffline: true,
+    };
+    this.accessToken = 'offline_token_' + Date.now();
+    localStorage.setItem('maio_gdrive_user', JSON.stringify(this.currentUser));
+    sessionStorage.setItem('maio_gdrive_token', this.accessToken);
+    this.notifyAuthChange(this.currentUser);
+    return this.currentUser;
+  }
+
+  /**
    * Đăng xuất và xóa token phiên
    */
   signOut() {
-    if (this.accessToken && window.google?.accounts?.oauth2) {
-      window.google.accounts.oauth2.revoke(this.accessToken, () => {});
+    if (this.accessToken && window.google?.accounts?.oauth2 && !this.currentUser?.isOffline) {
+      try {
+        window.google.accounts.oauth2.revoke(this.accessToken, () => {});
+      } catch (e) {
+        console.warn('Lỗi thu hồi token Google:', e);
+      }
     }
     this.accessToken = null;
     this.currentUser = null;
     this.appFolderId = null;
     sessionStorage.removeItem('maio_gdrive_token');
+    localStorage.removeItem('maio_gdrive_user');
     this.notifyAuthChange(null);
   }
 
@@ -312,4 +357,7 @@ export class GoogleDriveService {
   }
 }
 
-export const gdrive = new GoogleDriveService();
+if (!window.__MAIO_GDRIVE_SERVICE__) {
+  window.__MAIO_GDRIVE_SERVICE__ = new GoogleDriveService();
+}
+export const gdrive = window.__MAIO_GDRIVE_SERVICE__;

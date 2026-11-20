@@ -8,12 +8,57 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/main.css?v=2.5">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=2.5">
+  <link rel="stylesheet" href="css/main.css?v=3.7">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=3.7">
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
+  <!-- MÀN HÌNH YÊU CẦU ĐĂNG NHẬP GOOGLE DRIVE (AUTH GATE) -->
+  <div id="auth-gate" class="auth-gate-overlay" style="position: fixed; inset: 0; z-index: 99999; background: radial-gradient(circle at 50% 20%, #eff6ff 0%, #f8fafc 70%, #f1f5f9 100%); display: flex; align-items: center; justify-content: center; padding: 20px;">
+    <div class="auth-gate-card">
+      <div class="auth-gate-icon-wrap">
+        <div class="auth-brand-badge">
+          <i class="fa-solid fa-cubes"></i>
+        </div>
+        <div class="auth-drive-badge">
+          <i class="fa-brands fa-google-drive"></i>
+        </div>
+      </div>
+      <h1 class="auth-gate-title">Hệ thống Quản lý MAIO</h1>
+      <p class="auth-gate-subtitle">
+        Vui lòng kết nối tài khoản Google Drive để bắt đầu làm việc. Mỗi tài khoản sẽ quản lý độc lập các dự án và dữ liệu của riêng mình.
+      </p>
+
+      <div class="auth-features-box">
+        <div class="auth-feature-row">
+          <i class="fa-solid fa-shield-halved" style="color: #10b981;"></i>
+          <span><strong>Bảo mật riêng biệt:</strong> Mỗi tài khoản Google chỉ xem và quản lý các dự án của chính mình.</span>
+        </div>
+        <div class="auth-feature-row">
+          <i class="fa-brands fa-google-drive" style="color: #2563eb;"></i>
+          <span><strong>Sở hữu dữ liệu 100%:</strong> Tệp tin và hợp đồng được lưu trữ trực tiếp trên Google Drive cá nhân.</span>
+        </div>
+        <div class="auth-feature-row">
+          <i class="fa-solid fa-bolt" style="color: #6366f1;"></i>
+          <span><strong>Tốc độ Local-first:</strong> Hoạt động tức thì với IndexedDB và đồng bộ 2 chiều an toàn lên Cloud.</span>
+        </div>
+      </div>
+
+      <button id="btn-login-gate" class="auth-btn-primary">
+        <i class="fa-brands fa-google" style="color: #4285F4; font-size: 1.25rem;"></i>
+        <span>Đăng nhập bằng Google Drive</span>
+      </button>
+
+      <div class="auth-offline-box">
+        <span style="color: var(--text-muted); font-size: 0.8rem;">Hoặc trải nghiệm lưu trữ trên máy tính:</span><br>
+        <button id="btn-login-offline" class="button button-outline" style="margin-top: 8px; font-size: 0.8rem; padding: 6px 14px; border-radius: 9999px;">
+          <i class="fa-solid fa-user-tag" style="color: #6366f1;"></i> Đăng nhập Chế độ Offline / Cục bộ
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div class="app-shell">
     <!-- Site Header -->
     <header class="site-header">
@@ -260,7 +305,7 @@
         <div class="cpms-toolbar-row" style="margin-bottom: 10px;">
           <div class="cpms-toolbar-left">
             <select id="project-selector" style="padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-weight: 600; font-family: inherit; font-size: 0.85rem;">
-              <option value="CHC1" selected>📁 Dự án Nhà ở Chung cư Cao tầng Westlake Residential (CHC1)</option>
+              <option value="" disabled selected>-- Chọn dự án --</option>
               <option value="IMPORT_NEW">+ Nhập dữ liệu CPMS mới (.cpms)...</option>
             </select>
             <button id="btn-clone-project" class="button button-outline" title="Sao chép toàn bộ dự án hiện tại thành dự án mới">
@@ -443,6 +488,6 @@
   <script src="gdrive-config.js"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=2.5"></script>
+  <script type="module" src="js/app.js?v=3.7"></script>
 </body>
 </html>
