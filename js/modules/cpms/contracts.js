@@ -93,7 +93,7 @@ export class ContractsManager {
 
     const searchInput = document.getElementById('contract-search-input');
     searchInput?.addEventListener('input', (e) => {
-      this.searchQuery = e.target.value.toLowerCase().trim();
+      this.searchQuery = e.target.value.trim();
       this.render();
     });
 
@@ -942,16 +942,112 @@ export class ContractsManager {
     };
   }
 
+  removeVietnameseTones(str) {
+    if (!str && str !== 0) return '';
+    let s = String(str);
+    s = s.replace(/à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ/g, 'a');
+    s = s.replace(/è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ/g, 'e');
+    s = s.replace(/ì|í|ị|ỉ|ĩ/g, 'i');
+    s = s.replace(/ò|ó|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ/g, 'o');
+    s = s.replace(/ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ/g, 'u');
+    s = s.replace(/ỳ|ý|ỵ|ỷ|ỹ/g, 'y');
+    s = s.replace(/đ/g, 'd');
+    s = s.replace(/À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ/g, 'a');
+    s = s.replace(/È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ/g, 'e');
+    s = s.replace(/Ì|Í|Ị|Ỉ|Ĩ/g, 'i');
+    s = s.replace(/Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ/g, 'o');
+    s = s.replace(/Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ/g, 'u');
+    s = s.replace(/Ỳ|Ý|Ỵ|Ỷ|Ỹ/g, 'y');
+    s = s.replace(/Đ/g, 'd');
+    try {
+      s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    } catch (e) {}
+    return s.toLowerCase().trim();
+  }
+
+  isContractMatched(contract, query) {
+    if (!query) return true;
+    const qRaw = query.toLowerCase().trim();
+    const qNoTone = this.removeVietnameseTones(query);
+
+    const checkMatch = (val) => {
+      if (!val && val !== 0) return false;
+      const s = String(val).toLowerCase();
+      if (s.includes(qRaw)) return true;
+      const sNoTone = this.removeVietnameseTones(s);
+      return sNoTone.includes(qNoTone);
+    };
+
+    // 1. Kiểm tra trực tiếp trên các thông tin của Hợp đồng chính
+    if (
+      checkMatch(contract.contract_no) ||
+      checkMatch(contract.scope_of_work) ||
+      checkMatch(contract.company_a) ||
+      checkMatch(contract.company_b) ||
+      checkMatch(contract.id) ||
+      checkMatch(contract.rep_a) ||
+      checkMatch(contract.rep_b) ||
+      checkMatch(contract.category) ||
+      checkMatch(contract.payee) ||
+      checkMatch(contract.bank_account) ||
+      checkMatch(contract.bank_name)
+    ) {
+      return true;
+    }
+
+    // Lấy toàn bộ ID con cháu (HĐ và tất cả phụ lục con)
+    const allFamilyIds = this.getAllDescendantIds(contract.id);
+
+    // 2. Kiểm tra trên tất cả Phụ lục con cháu
+    const descendants = this.contracts.filter((c) => c.id !== contract.id && allFamilyIds.includes(c.id));
+    for (const app of descendants) {
+      if (
+        checkMatch(app.contract_no) ||
+        checkMatch(app.scope_of_work) ||
+        checkMatch(app.company_b) ||
+        checkMatch(app.id) ||
+        checkMatch(app.category)
+      ) {
+        return true;
+      }
+    }
+
+    // 3. Kiểm tra trong tất cả các đợt thanh toán / giải ngân (ĐẶC BIỆT LÀ GHI CHÚ)
+    const payments = this.payments.filter((p) => allFamilyIds.includes(p.contract_id) || allFamilyIds.includes(p.parent_id));
+    for (const p of payments) {
+      if (
+        checkMatch(p.note) ||            // Ghi chú đợt thanh toán
+        checkMatch(p.item_name) ||       // Nội dung diễn giải thanh toán
+        checkMatch(p.payment_no) ||      // Số ĐN
+        checkMatch(p.invoice_ref) ||     // Số hóa đơn VAT
+        checkMatch(p.payment_ref)        // Tham chiếu thanh toán
+      ) {
+        return true;
+      }
+    }
+
+    // 4. Kiểm tra trong tất cả các hồ sơ / tài liệu (Document Tracker)
+    const docs = this.documents.filter((d) => allFamilyIds.includes(d.contract_id));
+    for (const d of docs) {
+      if (
+        checkMatch(d.notes) ||           // Ghi chú hồ sơ
+        checkMatch(d.title) ||           // Tiêu đề tài liệu
+        checkMatch(d.doc_no) ||          // Số công văn / hồ sơ
+        checkMatch(d.id) ||
+        checkMatch(d.category)
+      ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   getMainContracts() {
     return this.contracts.filter((c) => {
       const matchGroup = c.group === this.currentGroup;
       const isMain = !c.parent_id;
-      const matchSearch =
-        !this.searchQuery ||
-        c.contract_no?.toLowerCase().includes(this.searchQuery) ||
-        c.scope_of_work?.toLowerCase().includes(this.searchQuery) ||
-        c.company_b?.toLowerCase().includes(this.searchQuery) ||
-        c.id?.toLowerCase().includes(this.searchQuery);
+      const matchSearch = this.isContractMatched(c, this.searchQuery);
 
       return matchGroup && isMain && matchSearch;
     });
@@ -1059,7 +1155,7 @@ export class ContractsManager {
       .map((c) => {
         const stats = this.calculateTotals(c);
         const directChildren = this.getDirectChildren(c.id);
-        const isExpanded = this.expandedContracts.has(c.id);
+        const isExpanded = this.expandedContracts.has(c.id) || Boolean(this.searchQuery);
 
         return `
           <div class="contract-group-wrapper" data-contract-id="${c.id}">
