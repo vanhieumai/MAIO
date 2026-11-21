@@ -357,6 +357,35 @@ export class ContractsManager {
     this.contracts = allContracts.filter(
       (c) => c.project_id === this.currentProjectId
     );
+
+    // Tự động nhận diện và cập nhật Mã Code (code_a, code_b, code_b2) cho các hợp đồng đang bị thiếu code từ dữ liệu CPMS local
+    for (const c of this.contracts) {
+      let changed = false;
+      if (!c.code_a && c.company_a) {
+        const foundCodeA = this.getCompanyCodeByName(c.company_a, 'A');
+        if (foundCodeA) {
+          c.code_a = foundCodeA;
+          changed = true;
+        }
+      }
+      if (!c.code_b && c.company_b) {
+        const foundCodeB = this.getCompanyCodeByName(c.company_b, 'B');
+        if (foundCodeB) {
+          c.code_b = foundCodeB;
+          changed = true;
+        }
+      }
+      if (!c.code_b2 && c.company_b2) {
+        const foundCodeB2 = this.getCompanyCodeByName(c.company_b2, 'B');
+        if (foundCodeB2) {
+          c.code_b2 = foundCodeB2;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await db.put('contracts', c);
+      }
+    }
     this.payments = allPayments.filter(
       (p) => p.project_id === this.currentProjectId
     );
@@ -370,6 +399,105 @@ export class ContractsManager {
     const clean = String(path).replace(/[/\\]+$/, '');
     const parts = clean.split(/[/\\]/);
     return parts[parts.length - 1] || clean;
+  }
+
+  removeAccents(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase();
+  }
+
+  getCompanyCodeByName(name, group = 'B') {
+    if (!name || typeof name !== 'string') return '';
+    const n = name.trim();
+    if (!n) return '';
+
+    const upper = n.toUpperCase();
+    const knownShortCodes = [
+      'CLI', 'VEC', 'VNCN', 'CTC', 'KD', 'NSH', 'TID', 'HHG', 'HD', 'EC',
+      'EC-KD', 'EC-TG', 'EC-PHC', 'EC-NSH', 'HTC', 'HTCONS', 'VTIC', 'VNCC',
+      'ACIT', 'DPA', 'DP', 'ICE', 'TG', 'HDAT', 'HADU', 'CVL', 'PADO', 'MKD',
+      'PCV', 'MN', 'SHVN', 'MS', 'TTT', 'KTM', 'KKVL', 'GLX', 'LKH', 'HIWIN',
+      'ATVN', 'HISUNG', 'TP', 'GOOD', 'TPHAT', 'AUSTDOOR', 'PL', 'TT', 'PENTA',
+      'GTS', 'HH', 'ABUSS', 'TA', 'TM', 'HA', 'VIETA', 'DK', 'DKE', 'HTTL'
+    ];
+    if (knownShortCodes.includes(upper)) return upper;
+
+    const lower = n.toLowerCase();
+
+    // Bên A (Chủ đầu tư / Tổng thầu)
+    if (group === 'A' || lower.includes('chủ đầu tư') || lower.includes('vietnam investment') || lower.includes('cli')) {
+      if (lower.includes('việt nam') || lower.includes('vina') || lower.includes('kỹ thuật việt nam') || lower.includes('vec')) return 'VEC';
+      return 'CLI';
+    }
+
+    // Mapping từ điển chuẩn CPMS Plus cho các nhà thầu / đối tác Bên B
+    if (lower.includes('vncn') || lower.includes('xây dựng và kỹ thuật vncn')) return 'VNCN';
+    if (lower.includes('coteccons') || lower.includes('ctc')) return 'CTC';
+    if (lower.includes('khang đạt') || lower.includes('kd')) return 'KD';
+    if (lower.includes('nam sông hồng') || lower.includes('nsh')) return 'NSH';
+    if (lower.includes('tường kính tid') || lower.includes('tid')) return 'TID';
+    if (lower.includes('hhg') || lower.includes('hồng hà')) return 'HHG';
+    if (lower.includes('htcons') || lower.includes('h&t') || lower.includes('ht cons')) return 'HTCONS';
+    if (lower.includes('vtic')) return 'VTIC';
+    if (lower.includes('vncc')) return 'VNCC';
+    if (lower.includes('acit') || lower.includes('á châu')) return 'ACIT';
+    if (lower.includes('dp architect') || lower.includes('kiến trúc dp')) return 'DP';
+    if (lower.includes('indochine') || lower.includes('ice')) return 'ICE';
+    if (lower.includes('thời gian') || lower.includes('ec-tg')) return 'TG';
+    if (lower.includes('huy dương') || lower.includes('hà nội')) return 'HD';
+    if (lower.includes('hoàng đạt')) return 'HDAT';
+    if (lower.includes('hà dung')) return 'HADU';
+    if (lower.includes('cát vạn lợi')) return 'CVL';
+    if (lower.includes('việt á')) return 'VIETA';
+    if (lower.includes('eusteel')) return 'EUS';
+    if (lower.includes('pado')) return 'PADO';
+    if (lower.includes('mikado')) return 'MKD';
+    if (lower.includes('poong cheon')) return 'PCV';
+    if (lower.includes('minh nghĩa')) return 'MN';
+    if (lower.includes('sh vn') || lower.includes('shvn')) return 'SHVN';
+    if (lower.includes('ms plus')) return 'MS';
+    if (lower.includes('ttt')) return 'TTT';
+    if (lower.includes('ktm')) return 'KTM';
+    if (lower.includes('kim khí vật liệu')) return 'KKVL';
+    if (lower.includes('galaxy')) return 'GLX';
+    if (lower.includes('lim kim hai')) return 'LKH';
+    if (lower.includes('hiwin')) return 'HIWIN';
+    if (lower.includes('an toàn việt nam') || lower.includes('atvn')) return 'ATVN';
+    if (lower.includes('hisung')) return 'HISUNG';
+    if (lower.includes('thuận phát')) return 'TP';
+    if (lower.includes('good')) return 'GOOD';
+    if (lower.includes('trường phát')) return 'TPHAT';
+    if (lower.includes('austdoor')) return 'AUSTDOOR';
+    if (lower.includes('phương linh') || lower.includes('phc')) return 'PL';
+    if (lower.includes('thanh tâm')) return 'TT';
+    if (lower.includes('penta')) return 'PENTA';
+    if (lower.includes('thủy sanh')) return 'GTS';
+    if (lower.includes('huế hậu')) return 'HH';
+    if (lower.includes('abuss')) return 'ABUSS';
+    if (lower.includes('tuấn anh')) return 'TA';
+    if (lower.includes('tân mỹ')) return 'TM';
+    if (lower.includes('hà an')) return 'HA';
+    if (lower.includes('dk engineering')) return 'DK';
+    if (lower.includes('hoàng thành thăng long')) return 'HTTL';
+
+    // Tra cứu trong các hợp đồng đã có cùng tên công ty trong dự án
+    if (this.contracts) {
+      const existing = this.contracts.find((c) =>
+        (c.company_b && c.company_b.trim().toLowerCase() === lower && c.code_b) ||
+        (c.company_a && c.company_a.trim().toLowerCase() === lower && c.code_a)
+      );
+      if (existing) {
+        if (existing.company_b && existing.company_b.trim().toLowerCase() === lower && existing.code_b) return existing.code_b;
+        if (existing.company_a && existing.company_a.trim().toLowerCase() === lower && existing.code_a) return existing.code_a;
+      }
+    }
+
+    return '';
   }
 
   updateProjectSelectorUI() {
@@ -3781,6 +3909,14 @@ export class ContractsManager {
     if (!confirm(confirmMsg)) return;
 
     try {
+      // Gỡ liên kết ở các hợp đồng khác đang trỏ tới hợp đồng bị xóa
+      for (const other of (this.contracts || [])) {
+        if (!allIds.includes(other.id) && allIds.includes(other.linked_contract_id)) {
+          other.linked_contract_id = '';
+          await db.put('contracts', other);
+        }
+      }
+
       for (const cid of allIds) {
         await db.delete('contracts', cid);
       }
@@ -3868,6 +4004,27 @@ export class ContractsManager {
         if (foundA) defaultCompanyA = foundA.company_a.trim();
       }
     }
+
+    let defaultCompanyB = editContract?.company_b || baseSource.company_b || '';
+    let defaultCompanyB2 = editContract?.company_b2 || baseSource.company_b2 || '';
+
+    // Tự động suy luận Mã Code nếu chưa có
+    let defaultCodeA = editContract?.code_a || baseSource.code_a || '';
+    if (!defaultCodeA && defaultCompanyA) {
+      defaultCodeA = this.getCompanyCodeByName(defaultCompanyA, 'A');
+    }
+
+    let defaultCodeB = editContract?.code_b || editContract?.company_code || baseSource.code_b || baseSource.company_code || '';
+    if (!defaultCodeB && defaultCompanyB) {
+      defaultCodeB = this.getCompanyCodeByName(defaultCompanyB, 'B');
+    }
+
+    let defaultCodeB2 = editContract?.code_b2 || baseSource.code_b2 || '';
+    if (!defaultCodeB2 && defaultCompanyB2) {
+      defaultCodeB2 = this.getCompanyCodeByName(defaultCompanyB2, 'B');
+    }
+
+    const currentLinkedId = editContract?.linked_contract_id || baseSource.linked_contract_id || '';
 
     // Thu thập danh sách gợi ý dữ liệu đã có trong dự án
     const getUnique = (prop) => {
@@ -4015,29 +4172,30 @@ export class ContractsManager {
               </div>
             </div>
 
-            <!-- HỢP ĐỒNG LIÊN KẾT TƯƠNG TỰ -->
-            <div class="form-group" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 4px;">
-              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <span><i class="fa-solid fa-link" style="color: #6366f1;"></i> Hợp đồng liên kết tương tự</span>
-                <small style="color: var(--text-muted); font-size: 0.75rem;">Liên kết giữa HĐ Bên A (Chủ đầu tư) và HĐ Bên B (Thầu phụ) để chuyển nhanh</small>
+            <!-- HỢP ĐỒNG LIÊN KẾT TƯƠNG TỰ (TÌM KIẾM & ĐỒNG BỘ 2 CHIỀU) -->
+            <div class="form-group" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: var(--radius-sm); padding: 12px; margin-top: 4px; position: relative;">
+              <input type="hidden" name="linked_contract_id" id="input-linked-contract-id" value="${currentLinkedId}">
+              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="font-weight: 700; color: #4338ca;"><i class="fa-solid fa-link" style="color: #6366f1;"></i> Hợp đồng liên kết tương tự</span>
+                <small style="color: var(--text-muted); font-size: 0.75rem;">Liên kết 2 chiều giữa HĐ Bên A (Chủ đầu tư) và HĐ Bên B (Thầu phụ) để chuyển đổi nhanh</small>
               </label>
-              <select class="form-control" name="linked_contract_id" id="contract-select-linked" style="font-size: 0.85rem;">
-                <option value="">-- Không có liên kết --</option>
-                ${
-                  contractsA.length > 0
-                    ? `<optgroup label="Hợp đồng Nhóm A (Chủ đầu tư / Tổng thầu)">
-                        ${contractsA.map((ca) => `<option value="${ca.id}" ${(editContract?.linked_contract_id || baseSource.linked_contract_id) === ca.id ? 'selected' : ''}>${ca.id}: ${ca.contract_no} — ${ca.scope_of_work || ca.company_a || ''}</option>`).join('')}
-                       </optgroup>`
-                    : ''
-                }
-                ${
-                  contractsB.length > 0
-                    ? `<optgroup label="Hợp đồng Nhóm B (Thầu phụ / Nhà cung cấp)">
-                        ${contractsB.map((cb) => `<option value="${cb.id}" ${(editContract?.linked_contract_id || baseSource.linked_contract_id) === cb.id ? 'selected' : ''}>${cb.id}: ${cb.contract_no} — ${cb.company_b || ''} (${cb.scope_of_work || ''})</option>`).join('')}
-                       </optgroup>`
-                    : ''
-                }
-              </select>
+
+              <!-- Box hiển thị trạng thái hợp đồng đã liên kết -->
+              <div id="linked-contract-display-container"></div>
+
+              <!-- Dropdown Tìm kiếm Hợp đồng Liên kết -->
+              <div id="linked-contract-search-panel" class="hidden" style="margin-top: 8px; background: #ffffff; border: 1px solid #c7d2fe; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.08); padding: 10px;">
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                  <div style="position: relative; flex: 1;">
+                    <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 10px; top: 10px; color: #94a3b8; font-size: 0.85rem;"></i>
+                    <input type="text" id="input-search-linked-term" class="form-control" style="padding-left: 32px; font-size: 0.85rem;" placeholder="Tìm theo số hiệu HĐ, đối tác, nội dung gói thầu (gõ không dấu)...">
+                  </div>
+                  <button type="button" class="button button-outline" id="btn-close-linked-search" style="padding: 4px 10px; font-size: 0.8rem;">Đóng</button>
+                </div>
+                <div id="linked-contracts-list" style="max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                  <!-- Render động các lựa chọn hợp đồng -->
+                </div>
+              </div>
             </div>
 
             <!-- 2. ĐỐI TÁC & THÔNG TIN GÓI THẦU -->
@@ -4064,7 +4222,7 @@ export class ContractsManager {
                 <div class="form-group">
                   <label class="form-label">Mã Code A</label>
                   <div class="custom-autocomplete-wrap">
-                    <input type="text" class="form-control" name="code_a" id="input-code-a" autocomplete="off" value="${editContract?.code_a || baseSource.code_a || ''}" placeholder="Vd: CLI, VEC" style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
+                    <input type="text" class="form-control" name="code_a" id="input-code-a" autocomplete="off" value="${defaultCodeA}" placeholder="Vd: CLI, VEC" style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
                     <div class="autocomplete-dropdown hidden"></div>
                   </div>
                 </div>
@@ -4110,7 +4268,7 @@ export class ContractsManager {
                   <div class="form-group">
                     <label class="form-label">Nhà thầu B1 (Chính) *</label>
                     <div class="custom-autocomplete-wrap">
-                      <input type="text" class="form-control" name="company_b" id="input-company-b" autocomplete="off" value="${editContract?.company_b || baseSource.company_b || ''}" placeholder="Tên công ty đứng đầu liên danh / Nhà thầu chính" required>
+                      <input type="text" class="form-control" name="company_b" id="input-company-b" autocomplete="off" value="${defaultCompanyB}" placeholder="Tên công ty đứng đầu liên danh / Nhà thầu chính" required>
                       <div class="autocomplete-dropdown hidden"></div>
                     </div>
                   </div>
@@ -4118,7 +4276,7 @@ export class ContractsManager {
                   <div class="form-group">
                     <label class="form-label">Mã Code B1 *</label>
                     <div class="custom-autocomplete-wrap">
-                      <input type="text" class="form-control" name="code_b" id="input-code-b" autocomplete="off" value="${editContract?.code_b || editContract?.company_code || baseSource.code_b || baseSource.company_code || ''}" placeholder="Vd: CTC, VNCN" style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
+                      <input type="text" class="form-control" name="code_b" id="input-code-b" autocomplete="off" value="${defaultCodeB}" placeholder="Vd: CTC, VNCN" style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
                       <div class="autocomplete-dropdown hidden"></div>
                     </div>
                   </div>
@@ -4157,7 +4315,7 @@ export class ContractsManager {
                   <div class="form-group">
                     <label class="form-label">Nhà thầu B2 (Liên danh nếu có)</label>
                     <div class="custom-autocomplete-wrap">
-                      <input type="text" class="form-control" name="company_b2" id="input-company-b2" autocomplete="off" value="${editContract?.company_b2 || baseSource.company_b2 || ''}" placeholder="Tên công ty liên danh B2 (để trống nếu không có)">
+                      <input type="text" class="form-control" name="company_b2" id="input-company-b2" autocomplete="off" value="${defaultCompanyB2}" placeholder="Tên công ty liên danh B2 (để trống nếu không có)">
                       <div class="autocomplete-dropdown hidden"></div>
                     </div>
                   </div>
@@ -4165,7 +4323,7 @@ export class ContractsManager {
                   <div class="form-group">
                     <label class="form-label">Mã Code B2</label>
                     <div class="custom-autocomplete-wrap">
-                      <input type="text" class="form-control" name="code_b2" id="input-code-b2" autocomplete="off" value="${editContract?.code_b2 || baseSource.code_b2 || ''}" placeholder="Vd: EC-KD" style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
+                      <input type="text" class="form-control" name="code_b2" id="input-code-b2" autocomplete="off" value="${defaultCodeB2}" placeholder="Vd: EC-KD" style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
                       <div class="autocomplete-dropdown hidden"></div>
                     </div>
                   </div>
@@ -4392,15 +4550,17 @@ export class ContractsManager {
     // Thiết lập autocomplete cho các trường Bên A
     setupCustomAutocomplete(modal.querySelector('#input-company-a'), companiesA, (selectedName) => {
       const matched = (this.contracts || []).find((c) => c.company_a && c.company_a.trim().toLowerCase() === selectedName.trim().toLowerCase());
+      const fillIfEmpty = (sel, newVal) => {
+        const el = modal.querySelector(sel);
+        if (el && (!el.value || el.value.trim() === '') && newVal) el.value = newVal;
+      };
       if (matched) {
-        const fillIfEmpty = (sel, newVal) => {
-          const el = modal.querySelector(sel);
-          if (el && (!el.value || el.value.trim() === '') && newVal) el.value = newVal;
-        };
-        fillIfEmpty('#input-code-a', matched.code_a);
+        fillIfEmpty('#input-code-a', matched.code_a || this.getCompanyCodeByName(selectedName, 'A'));
         fillIfEmpty('#input-tax-code-a', matched.tax_code_a);
         fillIfEmpty('#input-rep-a', matched.rep_a);
         fillIfEmpty('#input-contact-a', matched.contact_person_a);
+      } else {
+        fillIfEmpty('#input-code-a', this.getCompanyCodeByName(selectedName, 'A'));
       }
     });
     setupCustomAutocomplete(modal.querySelector('#input-code-a'), codesA);
@@ -4408,21 +4568,33 @@ export class ContractsManager {
     setupCustomAutocomplete(modal.querySelector('#input-rep-a'), repsA);
     setupCustomAutocomplete(modal.querySelector('#input-contact-a'), contactsA);
 
+    // Tự động gợi ý mã code khi người dùng gõ tên công ty Bên A
+    const inputCompA = modal.querySelector('#input-company-a');
+    const inputCodeA = modal.querySelector('#input-code-a');
+    inputCompA?.addEventListener('input', (e) => {
+      const autoCode = this.getCompanyCodeByName(e.target.value, 'A');
+      if (autoCode && inputCodeA && (!inputCodeA.value || inputCodeA.value.trim() === '')) {
+        inputCodeA.value = autoCode;
+      }
+    });
+
     // Thiết lập autocomplete cho các trường Bên B1
     setupCustomAutocomplete(modal.querySelector('#input-company-b'), companiesB, (selectedName) => {
       const matched = (this.contracts || []).find((c) => c.company_b && c.company_b.trim().toLowerCase() === selectedName.trim().toLowerCase());
+      const fillIfEmpty = (sel, newVal) => {
+        const el = modal.querySelector(sel);
+        if (el && (!el.value || el.value.trim() === '') && newVal) el.value = newVal;
+      };
       if (matched) {
-        const fillIfEmpty = (sel, newVal) => {
-          const el = modal.querySelector(sel);
-          if (el && (!el.value || el.value.trim() === '') && newVal) el.value = newVal;
-        };
-        fillIfEmpty('#input-code-b', matched.code_b || matched.company_code);
+        fillIfEmpty('#input-code-b', matched.code_b || matched.company_code || this.getCompanyCodeByName(selectedName, 'B'));
         fillIfEmpty('#input-tax-code-b', matched.tax_code);
         fillIfEmpty('#input-rep-b', matched.rep_b);
         fillIfEmpty('#input-contact-b', matched.contact_person_b);
         fillIfEmpty('#input-payee', matched.payee || matched.company_b);
         fillIfEmpty('#input-bank-account', matched.bank_account);
         fillIfEmpty('#input-bank-name', matched.bank_name);
+      } else {
+        fillIfEmpty('#input-code-b', this.getCompanyCodeByName(selectedName, 'B'));
       }
     });
     setupCustomAutocomplete(modal.querySelector('#input-code-b'), codesB);
@@ -4430,18 +4602,30 @@ export class ContractsManager {
     setupCustomAutocomplete(modal.querySelector('#input-rep-b'), repsB);
     setupCustomAutocomplete(modal.querySelector('#input-contact-b'), contactsB);
 
+    // Tự động gợi ý mã code khi người dùng gõ tên công ty Bên B1
+    const inputCompB = modal.querySelector('#input-company-b');
+    const inputCodeB = modal.querySelector('#input-code-b');
+    inputCompB?.addEventListener('input', (e) => {
+      const autoCode = this.getCompanyCodeByName(e.target.value, 'B');
+      if (autoCode && inputCodeB && (!inputCodeB.value || inputCodeB.value.trim() === '')) {
+        inputCodeB.value = autoCode;
+      }
+    });
+
     // Thiết lập autocomplete cho các trường Bên B2
     setupCustomAutocomplete(modal.querySelector('#input-company-b2'), companiesB2, (selectedName) => {
       const matched = (this.contracts || []).find((c) => c.company_b2 && c.company_b2.trim().toLowerCase() === selectedName.trim().toLowerCase());
+      const fillIfEmpty = (sel, newVal) => {
+        const el = modal.querySelector(sel);
+        if (el && (!el.value || el.value.trim() === '') && newVal) el.value = newVal;
+      };
       if (matched) {
-        const fillIfEmpty = (sel, newVal) => {
-          const el = modal.querySelector(sel);
-          if (el && (!el.value || el.value.trim() === '') && newVal) el.value = newVal;
-        };
-        fillIfEmpty('#input-code-b2', matched.code_b2);
+        fillIfEmpty('#input-code-b2', matched.code_b2 || this.getCompanyCodeByName(selectedName, 'B'));
         fillIfEmpty('#input-tax-code-b2', matched.tax_code_b2);
         fillIfEmpty('#input-rep-b2', matched.rep_b2);
         fillIfEmpty('#input-contact-b2', matched.contact_person_b2);
+      } else {
+        fillIfEmpty('#input-code-b2', this.getCompanyCodeByName(selectedName, 'B'));
       }
     });
     setupCustomAutocomplete(modal.querySelector('#input-code-b2'), codesB2);
@@ -4449,10 +4633,179 @@ export class ContractsManager {
     setupCustomAutocomplete(modal.querySelector('#input-rep-b2'), repsB2);
     setupCustomAutocomplete(modal.querySelector('#input-contact-b2'), contactsB2);
 
+    // Tự động gợi ý mã code khi người dùng gõ tên công ty Bên B2
+    const inputCompB2 = modal.querySelector('#input-company-b2');
+    const inputCodeB2 = modal.querySelector('#input-code-b2');
+    inputCompB2?.addEventListener('input', (e) => {
+      const autoCode = this.getCompanyCodeByName(e.target.value, 'B');
+      if (autoCode && inputCodeB2 && (!inputCodeB2.value || inputCodeB2.value.trim() === '')) {
+        inputCodeB2.value = autoCode;
+      }
+    });
+
     // Autocomplete thụ hưởng & Ngân hàng
     setupCustomAutocomplete(modal.querySelector('#input-payee'), payees);
     setupCustomAutocomplete(modal.querySelector('#input-bank-account'), bankAccounts);
     setupCustomAutocomplete(modal.querySelector('#input-bank-name'), bankNames);
+
+    // Component Tìm kiếm & Lựa chọn Hợp đồng liên kết tương tự
+    const linkedInput = modal.querySelector('#input-linked-contract-id');
+    const linkedDisplay = modal.querySelector('#linked-contract-display-container');
+    const linkedSearchPanel = modal.querySelector('#linked-contract-search-panel');
+    const linkedSearchTerm = modal.querySelector('#input-search-linked-term');
+    const linkedList = modal.querySelector('#linked-contracts-list');
+    const btnCloseLinked = modal.querySelector('#btn-close-linked-search');
+
+    const candidateContracts = (this.contracts || []).filter(
+      (c) => !c.is_cpb && c.contract_type !== 'CPB' && c.id !== (editContract?.id || '')
+    );
+
+    const renderLinkedContractDisplay = (selectedId) => {
+      if (!linkedDisplay) return;
+      if (!selectedId) {
+        linkedDisplay.innerHTML = `
+          <button type="button" class="button button-outline" id="btn-open-linked-search" style="width: 100%; border-style: dashed; border-color: #cbd5e1; justify-content: center; gap: 8px; padding: 10px; font-size: 0.85rem; color: #4338ca; background: #fff;">
+            <i class="fa-solid fa-magnifying-glass"></i> Chọn hợp đồng liên kết tương tự (Tìm kiếm theo số hiệu, đối tác...)
+          </button>
+        `;
+        linkedDisplay.querySelector('#btn-open-linked-search')?.addEventListener('click', () => {
+          openLinkedSearch();
+        });
+        return;
+      }
+
+      const found = (this.contracts || []).find((c) => c.id === selectedId);
+      if (found) {
+        const isGrpA = found.group === 'A';
+        linkedDisplay.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #ffffff; border: 1px solid #818cf8; border-radius: 6px; padding: 8px 12px; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; overflow: hidden;">
+              <span class="badge" style="background: ${isGrpA ? '#dbeafe' : '#fef3c7'}; color: ${isGrpA ? '#1e40af' : '#92400e'}; font-weight: 700; flex-shrink: 0;">
+                Nhóm ${found.group}
+              </span>
+              <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <div style="font-weight: 700; color: #1e1b4b; font-size: 0.88rem;">
+                  ${found.contract_no || found.id} <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">(${found.id})</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${found.company_b || found.company_a || 'Chưa rõ đối tác'} ${found.scope_of_work ? `• ${found.scope_of_work}` : ''}
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              <button type="button" class="button button-outline" id="btn-change-linked" style="padding: 4px 8px; font-size: 0.75rem;">
+                <i class="fa-solid fa-magnifying-glass"></i> Đổi
+              </button>
+              <button type="button" class="button button-outline" id="btn-clear-linked" style="padding: 4px 8px; font-size: 0.75rem; color: #dc2626; border-color: #fca5a5;">
+                <i class="fa-solid fa-xmark"></i> Gỡ
+              </button>
+            </div>
+          </div>
+        `;
+        linkedDisplay.querySelector('#btn-change-linked')?.addEventListener('click', () => {
+          openLinkedSearch();
+        });
+        linkedDisplay.querySelector('#btn-clear-linked')?.addEventListener('click', () => {
+          if (linkedInput) linkedInput.value = '';
+          renderLinkedContractDisplay('');
+        });
+      } else {
+        linkedDisplay.innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: space-between; background: #fff1f2; border: 1px solid #fecdd3; border-radius: 6px; padding: 8px 12px;">
+            <div style="font-size: 0.85rem; color: #be123c;">HĐ liên kết: <strong>${selectedId}</strong> (Không tồn tại trong dự án)</div>
+            <button type="button" class="button button-outline" id="btn-clear-linked" style="padding: 4px 8px; font-size: 0.75rem; color: #dc2626;">Gỡ</button>
+          </div>
+        `;
+        linkedDisplay.querySelector('#btn-clear-linked')?.addEventListener('click', () => {
+          if (linkedInput) linkedInput.value = '';
+          renderLinkedContractDisplay('');
+        });
+      }
+    };
+
+    const renderLinkedOptions = (filterTerm = '') => {
+      if (!linkedList) return;
+      const cleanTerm = this.removeAccents(filterTerm).toLowerCase();
+
+      const matchedContracts = candidateContracts.filter((c) => {
+        if (!cleanTerm) return true;
+        const searchTarget = this.removeAccents(
+          `${c.id} ${c.contract_no || ''} ${c.company_a || ''} ${c.company_b || ''} ${c.scope_of_work || ''} ${c.code_a || ''} ${c.code_b || ''}`
+        ).toLowerCase();
+        return searchTarget.includes(cleanTerm);
+      });
+
+      if (matchedContracts.length === 0) {
+        linkedList.innerHTML = `<div style="padding: 12px; font-size: 0.82rem; color: #94a3b8; text-align: center;">Không tìm thấy hợp đồng nào phù hợp</div>`;
+        return;
+      }
+
+      const candA = matchedContracts.filter((c) => c.group === 'A');
+      const candB = matchedContracts.filter((c) => c.group === 'B');
+
+      let html = '';
+      if (candA.length > 0) {
+        html += `<div style="font-size: 0.75rem; font-weight: 700; color: #1e40af; background: #eff6ff; padding: 4px 8px; border-radius: 4px; margin-top: 4px;">NHÓM A: CHỦ ĐẦU TƯ / TỔNG THẦU (${candA.length})</div>`;
+        html += candA.map((c) => `
+          <div class="linked-candidate-item" data-id="${c.id}" style="padding: 8px 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; border-radius: 4px; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">${c.contract_no || c.id}</span>
+              <span style="font-size: 0.72rem; color: #64748b; font-family: monospace;">${c.id}</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">
+              ${c.company_a || c.company_b || ''} ${c.scope_of_work ? `• ${c.scope_of_work}` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      if (candB.length > 0) {
+        html += `<div style="font-size: 0.75rem; font-weight: 700; color: #92400e; background: #fef3c7; padding: 4px 8px; border-radius: 4px; margin-top: 6px;">NHÓM B: NHÀ THẦU PHỤ / NHÀ CUNG CẤP (${candB.length})</div>`;
+        html += candB.map((c) => `
+          <div class="linked-candidate-item" data-id="${c.id}" style="padding: 8px 10px; border-bottom: 1px solid #f1f5f9; cursor: pointer; border-radius: 4px; transition: background 0.15s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">${c.contract_no || c.id}</span>
+              <span style="font-size: 0.72rem; color: #64748b; font-family: monospace;">${c.id}</span>
+            </div>
+            <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">
+              ${c.company_b || ''} ${c.scope_of_work ? `• ${c.scope_of_work}` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      linkedList.innerHTML = html;
+
+      linkedList.querySelectorAll('.linked-candidate-item').forEach((item) => {
+        item.addEventListener('click', () => {
+          const cid = item.getAttribute('data-id');
+          if (linkedInput) linkedInput.value = cid;
+          renderLinkedContractDisplay(cid);
+          if (linkedSearchPanel) linkedSearchPanel.classList.add('hidden');
+        });
+      });
+    };
+
+    const openLinkedSearch = () => {
+      if (!linkedSearchPanel) return;
+      linkedSearchPanel.classList.remove('hidden');
+      if (linkedSearchTerm) {
+        linkedSearchTerm.value = '';
+        linkedSearchTerm.focus();
+      }
+      renderLinkedOptions('');
+    };
+
+    btnCloseLinked?.addEventListener('click', () => {
+      if (linkedSearchPanel) linkedSearchPanel.classList.add('hidden');
+    });
+
+    linkedSearchTerm?.addEventListener('input', (e) => {
+      renderLinkedOptions(e.target.value);
+    });
+
+    // Khởi tạo hiển thị ban đầu cho Hợp đồng liên kết
+    renderLinkedContractDisplay(currentLinkedId);
 
     // Live update Thành tiền quy đổi VNĐ tự động theo thời gian thực
     const inputVal = modal.querySelector('#input-contract-val');
@@ -4499,17 +4852,17 @@ export class ContractsManager {
       };
 
       setVal('#input-company-a', tpl.company_a || '');
-      setVal('#input-code-a', tpl.code_a || '');
+      setVal('#input-code-a', tpl.code_a || this.getCompanyCodeByName(tpl.company_a, 'A'));
       setVal('#input-tax-code-a', tpl.tax_code_a || '');
       setVal('#input-rep-a', tpl.rep_a || '');
       setVal('#input-contact-a', tpl.contact_person_a || '');
       setVal('#input-company-b', tpl.company_b || '');
-      setVal('#input-code-b', tpl.code_b || tpl.company_code || '');
+      setVal('#input-code-b', tpl.code_b || tpl.company_code || this.getCompanyCodeByName(tpl.company_b, 'B'));
       setVal('#input-tax-code-b', tpl.tax_code || '');
       setVal('#input-rep-b', tpl.rep_b || '');
       setVal('#input-contact-b', tpl.contact_person_b || '');
       setVal('#input-company-b2', tpl.company_b2 || '');
-      setVal('#input-code-b2', tpl.code_b2 || '');
+      setVal('#input-code-b2', tpl.code_b2 || this.getCompanyCodeByName(tpl.company_b2, 'B'));
       setVal('#input-tax-code-b2', tpl.tax_code_b2 || '');
       setVal('#input-rep-b2', tpl.rep_b2 || '');
       setVal('#input-contact-b2', tpl.contact_person_b2 || '');
@@ -4520,7 +4873,10 @@ export class ContractsManager {
       setVal('#input-bank-name', tpl.bank_name || '');
       setVal('#input-contract-val', this.formatNumberWithDots(tpl.contract_val || 0));
       setVal('#input-exchange-rate', tpl.exchange_rate || 1);
-      setVal('#contract-select-linked', tpl.linked_contract_id || '');
+      if (tpl.linked_contract_id) {
+        if (linkedInput) linkedInput.value = tpl.linked_contract_id;
+        renderLinkedContractDisplay(tpl.linked_contract_id);
+      }
       updateConvertedVnd();
     });
 
@@ -4546,6 +4902,17 @@ export class ContractsManager {
         ? editContract.level || 0
         : 0;
 
+      const compA = (formData.get('company_a') || '').trim();
+      const compB = (formData.get('company_b') || '').trim();
+      const compB2 = (formData.get('company_b2') || '').trim();
+
+      const codeA = (formData.get('code_a') || '').trim().toUpperCase() || this.getCompanyCodeByName(compA, 'A');
+      const codeB = (formData.get('code_b') || '').trim().toUpperCase() || this.getCompanyCodeByName(compB, 'B');
+      const codeB2 = (formData.get('code_b2') || '').trim().toUpperCase() || this.getCompanyCodeByName(compB2, 'B');
+
+      const oldLinkedId = editContract ? (editContract.linked_contract_id || '') : '';
+      const newLinkedId = (formData.get('linked_contract_id') || '').trim();
+
       const updatedData = {
         ...(editContract || {}),
         id: formData.get('id'),
@@ -4558,32 +4925,70 @@ export class ContractsManager {
         signing_date: formData.get('signing_date') || null,
         end_date: formData.get('end_date') || null,
         status: formData.get('status') || 'Active',
-        company_a: (formData.get('company_a') || '').trim(),
-        code_a: (formData.get('code_a') || '').trim().toUpperCase(),
+        company_a: compA,
+        code_a: codeA,
         tax_code_a: (formData.get('tax_code_a') || '').trim(),
         rep_a: (formData.get('rep_a') || '').trim(),
         contact_person_a: (formData.get('contact_person_a') || '').trim(),
-        company_b: (formData.get('company_b') || '').trim(),
-        code_b: (formData.get('code_b') || '').trim().toUpperCase(),
+        company_b: compB,
+        code_b: codeB,
         tax_code: (formData.get('tax_code') || '').trim(),
         rep_b: (formData.get('rep_b') || '').trim(),
         contact_person_b: (formData.get('contact_person_b') || '').trim(),
-        company_b2: (formData.get('company_b2') || '').trim(),
-        code_b2: (formData.get('code_b2') || '').trim().toUpperCase(),
+        company_b2: compB2,
+        code_b2: codeB2,
         tax_code_b2: (formData.get('tax_code_b2') || '').trim(),
         rep_b2: (formData.get('rep_b2') || '').trim(),
         contact_person_b2: (formData.get('contact_person_b2') || '').trim(),
-        company_code: (formData.get('code_b') || formData.get('code_a') || '').trim().toUpperCase(),
+        company_code: codeB || codeA || '',
         scope_of_work: (formData.get('scope_of_work') || '').trim(),
         contract_val: this.parseNumberFromDots(formData.get('contract_val')),
         exchange_rate: parseFloat(formData.get('exchange_rate')) || 1.0,
         is_additive: isAppendix ? (formData.get('is_additive') === '1') : true,
         category: formData.get('category') || 'Construction',
-        payee: (formData.get('payee') || formData.get('company_b') || '').trim(),
+        payee: (formData.get('payee') || compB || '').trim(),
         bank_account: (formData.get('bank_account') || '').trim(),
         bank_name: (formData.get('bank_name') || '').trim(),
-        linked_contract_id: formData.get('linked_contract_id') || '',
+        linked_contract_id: newLinkedId,
       };
+
+      // 1. Lưu hợp đồng hiện tại
+      await db.put('contracts', updatedData);
+
+      // 2. Đồng bộ 2 chiều (Bidirectional link sync)
+      if (oldLinkedId !== newLinkedId) {
+        // Gỡ liên kết ở hợp đồng cũ (nếu có và hợp đồng cũ đang trỏ về HĐ này)
+        if (oldLinkedId) {
+          const oldLinkedContract = (this.contracts || []).find((c) => c.id === oldLinkedId);
+          if (oldLinkedContract && oldLinkedContract.linked_contract_id === updatedData.id) {
+            oldLinkedContract.linked_contract_id = '';
+            await db.put('contracts', oldLinkedContract);
+          }
+        }
+        // Thiết lập liên kết ở hợp đồng mới
+        if (newLinkedId) {
+          const newLinkedContract = (this.contracts || []).find((c) => c.id === newLinkedId);
+          if (newLinkedContract) {
+            // Nếu newLinkedContract đang trỏ tới một hợp đồng khác (khác updatedData.id), gỡ liên kết ở HĐ đó
+            if (newLinkedContract.linked_contract_id && newLinkedContract.linked_contract_id !== updatedData.id) {
+              const prevTarget = (this.contracts || []).find((c) => c.id === newLinkedContract.linked_contract_id);
+              if (prevTarget && prevTarget.linked_contract_id === newLinkedId) {
+                prevTarget.linked_contract_id = '';
+                await db.put('contracts', prevTarget);
+              }
+            }
+            newLinkedContract.linked_contract_id = updatedData.id;
+            await db.put('contracts', newLinkedContract);
+          }
+        }
+      } else if (newLinkedId) {
+        // Đảm bảo tính nhất quán nếu đối tác chưa trỏ ngược lại
+        const targetContract = (this.contracts || []).find((c) => c.id === newLinkedId);
+        if (targetContract && targetContract.linked_contract_id !== updatedData.id) {
+          targetContract.linked_contract_id = updatedData.id;
+          await db.put('contracts', targetContract);
+        }
+      }
 
       await db.put('contracts', updatedData);
       await this.loadData();

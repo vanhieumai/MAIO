@@ -327,6 +327,7 @@ export class CPMSImporterExporter {
         const rawZ = r[25] ? String(r[25]).trim() : '';
         let codeA = '';
         let codeB = '';
+        let codeB2 = '';
         if (rawZ) {
           const parts = rawZ.split('|');
           parts.forEach((p) => {
@@ -335,6 +336,7 @@ export class CPMSImporterExporter {
               const k = kv[0].trim().toUpperCase();
               const v = kv[1].trim();
               if (k === 'SUBCON') codeB = v;
+              if (k === 'SUBCON2') codeB2 = v;
               if (k === 'CLIENT' || k === 'MAINCON') codeA = v;
             } else if (!codeB) {
               codeB = p.trim();
@@ -373,7 +375,7 @@ export class CPMSImporterExporter {
           sort_order: parseFloat(r[24] || 0) || 0,
           code_a: codeA,
           code_b: codeB,
-          code_b2: '',
+          code_b2: codeB2,
           company_code: codeB || rawZ,
           tax_code: r[26] ? String(r[26]).trim() : '',
           linked_contract_id: r[27] ? String(r[27]).trim() : '',
@@ -570,11 +572,27 @@ export class CPMSImporterExporter {
     const prjLoc = project.location || '';
     const prjClient = project.client || '';
 
+    // Thu thập danh sách mã công ty trong dự án để lưu vào PROJECT_SETTINGS chuẩn CPMS Plus
+    const allCompanyCodesSet = new Set(['CLI', 'VEC', 'VNCN', 'CTC', 'NSH', 'KD', 'TID', 'HHG', 'HD', 'ART']);
+    let prjClientCode = 'CLI';
+    let prjMainConCode = 'VEC';
+
+    allContracts.forEach((c) => {
+      if (c.code_a) allCompanyCodesSet.add(c.code_a.toUpperCase());
+      if (c.code_b) allCompanyCodesSet.add(c.code_b.toUpperCase());
+      if (c.code_b2) allCompanyCodesSet.add(c.code_b2.toUpperCase());
+      if (c.group === 'A' && c.code_a) prjClientCode = c.code_a.toUpperCase();
+      if (c.group === 'A' && c.code_b) prjMainConCode = c.code_b.toUpperCase();
+    });
+
     const prjSettingsData = [
-      ['SettingKey', 'SettingValue'],
-      ['ProjectID', prjCode],
+      ['Key', 'Value'],
       ['PROJ', prjCode],
-      ['PROJ_NAME', prjName],
+      ['CLIENT', prjClientCode],
+      ['MAINCON', prjMainConCode],
+      ['SUPCON', 'ART'],
+      ['COMPANY_CODES', Array.from(allCompanyCodesSet).join(';')],
+      ['ProjectID', prjCode],
       ['ProjectName', prjName],
       ['Location', prjLoc],
       ['Client', prjClient],
@@ -596,15 +614,16 @@ export class CPMSImporterExporter {
     const contractRows = [contractHeaders];
 
     const formatCompanyCodeCell = (c) => {
-      const codeA = c.code_a ? String(c.code_a).trim() : '';
-      const codeB = c.code_b ? String(c.code_b).trim() : (c.company_code ? String(c.company_code).trim() : '');
-      if (codeA && codeB) return `CLIENT=${codeA}|SUBCON=${codeB}`;
-      if (codeB) {
-        return codeB.includes('=') ? codeB : `SUBCON=${codeB}`;
-      }
-      if (codeA) {
-        return codeA.includes('=') ? codeA : `CLIENT=${codeA}`;
-      }
+      const codeA = c.code_a ? String(c.code_a).trim().toUpperCase() : '';
+      const codeB = c.code_b ? String(c.code_b).trim().toUpperCase() : (c.company_code ? String(c.company_code).trim().toUpperCase() : '');
+      const codeB2 = c.code_b2 ? String(c.code_b2).trim().toUpperCase() : '';
+
+      let parts = [];
+      if (codeA) parts.push(`CLIENT=${codeA}`);
+      if (codeB) parts.push(`SUBCON=${codeB}`);
+      if (codeB2) parts.push(`SUBCON2=${codeB2}`);
+
+      if (parts.length > 0) return parts.join('|');
       return c.company_code || '';
     };
 
