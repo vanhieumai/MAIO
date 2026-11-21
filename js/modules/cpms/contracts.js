@@ -2725,6 +2725,11 @@ export class ContractsManager {
                 <i class="fa-solid fa-folder-arrow-up"></i> Chọn nơi lưu tệp (.cpms) trên máy tính...
               </button>
               <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Trình duyệt sẽ mở hộp thoại Lưu tệp để bạn chọn thư mục và đặt tên</p>
+              <div style="margin-top: 12px;">
+                <button type="button" id="btn-wizard-manual-fallback" class="button button-outline button-sm" style="font-size: 0.8rem; border-color: transparent; color: var(--primary); text-decoration: underline; background: transparent;">
+                  Hoặc tự đặt tên tệp để tải về máy sau khi tạo
+                </button>
+              </div>
             </div>
 
             <!-- Vùng hiển thị tệp đã chọn -->
@@ -2909,6 +2914,10 @@ export class ContractsManager {
 
     modal.querySelector('#btn-wizard-pick-file')?.addEventListener('click', pickSaveFile);
     modal.querySelector('#btn-wizard-repick-file')?.addEventListener('click', pickSaveFile);
+    modal.querySelector('#btn-wizard-manual-fallback')?.addEventListener('click', () => {
+      setupFallbackFile();
+      goToStep(2);
+    });
 
     btnNextStep.addEventListener('click', () => {
       if (!chosenFileName) {
@@ -3013,6 +3022,13 @@ export class ContractsManager {
           const writable = await chosenFileHandle.createWritable();
           await writable.write(buffer);
           await writable.close();
+        } else {
+          // Tự động tải file CPMS khởi tạo về máy tính cho người dùng nếu không dùng File System API
+          try {
+            await CPMSImporterExporter.exportToCPMSFormat(newId, 'cpms');
+          } catch (e) {
+            console.warn('Lỗi xuất file tải về:', e);
+          }
         }
 
         // 4. Đổi sang dự án vừa tạo & cập nhật toàn bộ hệ thống
