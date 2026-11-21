@@ -381,7 +381,7 @@
           </div>
 
           <div class="cpms-container">
-            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) + Nút Thêm Hợp đồng & Thêm CPB -->
+            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) + Nút Thêm Hợp đồng -->
             <div class="tab-nav" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="tab-btn active group-tab-btn" data-group="A">
@@ -391,14 +391,9 @@
                   <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
                 </button>
               </div>
-              <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                <button id="btn-add-cpb" class="button button-outline button-sm hidden" style="color: #b45309; border-color: #fde68a; background: #fffbeb; font-weight: 600; white-space: nowrap;" title="Thêm Chi phí Ban / Chi phí quản lý dự án không có hợp đồng">
-                  <i class="fa-solid fa-receipt"></i> + Thêm Chi phí Ban (CPB)
-                </button>
-                <button id="btn-add-contract" class="button button-primary button-sm" style="font-weight: 600; white-space: nowrap;">
-                  <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
-                </button>
-              </div>
+              <button id="btn-add-contract" class="button button-primary button-sm" style="font-weight: 600; white-space: nowrap;">
+                <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
+              </button>
             </div>
 
             <!-- Bộ lọc & Tìm kiếm -->
@@ -425,63 +420,57 @@
           </div>
         </div>
 
-        <!-- SUB-TAB 3: SỔ THEO DÕI GIẢI NGÂN (IPC LEDGER) -->
+        <!-- SUB-TAB 3: SỔ THEO DÕI GIẢI NGÂN (IPC LEDGER & FINANCIAL SUMMARY) -->
         <div id="cpms-tab-disbursements" class="cpms-tab-pane hidden">
-          <!-- Bảng tóm tắt thẻ giải ngân A / B / Cân đối -->
-          <div class="disbursements-summary-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 14px;">
-            <div class="card" style="padding: 14px 16px; border-left: 4px solid var(--success);">
-              <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
-                <i class="fa-solid fa-arrow-down-left" style="color: var(--success);"></i> Thu từ Bên A (Chủ đầu tư)
-              </div>
-              <div id="disburse-stat-a-paid" style="font-size: 1.4rem; font-weight: 800; color: var(--success); margin: 4px 0;">0 ₫</div>
-              <div style="font-size: 0.8rem; color: var(--text-muted);">
-                Tổng ký: <span id="disburse-stat-a-signed" style="font-weight: 600;">0 ₫</span> (<span id="disburse-stat-a-count">0 đợt</span>)
-              </div>
-            </div>
-
-            <div class="card" style="padding: 14px 16px; border-left: 4px solid #06b6d4;">
-              <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
-                <i class="fa-solid fa-arrow-up-right" style="color: #06b6d4;"></i> Thực trả Bên B (Thầu phụ / NCC)
-              </div>
-              <div id="disburse-stat-b-paid" style="font-size: 1.4rem; font-weight: 800; color: #0891b2; margin: 4px 0;">0 ₫</div>
-              <div style="font-size: 0.8rem; color: var(--text-muted);">
-                Tổng giao thầu: <span id="disburse-stat-b-signed" style="font-weight: 600;">0 ₫</span> (<span id="disburse-stat-b-count">0 đợt</span>)
-              </div>
-            </div>
-
-            <div class="card" style="padding: 14px 16px; border-left: 4px solid var(--primary);">
-              <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase;">
-                <i class="fa-solid fa-scale-balanced" style="color: var(--primary);"></i> Chênh lệch Dòng tiền (A Thu - B Chi)
-              </div>
-              <div id="disburse-stat-balance" style="font-size: 1.4rem; font-weight: 800; color: var(--primary); margin: 4px 0;">+0 ₫</div>
-              <div style="font-size: 0.8rem; color: var(--text-muted);">
-                Tổng số giao dịch: <strong id="disburse-stat-total-count">0 đợt</strong>
-              </div>
-            </div>
+          <!-- 1. BẢNG TỔNG HỢP SUMMARY (FINANCIAL SUMMARY TABLE) -->
+          <div id="disburse-summary-container" class="disburse-summary-box">
+            <!-- Render tự động bởi contracts.js -->
           </div>
 
-          <!-- Thanh công cụ Sổ giải ngân: Tìm kiếm & Lọc & Nút hành động -->
-          <div class="filter-row" style="margin-bottom: 12px;">
-            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
-              <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-              <input type="text" id="disburse-search-input" class="search-input" placeholder="Tìm theo số đợt (IPC), số HĐ, đối tác, nội dung, số hóa đơn VAT...">
+          <!-- 2. THANH CÔNG CỤ TAB (A THU / B CHI) & CÁC NÚT HÀNH ĐỘNG -->
+          <div class="disburse-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <div class="tab-nav" style="margin: 0; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="tab-btn disburse-group-btn active" data-disburse-group="A">
+                <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Thu (Chủ đầu tư)
+              </button>
+              <button class="tab-btn disburse-group-btn" data-disburse-group="B">
+                <i class="fa-solid fa-handshake"></i> Nhóm B: Hợp đồng Chi (Thầu phụ, NCC & CPB)
+              </button>
             </div>
-            
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <select id="disburse-group-filter" class="form-control" style="width: auto; min-width: 170px; height: 34px; padding: 4px 10px; font-size: 0.825rem; border-radius: var(--radius-sm); font-weight: 600; cursor: pointer;">
-                <option value="ALL">📋 Tất cả đợt giải ngân</option>
-                <option value="A">🏛️ Chỉ Nhóm A (Chủ đầu tư)</option>
-                <option value="B">🤝 Chỉ Nhóm B (Thầu phụ / NCC)</option>
-              </select>
 
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              <!-- Nút Thêm Chi phí Ban (CPB) chuyển sang tab này, chỉ hiện khi chọn Nhóm B -->
+              <button id="btn-disburse-add-cpb" class="button button-outline button-sm hidden" style="color: #b45309; border-color: #fde68a; background: #fffbeb; font-weight: 600;" title="Thêm khoản Chi phí Ban (CPB) quản lý nội bộ">
+                <i class="fa-solid fa-receipt"></i> + Thêm Chi phí Ban (CPB)
+              </button>
+
+              <!-- Nút Thêm Thanh toán mới -->
+              <button id="btn-disburse-add-payment" class="button button-primary button-sm" style="font-weight: 600;" title="Ghi nhận thêm một đợt giải ngân / thanh toán mới">
+                <i class="fa-solid fa-plus"></i> + Thêm Thanh toán
+              </button>
+
+              <!-- Nút Xuất Excel -->
               <button id="btn-export-disbursements-excel" class="button button-outline button-sm" title="Xuất toàn bộ bảng kê giải ngân ra file Excel / CSV">
                 <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất Excel
               </button>
             </div>
           </div>
 
-          <!-- Bảng kê danh sách Đợt giải ngân -->
-          <div id="disbursements-list-container" class="disbursements-container">
+          <!-- 3. THANH TÌM KIẾM HỢP ĐỒNG GIẢI NGÂN -->
+          <div class="filter-row" style="margin-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
+              <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
+              <input type="text" id="disburse-contract-search" class="search-input" placeholder="Tìm theo mã HĐ, số hiệu, tên đối tác, nội dung gói thầu...">
+            </div>
+          </div>
+
+          <!-- 4. BẢNG DANH SÁCH CÁC HỢP ĐỒNG & GIÁ TRỊ TỔNG HỢP CỦA HỢP ĐỒNG -->
+          <div id="disburse-contracts-table-container" class="disburse-contracts-card">
+            <!-- Render tự động bởi contracts.js -->
+          </div>
+
+          <!-- 5. BẢNG CHI TIẾT CÁC ĐỢT GIẢI NGÂN (DN / IPC) CỦA HỢP ĐỒNG ĐANG CHỌN -->
+          <div id="disburse-detail-container" class="disburse-detail-card">
             <!-- Render tự động bởi contracts.js -->
           </div>
         </div>
