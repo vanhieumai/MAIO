@@ -324,6 +324,24 @@ export class CPMSImporterExporter {
 
         const hierarchy = this.parseContractID(c1);
 
+        const rawZ = r[25] ? String(r[25]).trim() : '';
+        let codeA = '';
+        let codeB = '';
+        if (rawZ) {
+          const parts = rawZ.split('|');
+          parts.forEach((p) => {
+            const kv = p.split('=');
+            if (kv.length >= 2) {
+              const k = kv[0].trim().toUpperCase();
+              const v = kv[1].trim();
+              if (k === 'SUBCON') codeB = v;
+              if (k === 'CLIENT' || k === 'MAINCON') codeA = v;
+            } else if (!codeB) {
+              codeB = p.trim();
+            }
+          });
+        }
+
         contracts.push({
           id: c1,
           project_id: projectId,
@@ -353,7 +371,10 @@ export class CPMSImporterExporter {
           created_at: r[22] || null,
           display_no: String(r[23] || ''),
           sort_order: parseFloat(r[24] || 0) || 0,
-          company_code: r[25] ? String(r[25]).trim() : '',
+          code_a: codeA,
+          code_b: codeB,
+          code_b2: '',
+          company_code: codeB || rawZ,
           tax_code: r[26] ? String(r[26]).trim() : '',
           linked_contract_id: r[27] ? String(r[27]).trim() : '',
         });
@@ -569,6 +590,19 @@ export class CPMSImporterExporter {
     ];
     const contractRows = [contractHeaders];
 
+    const formatCompanyCodeCell = (c) => {
+      const codeA = c.code_a ? String(c.code_a).trim() : '';
+      const codeB = c.code_b ? String(c.code_b).trim() : (c.company_code ? String(c.company_code).trim() : '');
+      if (codeA && codeB) return `CLIENT=${codeA}|SUBCON=${codeB}`;
+      if (codeB) {
+        return codeB.includes('=') ? codeB : `SUBCON=${codeB}`;
+      }
+      if (codeA) {
+        return codeA.includes('=') ? codeA : `CLIENT=${codeA}`;
+      }
+      return c.company_code || '';
+    };
+
     // Nhóm A
     contractRows.push(['GROUP-A', 'Hợp đồng với chủ đầu tư / Tổng thầu']);
     allContracts.filter(c => c.group === 'A').forEach(c => {
@@ -578,7 +612,7 @@ export class CPMSImporterExporter {
         c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
         c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
-        c.company_code || '', c.tax_code || '', c.linked_contract_id || ''
+        formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || ''
       ]);
     });
 
@@ -591,7 +625,7 @@ export class CPMSImporterExporter {
         c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
         c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
-        c.company_code || '', c.tax_code || '', c.linked_contract_id || ''
+        formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || ''
       ]);
     });
 
