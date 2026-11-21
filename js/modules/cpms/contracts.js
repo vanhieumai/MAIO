@@ -141,6 +141,103 @@ export class ContractsManager {
     this.openProjectModal();
   }
 
+  /**
+   * Kiểm tra xem dự án hiện tại đã sẵn sàng (đã có dữ liệu thực hoặc đã dẫn link file local) hay chưa
+   */
+  isProjectReady() {
+    if (!this.projects || this.projects.length === 0 || !this.currentProjectId) {
+      return false;
+    }
+    const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
+    if (!curPrj) return false;
+
+    // 1. Nếu đang có File Handle trực tiếp trên máy tính
+    if (this.activeFileHandle) return true;
+
+    // 2. Nếu có tên file nguồn hợp lệ (không phải rỗng hay "Chưa liên kết")
+    const hasSourceFile = Boolean(
+      curPrj.source_filename &&
+      curPrj.source_filename !== 'Chưa liên kết' &&
+      curPrj.source_filename.trim()
+    );
+
+    // 3. Nếu đã có hợp đồng thực tế (không phải chỉ CPB mặc định hoặc giá trị > 0)
+    const hasRealContracts = Array.isArray(this.contracts) && this.contracts.some(
+      (c) => (!c.is_cpb && c.contract_type !== 'CPB') || (c.contract_val && c.contract_val > 0)
+    );
+
+    // Dự án rỗng placeholder (PRJ_DEFAULT hoặc tên có chứa "(Chưa có dữ liệu)")
+    const isPlaceholderPrj = (
+      curPrj.id === 'PRJ_DEFAULT' ||
+      (curPrj.name && curPrj.name.includes('(Chưa có dữ liệu)'))
+    );
+
+    if (isPlaceholderPrj && !hasSourceFile && !hasRealContracts) {
+      return false;
+    }
+
+    return hasSourceFile || hasRealContracts;
+  }
+
+  /**
+   * Cập nhật trạng thái hiển thị giao diện:
+   * Khi chưa có dự án và chưa dẫn link local: Ẩn cả 3 tab (Tổng quan, Hợp đồng, Giải ngân), hiển thị Empty State.
+   */
+  updateEmptyStateUI(currentTab = null) {
+    const ready = this.isProjectReady();
+    const emptyContainer = document.getElementById('cpms-empty-state-container');
+    const overviewPane = document.getElementById('cpms-tab-overview');
+    const contractsPane = document.getElementById('cpms-tab-contracts');
+    const disbursementsPane = document.getElementById('cpms-tab-disbursements');
+    const projectInfoBar = document.getElementById('project-info-bar');
+
+    if (!ready) {
+      // Ẩn toàn bộ 3 tab nội dung
+      overviewPane?.classList.add('hidden');
+      contractsPane?.classList.add('hidden');
+      disbursementsPane?.classList.add('hidden');
+      if (projectInfoBar) projectInfoBar.style.display = 'none';
+
+      // Hiển thị khung Empty State
+      emptyContainer?.classList.remove('hidden');
+
+      // Ẩn các nút thao tác dự án không cần thiết (sao chép, xuất file, xóa), chỉ giữ icon dẫn file local
+      const btnClone = document.getElementById('btn-clone-project');
+      const btnExport = document.getElementById('btn-export-cpms');
+      const btnDelete = document.getElementById('btn-delete-project');
+      if (btnClone) btnClone.style.display = 'none';
+      if (btnExport) btnExport.style.display = 'none';
+      if (btnDelete) btnDelete.style.display = 'none';
+    } else {
+      // Ẩn khung Empty State
+      emptyContainer?.classList.add('hidden');
+      if (projectInfoBar) projectInfoBar.style.display = '';
+
+      // Hiển thị tab đang chọn
+      const activeTab = currentTab || window.app?.currentCpmsTab || 'overview';
+      if (overviewPane) {
+        if (activeTab === 'overview') overviewPane.classList.remove('hidden');
+        else overviewPane.classList.add('hidden');
+      }
+      if (contractsPane) {
+        if (activeTab === 'contracts') contractsPane.classList.remove('hidden');
+        else contractsPane.classList.add('hidden');
+      }
+      if (disbursementsPane) {
+        if (activeTab === 'disbursements') disbursementsPane.classList.remove('hidden');
+        else disbursementsPane.classList.add('hidden');
+      }
+
+      // Hiện lại các nút thao tác dự án
+      const btnClone = document.getElementById('btn-clone-project');
+      const btnExport = document.getElementById('btn-export-cpms');
+      const btnDelete = document.getElementById('btn-delete-project');
+      if (btnClone) btnClone.style.display = '';
+      if (btnExport) btnExport.style.display = '';
+      if (btnDelete) btnDelete.style.display = '';
+    }
+  }
+
   async init() {
     await this.loadData();
     this.bindEvents();
@@ -406,6 +503,14 @@ export class ContractsManager {
     document.getElementById('btn-delete-project')?.addEventListener('click', () => {
       this.deleteCurrentProject();
     });
+
+    // Nút Khởi tạo dự án & Dẫn file trong khung Empty State
+    document.getElementById('btn-empty-create-proj')?.addEventListener('click', () => {
+      this.openCreateProjectModal();
+    });
+    document.getElementById('btn-empty-pick-file')?.addEventListener('click', () => {
+      this.pickAndLoadLocalCPMSFile();
+    });
   }
 
   async deleteCurrentProject() {
@@ -452,6 +557,10 @@ export class ContractsManager {
 
       await this.loadData();
       this.render();
+      this.updateEmptyStateUI();
+      if (window.app) {
+        await window.app.updateDashboardStats();
+      }
 
       // Cập nhật lại số liệu Dashboard nếu đang mở
       const statContractsCount = document.getElementById('stat-contracts-count');
@@ -1568,6 +1677,9 @@ export class ContractsManager {
   }
 
   render() {
+    this.updateEmptyStateUI('contracts');
+    if (!this.isProjectReady()) return;
+
     this.renderProjectInfo();
     this.updateCategoryFilterUI();
 
@@ -2561,6 +2673,373 @@ export class ContractsManager {
   }
 
   // ==========================================
+  // MODAL KHỞI TẠO DỰ ÁN MỚI 2 BƯỚC (QUY TRÌNH CHUẨN MAIO & CPMS PLUS)
+  // BƯỚC 1: Chọn nơi lưu file CPMS trên máy tính
+  // BƯỚC 2: Nhập thông tin cơ bản của dự án
+  // ==========================================
+  openCreateProjectModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-container" style="max-width: 620px; padding: 0; overflow: hidden; border-radius: var(--radius-lg); box-shadow: 0 20px 40px rgba(0,0,0,0.2);">
+        <!-- Modal Header -->
+        <div class="modal-header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; padding: 20px 24px; border-bottom: none;">
+          <div>
+            <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin: 0 0 4px 0; display: flex; align-items: center; gap: 10px;">
+              <i class="fa-solid fa-folder-plus" style="color: #60a5fa;"></i> Khởi tạo Dự án Mới (2 Bước)
+            </h3>
+            <p style="font-size: 0.825rem; color: #94a3b8; margin: 0;">Khởi tạo tệp CPMS cá nhân lưu trên máy tính và thiết lập thông tin ban đầu</p>
+          </div>
+          <button class="button button-outline btn-close-wizard" style="color: #cbd5e1; border-color: #475569; padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- Stepper Indicator -->
+        <div style="background: #f8fafc; padding: 14px 24px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between;">
+          <div id="step-indicator-1" class="wizard-step" style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 700; color: var(--primary);">
+            <span id="step-badge-1" style="width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;">1</span>
+            <span>Chọn nơi lưu file .cpms</span>
+          </div>
+          <div style="flex: 1; height: 2px; background: #e2e8f0; margin: 0 12px;"></div>
+          <div id="step-indicator-2" class="wizard-step" style="display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; color: #94a3b8;">
+            <span id="step-badge-2" style="width: 24px; height: 24px; border-radius: 50%; background: #e2e8f0; color: #64748b; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem;">2</span>
+            <span>Nhập thông tin dự án</span>
+          </div>
+        </div>
+
+        <div class="modal-body" style="padding: 24px;">
+          <!-- BƯỚC 1: CHỌN NƠI LƯU TỆP CPMS MÁY TÍNH -->
+          <div id="wizard-step-1" class="wizard-step-pane">
+            <div style="text-align: center; padding: 10px 0 18px;">
+              <div style="width: 56px; height: 56px; border-radius: 50%; background: #eff6ff; color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 1.6rem; margin: 0 auto 12px;">
+                <i class="fa-solid fa-hard-drive"></i>
+              </div>
+              <h4 style="font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: 6px;">Bước 1: Chọn nơi lưu tệp dữ liệu trên máy tính</h4>
+              <p style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; max-width: 480px; margin: 0 auto;">
+                Hệ thống MAIO quản lý dữ liệu an toàn dựa trên tệp cá nhân (<code>.cpms</code>) lưu trực tiếp trên máy tính của bạn. Dữ liệu này sẽ tự động khởi tạo theo chuẩn tương thích CPMS Plus.
+              </p>
+            </div>
+
+            <!-- Khung chọn vị trí lưu file -->
+            <div style="background: #f8fafc; border: 1.5px dashed #cbd5e1; border-radius: var(--radius-md); padding: 24px; text-align: center;">
+              <button type="button" id="btn-wizard-pick-file" class="button button-primary button-lg" style="font-weight: 700; padding: 12px 24px; margin-bottom: 8px;">
+                <i class="fa-solid fa-folder-arrow-up"></i> Chọn nơi lưu tệp (.cpms) trên máy tính...
+              </button>
+              <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Trình duyệt sẽ mở hộp thoại Lưu tệp để bạn chọn thư mục và đặt tên</p>
+            </div>
+
+            <!-- Vùng hiển thị tệp đã chọn -->
+            <div id="wizard-file-selected-box" class="hidden" style="margin-top: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: var(--radius-md); padding: 14px 18px; display: flex; align-items: center; gap: 12px;">
+              <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 1.4rem;"></i>
+              <div style="flex: 1;">
+                <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: #047857;">Tệp khởi tạo sẽ lưu tại:</div>
+                <strong id="wizard-file-name-label" style="font-size: 0.95rem; color: #065f46;">chua_chon.cpms</strong>
+              </div>
+              <button type="button" id="btn-wizard-repick-file" class="button button-outline button-sm" style="font-size: 0.8rem; background: #fff;">Đổi tệp</button>
+            </div>
+
+            <!-- Fallback nhập tên file nếu trình duyệt không hỗ trợ File System Access API -->
+            <div id="wizard-fallback-filename-box" class="hidden" style="margin-top: 16px;">
+              <label class="form-label" style="font-weight: 600; font-size: 0.85rem;">Tên tệp dữ liệu khởi tạo (.cpms):</label>
+              <input type="text" id="wizard-fallback-filename" class="form-control" placeholder="MAIO_Project_New.cpms">
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+              <button type="button" class="button button-outline btn-close-wizard">Hủy</button>
+              <button type="button" id="btn-wizard-next-step" class="button button-primary" disabled>
+                Tiếp tục: Nhập thông tin dự án <i class="fa-solid fa-arrow-right" style="margin-left: 6px;"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- BƯỚC 2: NHẬP THÔNG TIN CƠ BẢN CỦA DỰ ÁN -->
+          <div id="wizard-step-2" class="wizard-step-pane hidden">
+            <form id="form-wizard-create-project">
+              <div style="margin-bottom: 16px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: var(--radius-sm); font-size: 0.85rem; color: #166534; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-file-contract"></i>
+                <span>Tệp lưu liên kết: <strong id="step2-file-preview">...</strong></span>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="form-label" style="font-weight: 700; font-size: 0.875rem;">Mã dự án (Project Code / ID) <span style="color: var(--danger);">*</span></label>
+                <input type="text" class="form-control" name="project_id" id="wizard-input-pid" placeholder="Vd: CHC1, MT2, DA_01..." required style="font-weight: 600;">
+                <small style="color: var(--text-muted); font-size: 0.775rem;">Mã viết liền không dấu, dùng để định danh dữ liệu và các hợp đồng</small>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="form-label" style="font-weight: 700; font-size: 0.875rem;">Tên dự án đầy đủ <span style="color: var(--danger);">*</span></label>
+                <input type="text" class="form-control" name="project_name" placeholder="Vd: Dự án Xây dựng Cầu Mỹ Thuận 2..." required>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 14px;">
+                <label class="form-label" style="font-weight: 700; font-size: 0.875rem;">Địa điểm xây dựng</label>
+                <input type="text" class="form-control" name="location" placeholder="Vd: Quận Tây Hồ, TP. Hà Nội">
+              </div>
+
+              <div class="form-grid-2" style="gap: 14px; margin-bottom: 18px;">
+                <div class="form-group">
+                  <label class="form-label" style="font-weight: 700; font-size: 0.875rem;">Chủ đầu tư (Bên A)</label>
+                  <input type="text" class="form-control" name="client" placeholder="Vd: Ban Quản lý Dự án..." value="Chủ đầu tư Bên A">
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="font-weight: 700; font-size: 0.875rem;">Đơn vị thi công / Nhà thầu (Bên B)</label>
+                  <input type="text" class="form-control" name="contractor" placeholder="Vd: Công ty Cổ phần Xây dựng..." value="Nhà thầu Bên B">
+                </div>
+              </div>
+
+              <div style="display: flex; justify-content: space-between; gap: 10px; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+                <button type="button" id="btn-wizard-prev-step" class="button button-outline">
+                  <i class="fa-solid fa-arrow-left"></i> Quay lại Bước 1
+                </button>
+                <div style="display: flex; gap: 10px;">
+                  <button type="button" class="button button-outline btn-close-wizard">Hủy</button>
+                  <button type="submit" id="btn-wizard-final-submit" class="button button-primary" style="font-weight: 700; padding: 10px 20px;">
+                    <i class="fa-solid fa-check"></i> Hoàn tất Khởi tạo Dự án
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeWizard = () => modal.remove();
+    modal.querySelectorAll('.btn-close-wizard').forEach((btn) => btn.addEventListener('click', closeWizard));
+
+    const stepPane1 = modal.querySelector('#wizard-step-1');
+    const stepPane2 = modal.querySelector('#wizard-step-2');
+    const stepIndicator1 = modal.querySelector('#step-indicator-1');
+    const stepIndicator2 = modal.querySelector('#step-indicator-2');
+    const stepBadge1 = modal.querySelector('#step-badge-1');
+    const stepBadge2 = modal.querySelector('#step-badge-2');
+    const btnNextStep = modal.querySelector('#btn-wizard-next-step');
+    const btnPrevStep = modal.querySelector('#btn-wizard-prev-step');
+    const fileSelectedBox = modal.querySelector('#wizard-file-selected-box');
+    const fileNameLabel = modal.querySelector('#wizard-file-name-label');
+    const step2FilePreview = modal.querySelector('#step2-file-preview');
+    const inputPid = modal.querySelector('#wizard-input-pid');
+    const fallbackBox = modal.querySelector('#wizard-fallback-filename-box');
+    const fallbackInput = modal.querySelector('#wizard-fallback-filename');
+
+    let chosenFileHandle = null;
+    let chosenFileName = '';
+
+    const goToStep = (stepNumber) => {
+      if (stepNumber === 1) {
+        stepPane1.classList.remove('hidden');
+        stepPane2.classList.add('hidden');
+        stepIndicator1.style.color = 'var(--primary)';
+        stepIndicator1.style.fontWeight = '700';
+        stepBadge1.style.background = 'var(--primary)';
+        stepBadge1.style.color = '#fff';
+        stepIndicator2.style.color = '#94a3b8';
+        stepIndicator2.style.fontWeight = '600';
+        stepBadge2.style.background = '#e2e8f0';
+        stepBadge2.style.color = '#64748b';
+      } else if (stepNumber === 2) {
+        stepPane1.classList.add('hidden');
+        stepPane2.classList.remove('hidden');
+        stepIndicator1.style.color = '#10b981';
+        stepIndicator1.style.fontWeight = '600';
+        stepBadge1.style.background = '#10b981';
+        stepBadge1.style.color = '#fff';
+        stepIndicator2.style.color = 'var(--primary)';
+        stepIndicator2.style.fontWeight = '700';
+        stepBadge2.style.background = 'var(--primary)';
+        stepBadge2.style.color = '#fff';
+
+        step2FilePreview.textContent = chosenFileName || 'MAIO_Project_New.cpms';
+      }
+    };
+
+    const pickSaveFile = async () => {
+      if ('showSaveFilePicker' in window) {
+        try {
+          const nowStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          const handle = await window.showSaveFilePicker({
+            suggestedName: `MAIO_Project_${nowStr}.cpms`,
+            types: [
+              {
+                description: 'Tệp dữ liệu CPMS (*.cpms)',
+                accept: { 'application/octet-stream': ['.cpms'] }
+              }
+            ]
+          });
+
+          if (handle) {
+            chosenFileHandle = handle;
+            chosenFileName = handle.name;
+            fileNameLabel.textContent = chosenFileName;
+            fileSelectedBox.classList.remove('hidden');
+            fallbackBox.classList.add('hidden');
+            btnNextStep.disabled = false;
+
+            // Gợi ý mã dự án tự động từ tên tệp nếu người dùng chưa nhập
+            const rawCode = chosenFileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+            if (inputPid && !inputPid.value) {
+              inputPid.value = rawCode;
+            }
+
+            // Tự động chuyển tiếp sang bước 2 để trải nghiệm mượt mà
+            goToStep(2);
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+          console.warn('Không thể mở showSaveFilePicker, chuyển sang nhập tên file thủ công:', err);
+          setupFallbackFile();
+        }
+      } else {
+        setupFallbackFile();
+      }
+    };
+
+    const setupFallbackFile = () => {
+      fallbackBox.classList.remove('hidden');
+      const nowStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+      fallbackInput.value = `MAIO_Project_${nowStr}.cpms`;
+      chosenFileName = fallbackInput.value;
+      btnNextStep.disabled = false;
+      fallbackInput.addEventListener('input', () => {
+        chosenFileName = fallbackInput.value.trim() || `MAIO_Project_${nowStr}.cpms`;
+        btnNextStep.disabled = !chosenFileName;
+      });
+    };
+
+    modal.querySelector('#btn-wizard-pick-file')?.addEventListener('click', pickSaveFile);
+    modal.querySelector('#btn-wizard-repick-file')?.addEventListener('click', pickSaveFile);
+
+    btnNextStep.addEventListener('click', () => {
+      if (!chosenFileName) {
+        alert('Vui lòng chọn nơi lưu tệp .cpms trên máy tính trước.');
+        return;
+      }
+      goToStep(2);
+    });
+
+    btnPrevStep.addEventListener('click', () => {
+      goToStep(1);
+    });
+
+    // SUBMIT BƯỚC 2: KHỞI TẠO TOÀN BỘ DỮ LIỆU DỰ ÁN & GHI TỆP LOCAL
+    modal.querySelector('#form-wizard-create-project').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = modal.querySelector('#btn-wizard-final-submit');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang khởi tạo...';
+
+      try {
+        const fd = new FormData(e.target);
+        const newId = fd.get('project_id').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+        const newName = fd.get('project_name').trim();
+        const client = fd.get('client')?.trim() || 'Chủ đầu tư Bên A';
+        const contractor = fd.get('contractor')?.trim() || 'Nhà thầu Bên B';
+        const location = fd.get('location')?.trim() || '';
+
+        const finalFileName = chosenFileName || `${newId}.cpms`;
+
+        // 1. Lưu project vào IndexedDB
+        const newProj = {
+          id: newId,
+          code: newId,
+          name: newName,
+          client: client,
+          contractor: contractor,
+          location: location,
+          source_filename: finalFileName,
+          created_at: new Date().toISOString(),
+          source_file_updated: new Date().toISOString()
+        };
+        await db.put('projects', newProj);
+
+        // 2. Khởi tạo sẵn mục Chi phí Ban (CPB) mặc định cho dự án mới
+        const defaultCpbId = 'B-CPB-001';
+        const defaultCpbContract = {
+          id: defaultCpbId,
+          project_id: newId,
+          group: 'B',
+          parent_id: null,
+          level: 0,
+          contract_no: defaultCpbId,
+          contract_type: 'CPB',
+          signing_date: new Date().toISOString().slice(0, 10),
+          end_date: null,
+          status: 'Active',
+          company_a: newProj.client,
+          company_b: 'Ban Quản lý / Nội bộ',
+          company_b2: '',
+          rep_b2: '',
+          scope_of_work: 'Chi Phí Ban (Chi phí quản lý dự án)',
+          exchange_rate: 1.0,
+          estimated_val: 0,
+          contract_val: 0,
+          rep_a: '',
+          rep_b: '',
+          category: 'CPB',
+          payee: 'Ban QLDA / Nội bộ',
+          bank_account: '',
+          bank_name: '',
+          contact_person_b: '',
+          created_at: new Date().toISOString().slice(0, 10),
+          display_no: 'CPB',
+          sort_order: 9999,
+          is_cpb: true,
+        };
+        await db.put('contracts', defaultCpbContract);
+
+        const defaultCpbHeader = {
+          id: `HDR-${defaultCpbId}`,
+          is_header: true,
+          project_id: newId,
+          parent_id: 'GROUP-B',
+          contract_id: defaultCpbId,
+          contract_no: defaultCpbId,
+          item_name: 'Chi Phí Ban (Chi phí quản lý dự án)',
+          exchange_rate: 1.0,
+          contract_val: 0,
+          actual_volume: 0,
+          accepted_vol: 0,
+          request_amount: 0,
+          paid_amount: 0,
+          remaining: 0,
+        };
+        await db.put('payments', defaultCpbHeader);
+
+        // 3. Nếu có File Handle đã chọn từ showSaveFilePicker: Ghi dữ liệu ban đầu trực tiếp vào tệp máy tính
+        if (chosenFileHandle) {
+          this.activeFileHandle = chosenFileHandle;
+          const buffer = await CPMSImporterExporter.buildCPMSBinaryBuffer(newId);
+          const writable = await chosenFileHandle.createWritable();
+          await writable.write(buffer);
+          await writable.close();
+        }
+
+        // 4. Đổi sang dự án vừa tạo & cập nhật toàn bộ hệ thống
+        this.currentProjectId = newId;
+        await this.loadData();
+        this.render();
+        if (window.app) {
+          await window.app.updateDashboardStats();
+        }
+        this.updateEmptyStateUI();
+
+        if (this.activeFileHandle) {
+          this.showLocalSaveStatus(`Đã liên kết tệp "${finalFileName}". Mọi chỉnh sửa sẽ tự động lưu vào tệp này!`);
+        }
+
+        closeWizard();
+        alert(`Đã khởi tạo thành công dự án "${newName}"!\nDữ liệu ban đầu đã được thiết lập vào tệp "${finalFileName}".`);
+      } catch (err) {
+        console.error('Lỗi khởi tạo dự án:', err);
+        alert('Lỗi khởi tạo dự án: ' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fa-solid fa-check"></i> Hoàn tất Khởi tạo Dự án';
+      }
+    });
+  }
+
+  // ==========================================
   // MODAL QUẢN LÝ DỰ ÁN (TẠO MỚI HOẶC IMPORT .CPMS)
   // ==========================================
   openProjectModal() {
@@ -2868,6 +3347,10 @@ export class ContractsManager {
       this.currentProjectId = newId;
       await this.loadData();
       this.render();
+      this.updateEmptyStateUI();
+      if (window.app) {
+        await window.app.updateDashboardStats();
+      }
       closeSubModal();
       alert(`Đã tạo thành công dự án "${newName}" kèm mục Chi phí Ban (CPB) quản lý nội bộ!`);
     });
@@ -3407,6 +3890,10 @@ export class ContractsManager {
       await db.put('contracts', updatedData);
       await this.loadData();
       this.render();
+      this.updateEmptyStateUI();
+      if (window.app) {
+        await window.app.updateDashboardStats();
+      }
       closeSubModal();
       await this.syncToLocalFile();
       alert('Đã lưu dữ liệu Hợp đồng thành công!');
@@ -3869,6 +4356,9 @@ export class ContractsManager {
   // SỔ THEO DÕI GIẢI NGÂN TOÀN DỰ ÁN (DISBURSEMENTS TAB & FINANCIAL SUMMARY)
   // ==========================================
   renderDisbursementsTab() {
+    this.updateEmptyStateUI('disbursements');
+    if (!this.isProjectReady()) return;
+
     const summaryContainer = document.getElementById('disburse-summary-container');
     const contractsTableContainer = document.getElementById('disburse-contracts-table-container');
     const detailContainer = document.getElementById('disburse-detail-container');

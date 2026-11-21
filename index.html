@@ -232,6 +232,29 @@
             </div>
           </div>
         </section>
+
+        <!-- KHỐI CHÀO MỪNG / TRẠNG THÁI RỖNG: CHƯA CÓ DỰ ÁN VÀ CHƯA DẪN LINK FILE CPMS LOCAL -->
+        <div id="cpms-empty-state-container" class="cpms-empty-state hidden">
+          <div class="empty-state-card">
+            <div class="empty-state-icon">
+              <i class="fa-solid fa-folder-plus"></i>
+            </div>
+            <h2 class="empty-state-title">Chưa có dự án hoặc chưa liên kết tệp CPMS</h2>
+            <p class="empty-state-desc">
+              Hệ thống MAIO quản lý dữ liệu an toàn dựa trên tệp dữ liệu máy tính cá nhân (.cpms).<br>
+              Để bắt đầu, hãy tạo dự án mới (chọn nơi lưu tệp để khởi tạo dữ liệu ban đầu), hoặc dẫn tệp CPMS có sẵn từ máy tính.
+            </p>
+            <div class="empty-state-actions">
+              <button id="btn-empty-create-proj" class="button button-primary button-lg" style="font-weight: 700; padding: 12px 24px; font-size: 1rem;">
+                <i class="fa-solid fa-plus"></i> Tạo Dự án mới
+              </button>
+              <button id="btn-empty-pick-file" class="button button-outline button-lg" style="font-weight: 600; padding: 12px 24px; font-size: 1rem;">
+                <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i> Dẫn file CPMS từ máy tính
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- SUB-TAB 1: TỔNG QUAN DỰ ÁN -->
         <div id="cpms-tab-overview" class="cpms-tab-pane">
           <!-- PHÂN KHU TÁCH RÕ 2 NHÓM: BÊN A (CHỦ ĐẦU TƯ) VÀ BÊN B (THẦU PHỤ / NCC) -->

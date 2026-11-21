@@ -109,6 +109,12 @@ class App {
     if (!contractsManager) return;
     await contractsManager.loadData();
 
+    // Kiểm tra tính sẵn sàng của dự án và cập nhật Empty State UI
+    contractsManager.updateEmptyStateUI('overview');
+    if (!contractsManager.isProjectReady()) {
+      return;
+    }
+
     const curPrjId = contractsManager.currentProjectId;
     const curPrj = contractsManager.projects.find((p) => p.id === curPrjId);
 
@@ -362,7 +368,15 @@ class App {
       }
     });
 
-    // Ẩn/hiện các tab pane trong CPMS
+    // Kiểm tra trạng thái dự án: Nếu chưa có dự án, ẩn toàn bộ 3 tab và hiển thị Empty State
+    const isReady = contractsManager?.isProjectReady();
+    contractsManager?.updateEmptyStateUI(this.currentCpmsTab);
+
+    if (!isReady) {
+      return;
+    }
+
+    // Ẩn/hiện các tab pane trong CPMS khi dự án đã sẵn sàng
     const panes = ['overview', 'contracts', 'disbursements'];
     panes.forEach((p) => {
       const paneEl = document.getElementById(`cpms-tab-${p}`);
