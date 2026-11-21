@@ -5201,7 +5201,7 @@ export class ContractsManager {
         opts += `<option value="${val}" selected>${val}</option>`;
       }
       return `
-        <select class="form-control select-supporting-qty" data-code="${code}" style="width: 52px; padding: 2px 4px; font-size: 0.8rem; text-align: center; height: 26px; font-weight: 700;">
+        <select class="select-supporting-qty" data-code="${code}" style="width: 44px !important; min-width: 44px !important; max-width: 44px !important; flex: 0 0 44px !important; padding: 2px 0; font-size: 0.82rem; text-align: center; text-align-last: center; height: 26px; font-weight: 700; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; cursor: pointer; color: #1e293b; outline: none; box-sizing: border-box;">
           ${opts}
         </select>
       `;
@@ -5275,9 +5275,9 @@ export class ContractsManager {
 
                   <!-- Khối DocType, SubType 1, SubType 2 dành riêng cho Option Other (Chuẩn frmDocumentEdit) -->
                   <div id="other-doctype-container" style="${defaultCategory === 'Other' || (!defaultCategory.includes('Contract') && !defaultCategory.includes('Hợp đồng') && !defaultCategory.includes('CON') && !defaultCategory.includes('IPC') && !defaultCategory.includes('thanh toán')) ? 'display: block;' : 'display: none;'} margin-top: 10px; padding: 10px 12px; background: #f1f5f9; border-radius: var(--radius-sm); border: 1px dashed #cbd5e1;">
-                    <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                       <div>
-                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block;">Mã hồ sơ (cboDocType)</label>
+                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block; white-space: nowrap;">Mã hồ sơ</label>
                         <input type="text" class="form-control" name="other_doctype" id="cboDocType" list="list-other-doctypes" value="${editDoc?.category && editDoc.category !== 'Contract' && editDoc.category !== 'CON' && editDoc.category !== 'IPC' ? editDoc.category : (editDoc?.sub_type1 || 'RFA')}" placeholder="VD: RFA, LTR..." style="text-transform: uppercase; font-family: monospace; font-size: 0.82rem; font-weight: 700; height: 32px;">
                         <datalist id="list-other-doctypes">
                           <option value="RFA">RFA (Request For Approval)</option>
@@ -5302,15 +5302,15 @@ export class ContractsManager {
                         </datalist>
                       </div>
                       <div>
-                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block;">Phân nhánh 1 (cboSubType1)</label>
+                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block; white-space: nowrap;">Phân nhánh 1</label>
                         <select class="form-control" name="sub_type1" id="cboSubType1" style="font-size: 0.82rem; font-weight: 600; height: 32px;">
-                          <option value="">-- SubType 1 --</option>
+                          <option value="">-- Chọn nhánh 1 --</option>
                         </select>
                       </div>
                       <div>
-                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block;">Phân nhánh 2 (cboSubType2)</label>
+                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block; white-space: nowrap;">Phân nhánh 2</label>
                         <select class="form-control" name="sub_type2" id="cboSubType2" style="font-size: 0.82rem; font-weight: 600; height: 32px;">
-                          <option value="">-- SubType 2 --</option>
+                          <option value="">-- Chọn nhánh 2 --</option>
                         </select>
                       </div>
                     </div>
@@ -5353,9 +5353,9 @@ export class ContractsManager {
                   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                     <label class="form-label" style="margin-bottom: 0;">Number (Số công văn / Số hiệu hồ sơ) <span style="color: var(--danger);">*</span></label>
                     <div style="display: flex; gap: 10px; align-items: center;">
-                      <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; color: #475569; cursor: pointer; user-select: none;" title="Tick chọn để tạo số mới tăng dần (+1). Bỏ tick để sinh số bản sửa đổi / Revision (.A, .B...)">
+                      <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; color: #475569; cursor: pointer; user-select: none; white-space: nowrap;" title="Tick chọn để tạo số mới tăng dần (+1). Bỏ tick để sinh số bản sửa đổi / Revision (.A, .B...)">
                         <input type="checkbox" id="chkNewDoc" checked>
-                        <span>Tạo số mới (chkNewDoc)</span>
+                        <span>Tạo số mới</span>
                       </label>
                       <button type="button" id="btn-auto-gen-docno" class="button button-outline" style="padding: 2px 8px; font-size: 0.72rem; color: #4338ca; border-color: #c7d2fe; background: #eef2ff;">
                         <i class="fa-solid fa-wand-magic-sparkles"></i> Sinh số chuẩn
@@ -5444,8 +5444,8 @@ export class ContractsManager {
 
                 <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem;">
                   <!-- 1. GTTT -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="GTTT" ${supportingObj['GTTT'] ? 'checked' : ''}>
                       <span>Payment Certificate (GTTT)</span>
                     </label>
@@ -5453,8 +5453,8 @@ export class ContractsManager {
                   </div>
 
                   <!-- 2. THKL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="THKL" ${supportingObj['THKL'] ? 'checked' : ''}>
                       <span>Quantity Summary (THKL)</span>
                     </label>
@@ -5462,8 +5462,8 @@ export class ContractsManager {
                   </div>
 
                   <!-- 3. DGKL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="DGKL" ${supportingObj['DGKL'] ? 'checked' : ''}>
                       <span>Quantity Breakdown (DGKL)</span>
                     </label>
@@ -5471,8 +5471,8 @@ export class ContractsManager {
                   </div>
 
                   <!-- 4. NTCL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="NTCL" ${supportingObj['NTCL'] ? 'checked' : ''}>
                       <span>Quality Acceptance (NTCL)</span>
                     </label>
@@ -5480,8 +5480,8 @@ export class ContractsManager {
                   </div>
 
                   <!-- 5. NTVL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="NTVL" ${supportingObj['NTVL'] ? 'checked' : ''}>
                       <span>Material Acceptance (NTTVL)</span>
                     </label>
@@ -5489,8 +5489,8 @@ export class ContractsManager {
                   </div>
 
                   <!-- 6. HC (As-Built / Hoàn công) -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="HC" ${supportingObj['HC'] ? 'checked' : ''}>
                       <span>As-Built Documents (Bản vẽ hoàn công)</span>
                     </label>
@@ -5498,8 +5498,8 @@ export class ContractsManager {
                   </div>
 
                   <!-- 7. HSK (Hồ sơ khác) -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="HSK" ${supportingObj['HSK'] ? 'checked' : ''}>
                       <span>Other Documents (HS khác)</span>
                     </label>
@@ -5656,7 +5656,7 @@ export class ContractsManager {
       const upperDt = String(dt || '').trim().toUpperCase();
       const list = subType1Map[upperDt] || [];
       const curVal = cbo1.value;
-      cbo1.innerHTML = '<option value="">-- SubType 1 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
+      cbo1.innerHTML = '<option value="">-- Chọn nhánh 1 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
       cbo1.disabled = list.length === 0;
       if (list.length === 0) {
         cbo1.value = '';
@@ -5672,7 +5672,7 @@ export class ContractsManager {
       const upperSt1 = String(st1 || '').trim().toUpperCase();
       const list = subType2Map[upperSt1] || [];
       const curVal = cbo2.value;
-      cbo2.innerHTML = '<option value="">-- SubType 2 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
+      cbo2.innerHTML = '<option value="">-- Chọn nhánh 2 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
       cbo2.disabled = list.length === 0;
       if (list.length === 0) {
         cbo2.value = '';
