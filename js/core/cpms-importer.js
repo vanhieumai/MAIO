@@ -377,6 +377,8 @@ export class CPMSImporterExporter {
           company_code: codeB || rawZ,
           tax_code: r[26] ? String(r[26]).trim() : '',
           linked_contract_id: r[27] ? String(r[27]).trim() : '',
+          tax_code_a: r[28] ? String(r[28]).trim() : '',
+          tax_code_b2: r[29] ? String(r[29]).trim() : '',
         });
       }
     }
@@ -586,7 +588,7 @@ export class CPMSImporterExporter {
       'Company1', 'Company2', 'Company3', 'RepB2', 'ScopeOfWork', 'temp2', 'ExchangeRate',
       'EstimatedValue', 'ContractValue', 'RepA', 'RepB', 'Categories', 'Payee', 'BankAccountNo.',
       'BankName', 'ContactPersonB', 'CreatedDate', 'DisplayNo', 'SortOrder',
-      'CompanyCode', 'TaxCode', 'LinkedContractID'
+      'CompanyCode', 'TaxCode', 'LinkedContractID', 'TaxCodeA', 'TaxCodeB2'
     ];
     const contractRows = [contractHeaders];
 
@@ -612,7 +614,7 @@ export class CPMSImporterExporter {
         c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
         c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
-        formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || ''
+        formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || '', c.tax_code_a || '', c.tax_code_b2 || ''
       ]);
     });
 
@@ -625,7 +627,7 @@ export class CPMSImporterExporter {
         c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
         c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
-        formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || ''
+        formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || '', c.tax_code_a || '', c.tax_code_b2 || ''
       ]);
     });
 
