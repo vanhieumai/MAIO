@@ -109,8 +109,8 @@ class App {
     if (!contractsManager) return;
     await contractsManager.loadData();
 
-    // Kiểm tra tính sẵn sàng của dự án và cập nhật Empty State UI
-    contractsManager.updateEmptyStateUI('overview');
+    // Kiểm tra tính sẵn sàng của dự án và cập nhật Empty State UI (giữ nguyên tab hiện tại)
+    contractsManager.updateEmptyStateUI(this.currentCpmsTab || 'overview');
     if (!contractsManager.isProjectReady()) {
       return;
     }

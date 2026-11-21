@@ -3758,11 +3758,19 @@ export class ContractsManager {
       document.getElementById('contract-detail-modal')?.remove();
       document.querySelectorAll('.modal-overlay').forEach((m) => m.remove());
 
+      const activeCpmsTab = window.app?.currentCpmsTab || 'contracts';
       this.render();
-      this.updateEmptyStateUI();
       if (window.app) {
         await window.app.updateDashboardStats();
       }
+
+      // Giữ nguyên giao diện ở tab hiện tại (không bị nhảy về Tổng quan)
+      if (window.app && window.app.switchCpmsTab) {
+        window.app.switchCpmsTab(activeCpmsTab);
+      } else {
+        this.updateEmptyStateUI(activeCpmsTab);
+      }
+
       alert(`Đã xóa thành công Hợp đồng "${contract.contract_no || contract.id}"!`);
     } catch (err) {
       console.error('Lỗi khi xóa hợp đồng:', err);
@@ -3877,8 +3885,8 @@ export class ContractsManager {
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
-        <div class="modal-body" style="overflow-y: auto; padding: 20px;">
-          <form id="form-contract">
+        <div class="modal-body" style="overflow-y: auto; overflow-x: hidden; padding: 20px; box-sizing: border-box; width: 100%;">
+          <form id="form-contract" style="width: 100%; box-sizing: border-box;">
             ${
               !isEdit && sampleContracts.length > 0
                 ? `
@@ -3994,7 +4002,7 @@ export class ContractsManager {
             </div>
 
             <!-- KHỐI BÊN A (CHỦ ĐẦU TƯ / TỔNG THẦU) -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-sm); padding: 14px; margin-bottom: 14px;">
+            <div class="partner-card-block">
               <div style="font-weight: 700; font-size: 0.88rem; color: #1e40af; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
                 <i class="fa-solid fa-building" style="color: #2563eb;"></i> Bên A (Chủ đầu tư / Tổng thầu)
               </div>
@@ -4047,7 +4055,7 @@ export class ContractsManager {
             </div>
 
             <!-- KHỐI BÊN B (NHÀ THẦU PHỤ / NHÀ CUNG CẤP) -->
-            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-sm); padding: 14px; margin-bottom: 14px;">
+            <div class="partner-card-block">
               <div style="font-weight: 700; font-size: 0.88rem; color: #334155; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;">
                 <i class="fa-solid fa-users-gear" style="color: #6366f1;"></i> Liên danh Nhà thầu Bên B (Nhà thầu phụ / Nhà cung cấp)
               </div>

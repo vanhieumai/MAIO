@@ -651,20 +651,26 @@
 /* Form Groups & Grid */
 .form-grid-2 {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .form-grid-3 {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .form-grid-pair {
   display: grid;
-  grid-template-columns: 1fr 150px;
+  grid-template-columns: minmax(0, 1fr) 130px;
   gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 @media (max-width: 768px) {
@@ -675,10 +681,28 @@
   }
 }
 
+.partner-card-block {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
 /* Custom Autocomplete Dropdown */
 .custom-autocomplete-wrap {
   position: relative;
   width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.custom-autocomplete-wrap .form-control {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .autocomplete-dropdown {
@@ -762,24 +786,41 @@
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .form-label {
-  font-size: 0.85rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: #334155;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
 }
 
-.form-control {
+.form-control,
+input.form-control,
+select.form-control,
+textarea.form-control {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   padding: 8px 12px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-family: inherit;
   outline: none;
+  background-color: #ffffff;
 }
 
-.form-control:focus {
+.form-control:focus,
+input.form-control:focus,
+select.form-control:focus,
+textarea.form-control:focus {
   border-color: var(--border-focus);
 }
 
