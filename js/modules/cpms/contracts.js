@@ -392,6 +392,57 @@ export class ContractsManager {
     this.documents = allDocs.filter(
       (d) => d.project_id === this.currentProjectId
     );
+
+    // Tự động kiểm tra và di chuyển/bổ sung dữ liệu supporting_docs cho các hồ sơ chưa có
+    const docsNeedingMigration = this.documents.filter((d) => !d.supporting_docs);
+    if (docsNeedingMigration.length > 0 && window.XLSX) {
+      try {
+        let wb = null;
+        if (this.activeFileHandle) {
+          const file = await this.activeFileHandle.getFile();
+          const ab = await file.arrayBuffer();
+          wb = window.XLSX.read(ab, { type: 'array' });
+        } else {
+          const resp = await fetch('/legacy/cpms-plus/excel/CHC1_20261118_103621.cpms');
+          if (resp.ok) {
+            const ab = await resp.arrayBuffer();
+            wb = window.XLSX.read(ab, { type: 'array' });
+          }
+        }
+        if (wb && wb.SheetNames.includes('DOCUMENT_TRACKER')) {
+          const ws = wb.Sheets['DOCUMENT_TRACKER'];
+          const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
+          const docMap = new Map();
+          for (let i = 1; i < rows.length; i++) {
+            const r = rows[i];
+            if (!r || !r[0]) continue;
+            const dId = String(r[0]).trim();
+            docMap.set(dId, {
+              supporting_docs: String(r[12] || ''),
+              lan_val: r[13] || 1,
+              issuer: String(r[16] || ''),
+              recipients: String(r[17] || ''),
+              sub_type1: String(r[18] || ''),
+              sub_type2: String(r[19] || ''),
+            });
+          }
+          for (const d of docsNeedingMigration) {
+            const info = docMap.get(d.id);
+            if (info && info.supporting_docs) {
+              d.supporting_docs = info.supporting_docs;
+              if (!d.lan_val) d.lan_val = info.lan_val;
+              if (!d.issuer) d.issuer = info.issuer;
+              if (!d.recipients) d.recipients = info.recipients;
+              if (!d.sub_type1) d.sub_type1 = info.sub_type1;
+              if (!d.sub_type2) d.sub_type2 = info.sub_type2;
+              await db.put('documents', d);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[MAIO Migration] Không thể tự động đọc dữ liệu bổ sung cho hồ sơ:', e);
+      }
+    }
   }
 
   getBaseName(path) {
@@ -2579,41 +2630,33 @@ export class ContractsManager {
 
           <!-- PHÂN KHU 2: HỒ SƠ RIÊNG -->
           <div id="m-tab-docs" class="modal-tab-pane hidden">
-            <div style="background: var(--bg-card-subtle); padding: 14px 18px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-              <div>
-                <i class="fa-brands fa-google-drive" style="color: #2563eb; font-size: 1.25rem;"></i>
-                <strong style="margin-left: 8px;">Thư mục Lưu trữ trên Drive / Máy tính:</strong>
-                <div style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted); margin-top: 6px; line-height: 1.5;">
-                  <div><span style="color: var(--primary); font-weight: 600;">[HĐ & Phụ lục]:</span> ${this.getDrivePathForContract(contract)}</div>
-                  <div style="margin-top: 3px;"><span style="color: #10b981; font-weight: 600;">[Doc - Tài liệu khác]:</span> ${this.getDriveDocPathForContract(contract)}</div>
-                </div>
-              </div>
-              <button id="btn-open-drive-folder" class="button button-primary" style="font-size: 0.8rem;">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở Thư mục Drive
-              </button>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <h3 style="font-size: 1rem; font-weight: 700;">
-                <i class="fa-solid fa-list-check"></i> Danh mục Hồ sơ & Chứng từ (${docs.length})
+            <!-- Toolbar gọn gàng, bỏ vùng cây thư mục lớn -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
+              <h3 style="font-size: 0.95rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-list-check" style="color: var(--primary);"></i> Danh mục Hồ sơ & Chứng từ (${docs.length})
               </h3>
-              <button id="btn-add-document" class="button button-primary" style="font-size: 0.8rem; padding: 6px 12px;">
-                <i class="fa-solid fa-plus"></i> Thêm Hồ sơ mới
-              </button>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="btn-open-drive-folder" class="button button-outline" style="font-size: 0.8rem; padding: 5px 12px; color: #0284c7; border-color: #bae6fd; background: #f0f9ff; display: inline-flex; align-items: center; gap: 6px;" title="Mở thư mục Google Drive của hợp đồng / phụ lục này">
+                  <i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Mở Thư mục Drive
+                </button>
+                <button id="btn-add-document" class="button button-primary" style="font-size: 0.8rem; padding: 5px 12px; display: inline-flex; align-items: center; gap: 6px;">
+                  <i class="fa-solid fa-plus"></i> Thêm Hồ sơ mới
+                </button>
+              </div>
             </div>
 
-            <div class="data-table-wrap">
-              <table class="data-table">
+            <div class="data-table-wrap" style="overflow-x: auto; max-width: 100%;">
+              <table class="data-table" style="width: 100%; font-size: 0.82rem;">
                 <thead>
                   <tr>
-                    <th>Mã hồ sơ</th>
-                    <th>Số công văn / Hồ sơ</th>
-                    <th>Phân loại</th>
+                    <th style="width: 110px; white-space: nowrap;">Mã hồ sơ</th>
+                    <th style="width: 140px; white-space: nowrap;">Số công văn / Hồ sơ</th>
+                    <th style="width: 60px; text-align: center; white-space: nowrap;">Phân loại</th>
                     <th>Tiêu đề tài liệu</th>
-                    <th>Ngày nhận</th>
-                    <th>Tình trạng</th>
-                    <th>Tệp tin (Local & Drive Online)</th>
-                    <th>Thao tác</th>
+                    <th style="width: 80px; text-align: center; white-space: nowrap;">Ngày nhận</th>
+                    <th style="width: 85px; text-align: center; white-space: nowrap;">Tình trạng</th>
+                    <th style="width: 110px; white-space: nowrap;">Tệp tin</th>
+                    <th style="width: 105px; text-align: center; white-space: nowrap;">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2624,58 +2667,53 @@ export class ContractsManager {
                           .map(
                             (d) => `
                         <tr>
-                          <td><strong>${d.id}</strong></td>
-                          <td>${d.doc_no || '—'}</td>
-                          <td><span class="badge badge-primary">${d.category || 'Hồ sơ'}</span></td>
-                          <td>${d.title || '—'}</td>
-                          <td>${this.formatDate(d.received_date)}</td>
-                          <td><span class="badge badge-success">${d.status || 'Approved'}</span></td>
-                          <td>
-                            <div style="display: flex; flex-direction: column; gap: 5px;">
-                              <!-- Link Local -->
-                              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                                <i class="fa-solid fa-laptop" style="color: #64748b;" title="Tệp trên máy tính (Local)"></i>
-                                ${(d.local_link || (!String(d.file_link || '').startsWith('http') && d.file_link)) ? `
-                                  <span style="max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 0.75rem; color: #1e293b;" title="${d.local_link || d.file_link}">
+                          <td style="white-space: nowrap; font-family: monospace; font-size: 0.75rem; color: #334155;"><strong>${d.id}</strong></td>
+                          <td style="white-space: nowrap; font-size: 0.78rem;">${d.doc_no || '—'}</td>
+                          <td style="text-align: center; white-space: nowrap;"><span class="badge badge-primary" style="font-size: 0.7rem; padding: 1px 6px;">${d.category || 'Hồ sơ'}</span></td>
+                          <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.title || ''}">${d.title || '—'}</td>
+                          <td style="text-align: center; white-space: nowrap; font-size: 0.78rem;">${this.formatDate(d.received_date)}</td>
+                          <td style="text-align: center; white-space: nowrap;"><span class="badge badge-success" style="font-size: 0.7rem; padding: 1px 6px;">${d.status || 'Approved'}</span></td>
+                          <td style="width: 110px; max-width: 120px; padding: 4px 6px;">
+                            <div style="display: flex; flex-direction: column; gap: 3px;">
+                              <!-- Link Local thu gọn -->
+                              ${(d.local_link || (!String(d.file_link || '').startsWith('http') && d.file_link)) ? `
+                                <div style="display: flex; align-items: center; gap: 4px; font-size: 0.72rem;" title="${d.local_link || d.file_link}">
+                                  <i class="fa-solid fa-file" style="color: #64748b; font-size: 0.7rem; flex-shrink: 0;"></i>
+                                  <span style="max-width: 75px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 0.72rem; color: #1e293b;">
                                     ${this.getBaseName(d.local_link || d.file_link)}
                                   </span>
-                                  <button class="button button-outline btn-copy-doc-local" data-path="${encodeURIComponent(d.local_link || d.file_link)}" style="padding: 1px 5px; font-size: 0.7rem; border-color: #cbd5e1; height: 20px;" title="Sao chép đường dẫn file trên máy tính">
+                                  <button class="button button-outline btn-copy-doc-local" data-path="${encodeURIComponent(d.local_link || d.file_link)}" style="padding: 0 4px; font-size: 0.65rem; border-color: #cbd5e1; height: 18px; line-height: 1; flex-shrink: 0;" title="Sao chép đường dẫn file">
                                     <i class="fa-regular fa-copy"></i>
                                   </button>
-                                ` : `
-                                  <span style="color: #94a3b8; font-size: 0.75rem;">Chưa có file local</span>
-                                `}
-                              </div>
-                              <!-- Link Drive Online -->
-                              <div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                                ${(d.drive_link || (String(d.file_link || '').startsWith('http') && d.file_link)) ? `
-                                  <a href="${d.drive_link || d.file_link}" target="_blank" class="button button-outline" style="padding: 1px 7px; font-size: 0.72rem; color: #0284c7; border-color: #bae6fd; display: inline-flex; align-items: center; gap: 4px; height: 20px;">
-                                    <i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Mở Drive
+                                </div>
+                              ` : ''}
+                              <!-- Link Drive Online thu gọn -->
+                              ${(d.drive_link || (String(d.file_link || '').startsWith('http') && d.file_link)) ? `
+                                <div>
+                                  <a href="${d.drive_link || d.file_link}" target="_blank" style="padding: 1px 6px; font-size: 0.68rem; color: #0284c7; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 3px; display: inline-flex; align-items: center; gap: 3px; text-decoration: none; height: 18px; line-height: 1;">
+                                    <i class="fa-brands fa-google-drive" style="font-size: 0.68rem;"></i> Drive
                                   </a>
-                                ` : `
-                                  <span style="color: #94a3b8; font-size: 0.72rem; display: inline-flex; align-items: center; gap: 4px;">
-                                    <i class="fa-solid fa-cloud-arrow-up"></i> Chưa lên Drive
-                                  </span>
-                                `}
-                              </div>
+                                </div>
+                              ` : ''}
+                              ${(!d.local_link && !d.drive_link && !d.file_link) ? '<span style="color: #94a3b8; font-size: 0.72rem;">—</span>' : ''}
                             </div>
                           </td>
-                          <td style="white-space: nowrap;">
-                            <div style="display: flex; gap: 4px; align-items: center;">
+                          <td style="white-space: nowrap; width: 105px; text-align: center; padding: 4px 6px;">
+                            <div style="display: flex; gap: 3px; align-items: center; justify-content: center;">
                               <!-- Mở tệp tin -->
-                              <button class="button button-outline btn-open-doc-file" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: #0284c7; border-color: #bae6fd; background: #f0f9ff;" title="Mở file tài liệu này">
+                              <button class="button button-outline btn-open-doc-file" data-doc-id="${d.id}" style="padding: 2px 6px; font-size: 0.72rem; color: #0284c7; border-color: #bae6fd; background: #f0f9ff;" title="Mở file tài liệu này">
                                 <i class="fa-solid fa-file-arrow-up"></i>
                               </button>
                               <!-- Mở thư mục -->
-                              <button class="button button-outline btn-open-doc-folder" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: #d97706; border-color: #fde68a; background: #fffbeb;" title="Mở thư mục chứa file">
+                              <button class="button button-outline btn-open-doc-folder" data-doc-id="${d.id}" style="padding: 2px 6px; font-size: 0.72rem; color: #d97706; border-color: #fde68a; background: #fffbeb;" title="Mở thư mục chứa file">
                                 <i class="fa-solid fa-folder-open"></i>
                               </button>
                               <!-- Chỉnh sửa thông tin hồ sơ & lưu trữ -->
-                              <button class="button button-outline btn-edit-doc" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: #4f46e5; border-color: #c7d2fe; background: #eef2ff;" title="Chỉnh sửa thông tin lưu trữ & hồ sơ">
+                              <button class="button button-outline btn-edit-doc" data-doc-id="${d.id}" style="padding: 2px 6px; font-size: 0.72rem; color: #4f46e5; border-color: #c7d2fe; background: #eef2ff;" title="Chỉnh sửa thông tin lưu trữ & hồ sơ">
                                 <i class="fa-solid fa-pen-to-square"></i>
                               </button>
                               <!-- Xóa hồ sơ -->
-                              <button class="button button-outline btn-delete-doc" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: var(--danger); border-color: #fecdd3; background: #fff1f2;" title="Xóa hồ sơ">
+                              <button class="button button-outline btn-delete-doc" data-doc-id="${d.id}" style="padding: 2px 6px; font-size: 0.72rem; color: var(--danger); border-color: #fecdd3; background: #fff1f2;" title="Xóa hồ sơ">
                                 <i class="fa-solid fa-trash"></i>
                               </button>
                             </div>
@@ -5130,12 +5168,26 @@ export class ContractsManager {
       'CLI', 'VEC', 'VNCN', 'CTC', 'KD', 'NSH', 'TID', 'HHG', 'HD', 'EC-KD', 'PMU'
     ].filter(Boolean)));
 
-    // Parse supporting docs nếu là chế độ chỉnh sửa (dạng GTTT:1|THKL:1...)
+    // Parse supporting docs nếu là chế độ chỉnh sửa (dạng GTTT:10|THKL:10|NTVL:1|HSK:1|NOTE:Bộ CO CQ gốc x1)
     const supportingObj = {};
+    let supportingNote = '';
     if (editDoc && editDoc.supporting_docs) {
       String(editDoc.supporting_docs).split('|').forEach((part) => {
-        const [code, qty] = part.split(':');
-        if (code) supportingObj[code.trim()] = parseInt(qty) || 1;
+        if (!part) return;
+        const colonIdx = part.indexOf(':');
+        if (colonIdx > 0) {
+          const code = part.slice(0, colonIdx).trim().toUpperCase();
+          const val = part.slice(colonIdx + 1).trim();
+          if (code === 'NOTE') {
+            supportingNote = val;
+          } else {
+            let normalizedCode = code;
+            if (code === 'ASB' || code === 'HC') normalizedCode = 'HC';
+            if (code === 'NTTVL' || code === 'NTVL') normalizedCode = 'NTVL';
+            if (code === 'HSKHAC' || code === 'OTHER' || code === 'HSK') normalizedCode = 'HSK';
+            supportingObj[normalizedCode] = parseInt(val) || 1;
+          }
+        }
       });
     }
 
@@ -5325,7 +5377,7 @@ export class ContractsManager {
                   <span style="font-size: 0.72rem; color: #64748b;">Qty (Số lượng)</span>
                 </div>
 
-                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem;">
                   <!-- 1. GTTT -->
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
@@ -5362,25 +5414,25 @@ export class ContractsManager {
                     <input type="number" min="1" class="form-control input-supporting-qty" data-code="NTCL" value="${supportingObj['NTCL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['NTCL'] ? '' : 'disabled'}>
                   </div>
 
-                  <!-- 5. NTTVL -->
+                  <!-- 5. NTVL -->
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
-                      <input type="checkbox" class="chk-supporting" data-code="NTTVL" ${supportingObj['NTTVL'] ? 'checked' : ''}>
+                      <input type="checkbox" class="chk-supporting" data-code="NTVL" ${supportingObj['NTVL'] ? 'checked' : ''}>
                       <span>Material Acceptance (NTTVL)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="NTTVL" value="${supportingObj['NTTVL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['NTTVL'] ? '' : 'disabled'}>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="NTVL" value="${supportingObj['NTVL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['NTVL'] ? '' : 'disabled'}>
                   </div>
 
-                  <!-- 6. ASB -->
+                  <!-- 6. HC (As-Built / Hoàn công) -->
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
-                      <input type="checkbox" class="chk-supporting" data-code="ASB" ${supportingObj['ASB'] ? 'checked' : ''}>
-                      <span>As-Built Documents (ASB)</span>
+                      <input type="checkbox" class="chk-supporting" data-code="HC" ${supportingObj['HC'] ? 'checked' : ''}>
+                      <span>As-Built Documents (Bản vẽ hoàn công)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="ASB" value="${supportingObj['ASB'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['ASB'] ? '' : 'disabled'}>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="HC" value="${supportingObj['HC'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['HC'] ? '' : 'disabled'}>
                   </div>
 
-                  <!-- 7. HSK -->
+                  <!-- 7. HSK (Hồ sơ khác) -->
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
                       <input type="checkbox" class="chk-supporting" data-code="HSK" ${supportingObj['HSK'] ? 'checked' : ''}>
@@ -5388,9 +5440,17 @@ export class ContractsManager {
                     </label>
                     <input type="number" min="1" class="form-control input-supporting-qty" data-code="HSK" value="${supportingObj['HSK'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['HSK'] ? '' : 'disabled'}>
                   </div>
+
+                  <!-- Ghi chú hồ sơ kèm theo (txtHoSoKemNote chuẩn VBA) -->
+                  <div style="margin-top: 6px;">
+                    <label class="form-label" style="font-size: 0.78rem; font-weight: 600; color: #475569; margin-bottom: 4px;">
+                      Ghi chú hồ sơ kèm theo (HoSoKem Note)
+                    </label>
+                    <input type="text" class="form-control" id="input-supporting-note" value="${supportingNote}" placeholder="Vd: Bộ CO CQ gốc x1 hoặc Báo cáo tiến độ x5" style="font-size: 0.8rem;">
+                  </div>
                 </div>
 
-                <div style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed #e2e8f0; font-size: 0.72rem; color: #64748b;">
+                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e2e8f0; font-size: 0.72rem; color: #64748b;">
                   Mã hóa tự động chuẩn CPMS Plus: Lưu chuỗi cấu trúc hồ sơ đính kèm vào sheet <code>DOCUMENT_TRACKER</code>.
                 </div>
               </div>
@@ -5497,6 +5557,18 @@ export class ContractsManager {
       });
     });
 
+    // Tự động check checkbox nếu người dùng nhập số lượng > 0
+    modal.querySelectorAll('.input-supporting-qty').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const code = inp.getAttribute('data-code');
+        const chk = modal.querySelector(`.chk-supporting[data-code="${code}"]`);
+        if (chk && parseInt(inp.value) > 0) {
+          chk.checked = true;
+          inp.disabled = false;
+        }
+      });
+    });
+
     // Nút Sinh số chuẩn CPMS (YYMMDD.PROJ.Issuer.DocType.Recip...)
     modal.querySelector('#btn-auto-gen-docno')?.addEventListener('click', () => {
       const dateVal = modal.querySelector('#input-doc-start-date')?.value || new Date().toISOString().slice(0, 10);
@@ -5519,14 +5591,20 @@ export class ContractsManager {
       e.preventDefault();
       const formData = new FormData(e.target);
 
-      // Mã hóa supporting docs
+      // Mã hóa supporting docs chuẩn CPMS Plus VBA: GTTT:10|THKL:10|NTVL:1|HSK:1|NOTE:...
       const supportingArr = [];
-      modal.querySelectorAll('.chk-supporting:checked').forEach((chk) => {
-        const code = chk.getAttribute('data-code');
+      ['GTTT', 'THKL', 'DGKL', 'NTCL', 'NTVL', 'HC', 'HSK'].forEach((code) => {
+        const chk = modal.querySelector(`.chk-supporting[data-code="${code}"]`);
         const qtyInput = modal.querySelector(`.input-supporting-qty[data-code="${code}"]`);
-        const qty = parseInt(qtyInput?.value) || 1;
-        supportingArr.push(`${code}:${qty}`);
+        if (chk && chk.checked) {
+          const qty = parseInt(qtyInput?.value) || 1;
+          supportingArr.push(`${code}:${qty}`);
+        }
       });
+      const noteVal = modal.querySelector('#input-supporting-note')?.value?.trim();
+      if (noteVal) {
+        supportingArr.push(`NOTE:${noteVal}`);
+      }
       const supportingDocsStr = supportingArr.join('|');
 
       const localLink = formData.get('local_link')?.trim() || '';
