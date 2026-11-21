@@ -5200,8 +5200,9 @@ export class ContractsManager {
       if (val > 10) {
         opts += `<option value="${val}" selected>${val}</option>`;
       }
+      const isActive = val > 0;
       return `
-        <select class="select-supporting-qty" data-code="${code}" style="width: 44px !important; min-width: 44px !important; max-width: 44px !important; flex: 0 0 44px !important; padding: 2px 0; font-size: 0.82rem; text-align: center; text-align-last: center; height: 26px; font-weight: 700; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; cursor: pointer; color: #1e293b; outline: none; box-sizing: border-box;">
+        <select class="select-supporting-qty" data-code="${code}" style="width: 48px !important; min-width: 48px !important; max-width: 48px !important; flex: 0 0 48px !important; height: 26px; padding: 2px 16px 2px 6px; font-size: 0.82rem; font-weight: 700; text-align: center; border-radius: 4px; cursor: pointer; outline: none; box-sizing: border-box; appearance: none; -webkit-appearance: none; background-color: ${isActive ? '#eff6ff' : '#f8fafc'}; border: 1px solid ${isActive ? '#93c5fd' : '#cbd5e1'}; color: ${isActive ? '#1d4ed8' : '#64748b'}; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%2364748b' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: right 5px center; background-size: 8px 5px;">
           ${opts}
         </select>
       `;
@@ -5214,7 +5215,7 @@ export class ContractsManager {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 900px; max-height: 94vh; display: flex; flex-direction: column;">
+      <div class="modal-container" style="max-width: 930px; max-height: 94vh; display: flex; flex-direction: column;">
         <!-- Header -->
         <div class="modal-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; background: #faf5ff;">
           <div style="flex: 1; padding-right: 15px;">
@@ -5249,7 +5250,7 @@ export class ContractsManager {
             <input type="hidden" name="contract_id" value="${targetContract.id}">
             <input type="file" id="doc-file-hidden-picker" style="display: none;">
 
-            <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; align-items: start;">
+            <div style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; align-items: start;">
               <!-- CỘT TRÁI: THÔNG TIN HỒ SƠ VÀ LƯU TRỮ -->
               <div>
                 <!-- 1. Document Type (Phân loại hồ sơ) -->
@@ -5278,7 +5279,7 @@ export class ContractsManager {
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                       <div>
                         <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block; white-space: nowrap;">Mã hồ sơ</label>
-                        <input type="text" class="form-control" name="other_doctype" id="cboDocType" list="list-other-doctypes" value="${editDoc?.category && editDoc.category !== 'Contract' && editDoc.category !== 'CON' && editDoc.category !== 'IPC' ? editDoc.category : (editDoc?.sub_type1 || 'RFA')}" placeholder="VD: RFA, LTR..." style="text-transform: uppercase; font-family: monospace; font-size: 0.82rem; font-weight: 700; height: 32px;">
+                        <input type="text" class="form-control" name="other_doctype" id="cboDocType" list="list-other-doctypes" value="${editDoc?.category && editDoc.category !== 'Contract' && editDoc.category !== 'CON' && editDoc.category !== 'IPC' ? editDoc.category : (editDoc?.sub_type1 || 'RFA')}" placeholder="VD: RFA, LTR..." style="text-transform: uppercase; font-family: monospace; font-size: 0.82rem; font-weight: 700; height: 32px; padding: 4px 8px;">
                         <datalist id="list-other-doctypes">
                           <option value="RFA">RFA (Request For Approval)</option>
                           <option value="LTR">LTR (Official Letter / Công văn)</option>
@@ -5303,14 +5304,14 @@ export class ContractsManager {
                       </div>
                       <div>
                         <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block; white-space: nowrap;">Phân nhánh 1</label>
-                        <select class="form-control" name="sub_type1" id="cboSubType1" style="font-size: 0.82rem; font-weight: 600; height: 32px;">
-                          <option value="">-- Chọn nhánh 1 --</option>
+                        <select class="form-control" name="sub_type1" id="cboSubType1" style="font-size: 0.82rem; font-weight: 600; height: 32px; padding: 4px 8px; white-space: nowrap;">
+                          <option value="">-- Nhánh 1 --</option>
                         </select>
                       </div>
                       <div>
                         <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block; white-space: nowrap;">Phân nhánh 2</label>
-                        <select class="form-control" name="sub_type2" id="cboSubType2" style="font-size: 0.82rem; font-weight: 600; height: 32px;">
-                          <option value="">-- Chọn nhánh 2 --</option>
+                        <select class="form-control" name="sub_type2" id="cboSubType2" style="font-size: 0.82rem; font-weight: 600; height: 32px; padding: 4px 8px; white-space: nowrap;">
+                          <option value="">-- Nhánh 2 --</option>
                         </select>
                       </div>
                     </div>
@@ -5437,9 +5438,9 @@ export class ContractsManager {
 
               <!-- CỘT PHẢI: SUPPORTING DOCUMENTS (HỒ SƠ KÈM THEO CHUẨN CPMS PLUS) -->
               <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: var(--radius-sm); padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="font-weight: 700; font-size: 0.9rem; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                <div style="font-weight: 700; font-size: 0.9rem; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 0 4px 8px 4px;">
                   <span><i class="fa-solid fa-layer-group" style="color: #6366f1;"></i> Supporting Documents</span>
-                  <span style="font-size: 0.72rem; color: #64748b;">Qty (Số lượng)</span>
+                  <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; width: 48px; text-align: center; display: inline-block;">Số lượng</span>
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem;">
@@ -5447,7 +5448,7 @@ export class ContractsManager {
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="GTTT" ${supportingObj['GTTT'] ? 'checked' : ''}>
-                      <span>Payment Certificate (GTTT)</span>
+                      <span style="font-size: 0.82rem; font-weight: 500; color: #334155;">Payment Certificate (GTTT)</span>
                     </label>
                     ${renderQtySelect('GTTT', supportingObj['GTTT'] || 0)}
                   </div>
@@ -5456,7 +5457,7 @@ export class ContractsManager {
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="THKL" ${supportingObj['THKL'] ? 'checked' : ''}>
-                      <span>Quantity Summary (THKL)</span>
+                      <span style="font-size: 0.82rem; font-weight: 500; color: #334155;">Quantity Summary (THKL)</span>
                     </label>
                     ${renderQtySelect('THKL', supportingObj['THKL'] || 0)}
                   </div>
@@ -5465,7 +5466,7 @@ export class ContractsManager {
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="DGKL" ${supportingObj['DGKL'] ? 'checked' : ''}>
-                      <span>Quantity Breakdown (DGKL)</span>
+                      <span style="font-size: 0.82rem; font-weight: 500; color: #334155;">Quantity Breakdown (DGKL)</span>
                     </label>
                     ${renderQtySelect('DGKL', supportingObj['DGKL'] || 0)}
                   </div>
@@ -5474,7 +5475,7 @@ export class ContractsManager {
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="NTCL" ${supportingObj['NTCL'] ? 'checked' : ''}>
-                      <span>Quality Acceptance (NTCL)</span>
+                      <span style="font-size: 0.82rem; font-weight: 500; color: #334155;">Quality Acceptance (NTCL)</span>
                     </label>
                     ${renderQtySelect('NTCL', supportingObj['NTCL'] || 0)}
                   </div>
@@ -5483,7 +5484,7 @@ export class ContractsManager {
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="NTVL" ${supportingObj['NTVL'] ? 'checked' : ''}>
-                      <span>Material Acceptance (NTTVL)</span>
+                      <span style="font-size: 0.82rem; font-weight: 500; color: #334155;">Material Acceptance (NTVL)</span>
                     </label>
                     ${renderQtySelect('NTVL', supportingObj['NTVL'] || 0)}
                   </div>
@@ -5492,7 +5493,7 @@ export class ContractsManager {
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="HC" ${supportingObj['HC'] ? 'checked' : ''}>
-                      <span>As-Built Documents (Bản vẽ hoàn công)</span>
+                      <span style="font-size: 0.82rem; font-weight: 500; color: #334155;">As-Built Documents (HC)</span>
                     </label>
                     ${renderQtySelect('HC', supportingObj['HC'] || 0)}
                   </div>
@@ -5501,7 +5502,7 @@ export class ContractsManager {
                   <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc; gap: 8px;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none; min-width: 0; white-space: nowrap;">
                       <input type="checkbox" class="chk-supporting" data-code="HSK" ${supportingObj['HSK'] ? 'checked' : ''}>
-                      <span>Other Documents (HS khác)</span>
+                      <span style="font-size: 0.82rem; font-weight: 500; color: #334155;">Other Documents (HSK)</span>
                     </label>
                     ${renderQtySelect('HSK', supportingObj['HSK'] || 0)}
                   </div>
@@ -5617,6 +5618,15 @@ export class ContractsManager {
         if (chk) {
           chk.checked = val > 0;
         }
+        if (val > 0) {
+          sel.style.backgroundColor = '#eff6ff';
+          sel.style.borderColor = '#93c5fd';
+          sel.style.color = '#1d4ed8';
+        } else {
+          sel.style.backgroundColor = '#f8fafc';
+          sel.style.borderColor = '#cbd5e1';
+          sel.style.color = '#64748b';
+        }
       });
     });
 
@@ -5628,8 +5638,14 @@ export class ContractsManager {
         if (sel) {
           if (chk.checked) {
             if (sel.value === '0') sel.value = '1';
+            sel.style.backgroundColor = '#eff6ff';
+            sel.style.borderColor = '#93c5fd';
+            sel.style.color = '#1d4ed8';
           } else {
             sel.value = '0';
+            sel.style.backgroundColor = '#f8fafc';
+            sel.style.borderColor = '#cbd5e1';
+            sel.style.color = '#64748b';
           }
         }
       });
@@ -5656,7 +5672,7 @@ export class ContractsManager {
       const upperDt = String(dt || '').trim().toUpperCase();
       const list = subType1Map[upperDt] || [];
       const curVal = cbo1.value;
-      cbo1.innerHTML = '<option value="">-- Chọn nhánh 1 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
+      cbo1.innerHTML = '<option value="">-- Nhánh 1 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
       cbo1.disabled = list.length === 0;
       if (list.length === 0) {
         cbo1.value = '';
@@ -5672,7 +5688,7 @@ export class ContractsManager {
       const upperSt1 = String(st1 || '').trim().toUpperCase();
       const list = subType2Map[upperSt1] || [];
       const curVal = cbo2.value;
-      cbo2.innerHTML = '<option value="">-- Chọn nhánh 2 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
+      cbo2.innerHTML = '<option value="">-- Nhánh 2 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
       cbo2.disabled = list.length === 0;
       if (list.length === 0) {
         cbo2.value = '';
