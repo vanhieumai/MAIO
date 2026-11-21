@@ -401,6 +401,64 @@ export class ContractsManager {
     return parts[parts.length - 1] || clean;
   }
 
+  getFolderPath(filePath) {
+    if (!filePath) return '';
+    const clean = String(filePath).replace(/[/\\]+$/, '');
+    const idx = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
+    if (idx !== -1) {
+      return clean.substring(0, idx);
+    }
+    return clean;
+  }
+
+  handleOpenDocFile(doc) {
+    if (!doc) return;
+    const link = doc.drive_link || doc.file_link || doc.local_link;
+    if (!link || !String(link).trim()) {
+      alert('Hồ sơ này chưa có đường dẫn tệp tin (File Link)!\n\nVui lòng bấm nút Chỉnh sửa (hình cây bút) để cập nhật đường dẫn tệp tin lưu trữ.');
+      return;
+    }
+    const cleanLink = String(link).trim();
+    if (cleanLink.startsWith('http://') || cleanLink.startsWith('https://')) {
+      window.open(cleanLink, '_blank');
+      return;
+    }
+    // Đối với tệp tin trên máy tính / mạng nội bộ
+    navigator.clipboard.writeText(cleanLink).then(() => {
+      alert(`Đã sao chép đường dẫn tệp tin vào Clipboard:\n\n${cleanLink}\n\nDo chính sách an toàn của trình duyệt web đối với file local trên máy tính, bạn hãy nhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở tệp tin ngay lập tức!`);
+    }).catch(() => {
+      prompt('Đường dẫn tệp tin trên máy tính (nhấn Ctrl+C để sao chép):', cleanLink);
+    });
+  }
+
+  handleOpenDocFolder(doc, contract = null) {
+    if (!doc) return;
+    const rawLink = doc.local_link || doc.file_link || '';
+    let folderPath = '';
+    if (rawLink && !rawLink.startsWith('http')) {
+      folderPath = this.getFolderPath(rawLink);
+    }
+    if (!folderPath && contract) {
+      folderPath = this.getDriveDocPathForContract(contract);
+    }
+
+    if (doc.drive_link && doc.drive_link.startsWith('http')) {
+      window.open(doc.drive_link, '_blank');
+      return;
+    }
+
+    if (!folderPath) {
+      alert('Chưa có thông tin thư mục lưu trữ cho hồ sơ này.');
+      return;
+    }
+
+    navigator.clipboard.writeText(folderPath).then(() => {
+      alert(`Đã sao chép đường dẫn thư mục vào Clipboard:\n\n${folderPath}\n\nBạn hãy nhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở thư mục lưu trữ này trên máy tính!`);
+    }).catch(() => {
+      prompt('Đường dẫn thư mục lưu trữ (nhấn Ctrl+C để sao chép):', folderPath);
+    });
+  }
+
   removeAccents(str) {
     if (!str || typeof str !== 'string') return '';
     return str
@@ -2602,10 +2660,25 @@ export class ContractsManager {
                               </div>
                             </div>
                           </td>
-                          <td>
-                            <button class="button button-outline btn-delete-doc" data-doc-id="${d.id}" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger);" title="Xóa hồ sơ">
-                              <i class="fa-solid fa-trash"></i>
-                            </button>
+                          <td style="white-space: nowrap;">
+                            <div style="display: flex; gap: 4px; align-items: center;">
+                              <!-- Mở tệp tin -->
+                              <button class="button button-outline btn-open-doc-file" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: #0284c7; border-color: #bae6fd; background: #f0f9ff;" title="Mở file tài liệu này">
+                                <i class="fa-solid fa-file-arrow-up"></i>
+                              </button>
+                              <!-- Mở thư mục -->
+                              <button class="button button-outline btn-open-doc-folder" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: #d97706; border-color: #fde68a; background: #fffbeb;" title="Mở thư mục chứa file">
+                                <i class="fa-solid fa-folder-open"></i>
+                              </button>
+                              <!-- Chỉnh sửa thông tin hồ sơ & lưu trữ -->
+                              <button class="button button-outline btn-edit-doc" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: #4f46e5; border-color: #c7d2fe; background: #eef2ff;" title="Chỉnh sửa thông tin lưu trữ & hồ sơ">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                              </button>
+                              <!-- Xóa hồ sơ -->
+                              <button class="button button-outline btn-delete-doc" data-doc-id="${d.id}" style="padding: 2px 7px; font-size: 0.75rem; color: var(--danger); border-color: #fecdd3; background: #fff1f2;" title="Xóa hồ sơ">
+                                <i class="fa-solid fa-trash"></i>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       `
@@ -2833,6 +2906,34 @@ export class ContractsManager {
     // Nhập đợt thanh toán
     document.getElementById('btn-add-payment-entry')?.addEventListener('click', () => {
       this.openPaymentEntryModal(contract);
+    });
+
+    // Thao tác với hồ sơ: Mở file, Mở thư mục, Chỉnh sửa, Xóa
+    modal.querySelectorAll('.btn-open-doc-file').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const docId = btn.getAttribute('data-doc-id');
+        const doc = (this.documents || []).find((d) => d.id === docId);
+        if (doc) this.handleOpenDocFile(doc);
+      });
+    });
+
+    modal.querySelectorAll('.btn-open-doc-folder').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const docId = btn.getAttribute('data-doc-id');
+        const doc = (this.documents || []).find((d) => d.id === docId);
+        if (doc) this.handleOpenDocFolder(doc, contract);
+      });
+    });
+
+    modal.querySelectorAll('.btn-edit-doc').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const docId = btn.getAttribute('data-doc-id');
+        const doc = (this.documents || []).find((d) => d.id === docId);
+        if (doc) this.openDocumentFormModal(contract, doc);
+      });
     });
 
     // Xóa hồ sơ
@@ -5012,77 +5113,295 @@ export class ContractsManager {
   }
 
   // ==========================================
-  // FORM THÊM HỒ SƠ
+  // FORM THÊM / CHỈNH SỬA HỒ SƠ (CHUẨN frmDocumentEdit CPMS PLUS)
   // ==========================================
-  openDocumentFormModal(targetContract) {
+  openDocumentFormModal(targetContract, editDoc = null) {
+    const isEdit = !!editDoc;
     const docs = this.getDocuments(targetContract.id);
-    const docId = `DOC-${new Date().getFullYear()}-${String(docs.length + 1).padStart(3, '0')}`;
+    const docId = isEdit
+      ? editDoc.id
+      : `DOC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(docs.length + 1).padStart(3, '0')}`;
+
+    // Thu thập danh sách mã đối tác trong dự án để gợi ý Issuer / Recipient
+    const companyCodes = Array.from(new Set([
+      targetContract.code_a,
+      targetContract.code_b,
+      targetContract.code_b2,
+      'CLI', 'VEC', 'VNCN', 'CTC', 'KD', 'NSH', 'TID', 'HHG', 'HD', 'EC-KD', 'PMU'
+    ].filter(Boolean)));
+
+    // Parse supporting docs nếu là chế độ chỉnh sửa (dạng GTTT:1|THKL:1...)
+    const supportingObj = {};
+    if (editDoc && editDoc.supporting_docs) {
+      String(editDoc.supporting_docs).split('|').forEach((part) => {
+        const [code, qty] = part.split(':');
+        if (code) supportingObj[code.trim()] = parseInt(qty) || 1;
+      });
+    }
+
+    const defaultCategory = editDoc ? (editDoc.category || 'Other') : 'Other';
+    const initialProcessedDate = this.formatDateForInput(editDoc?.start_date || editDoc?.received_date) || new Date().toISOString().slice(0, 10);
+    const initialCompletedDate = this.formatDateForInput(editDoc?.due_date || editDoc?.return_date) || '';
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 600px;">
-        <div class="modal-header">
-          <h3 style="font-size: 1.15rem; font-weight: 700;">Thêm Hồ sơ cho ${targetContract.contract_no}</h3>
-          <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+      <div class="modal-container" style="max-width: 900px; max-height: 94vh; display: flex; flex-direction: column;">
+        <!-- Header -->
+        <div class="modal-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; background: #faf5ff;">
+          <div style="flex: 1; padding-right: 15px;">
+            <div style="display: flex; gap: 8px; align-items: center; font-size: 0.85rem; font-weight: 700; color: #7e22ce;">
+              <span><i class="fa-solid fa-file-invoice"></i> ${targetContract.contract_no || targetContract.id}</span>
+              <span style="color: #cbd5e1;">|</span>
+              <span style="color: #475569; font-weight: 600;">${targetContract.company_b || targetContract.company_a || '—'}</span>
+              <span style="color: #cbd5e1;">|</span>
+              <span style="color: #15803d; font-weight: 700;">${this.formatCurrency(targetContract.contract_val || 0)}</span>
+              ${targetContract.signing_date ? `<span style="color: #cbd5e1;">|</span><span style="color: #64748b; font-size: 0.78rem;">${this.formatDate(targetContract.signing_date)}</span>` : ''}
+            </div>
+            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${targetContract.scope_of_work || 'Hồ sơ tài liệu chứng từ theo dõi (Document Tracker)'}
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+            <button type="button" class="button button-outline" id="btn-doc-edit-open-file" style="padding: 5px 12px; font-size: 0.8rem; color: #0284c7; border-color: #38bdf8; background: #fff; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-file-arrow-up"></i> Open File
+            </button>
+            <button type="button" class="button button-outline" id="btn-doc-edit-open-folder" style="padding: 5px 12px; font-size: 0.8rem; color: #d97706; border-color: #fde68a; background: #fff; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-folder-open"></i> Open Folder
+            </button>
+            <button class="button button-outline btn-close-submodal" style="padding: 4px 8px; margin-left: 6px;"><i class="fa-solid fa-xmark"></i></button>
+          </div>
         </div>
-        <div class="modal-body">
-          <form id="form-doc">
-            <div class="form-grid-2">
-              <div class="form-group">
-                <label class="form-label">Mã Hồ sơ</label>
-                <input type="text" class="form-control" name="id" value="${docId}" readonly>
+
+        <!-- Body -->
+        <div class="modal-body" style="overflow-y: auto; padding: 20px; box-sizing: border-box;">
+          <form id="form-doc-edit">
+            <input type="hidden" name="id" value="${docId}">
+            <input type="hidden" name="contract_id" value="${targetContract.id}">
+            <input type="file" id="doc-file-hidden-picker" style="display: none;">
+
+            <div style="display: grid; grid-template-columns: 1.35fr 1fr; gap: 20px; align-items: start;">
+              <!-- CỘT TRÁI: THÔNG TIN HỒ SƠ VÀ LƯU TRỮ -->
+              <div>
+                <!-- 1. Document Type (Phân loại hồ sơ) -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label" style="font-weight: 700; color: #1e1b4b; display: flex; justify-content: space-between;">
+                    <span><i class="fa-solid fa-folder"></i> Document (Phân loại hồ sơ)</span>
+                    <span style="font-size: 0.75rem; color: #64748b; font-family: monospace;">Mã: ${docId}</span>
+                  </label>
+                  <div style="display: flex; gap: 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-sm); padding: 8px 12px; font-size: 0.85rem;">
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="radio" name="category" value="Contract" ${defaultCategory.includes('Contract') || defaultCategory.includes('Hợp đồng') || defaultCategory === 'CON' ? 'checked' : ''}>
+                      <strong>Contract</strong> <span style="font-size: 0.72rem; color: #64748b;">(HĐ / Phụ lục)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="radio" name="category" value="IPC" ${defaultCategory.includes('IPC') || defaultCategory.includes('thanh toán') ? 'checked' : ''}>
+                      <strong>IPC</strong> <span style="font-size: 0.72rem; color: #64748b;">(Thanh toán)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                      <input type="radio" name="category" value="Other" ${!defaultCategory.includes('Contract') && !defaultCategory.includes('Hợp đồng') && !defaultCategory.includes('CON') && !defaultCategory.includes('IPC') && !defaultCategory.includes('thanh toán') ? 'checked' : ''}>
+                      <strong>Other</strong> <span style="font-size: 0.72rem; color: #64748b;">(Công văn / Khác)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- 2. Name (Tiêu đề tài liệu) -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label">Name (Tiêu đề hồ sơ / Tên chứng từ) <span style="color: var(--danger);">*</span></label>
+                  <input type="text" class="form-control" name="title" id="input-doc-title" value="${editDoc?.title || ''}" placeholder="Vd: Interim Payment Certificate - Thi công kết cấu... hoặc Bản vẽ nghiệm thu" required style="font-weight: 600;">
+                </div>
+
+                <!-- 3. Issuer & Recipient -->
+                <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: flex-end; margin-bottom: 14px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Issuer (Bên gửi / Ban hành)</label>
+                    <input type="text" class="form-control" name="issuer" id="input-doc-issuer" list="list-doc-issuers" value="${editDoc?.issuer || targetContract.code_b || ''}" placeholder="Vd: VNCN, CTC..." style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
+                    <datalist id="list-doc-issuers">
+                      ${companyCodes.map(c => `<option value="${c}"></option>`).join('')}
+                    </datalist>
+                  </div>
+
+                  <div style="padding-bottom: 2px;">
+                    <button type="button" class="button button-outline" id="btn-swap-doc-parties" style="padding: 7px 10px;" title="Hoán đổi Bên gửi <=> Bên nhận">
+                      <i class="fa-solid fa-right-left"></i>
+                    </button>
+                  </div>
+
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Recipient (Bên nhận)</label>
+                    <input type="text" class="form-control" name="recipients" id="input-doc-recipients" list="list-doc-recipients" value="${editDoc?.recipients || targetContract.code_a || ''}" placeholder="Vd: VEC, CLI..." style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
+                    <datalist id="list-doc-recipients">
+                      ${companyCodes.map(c => `<option value="${c}"></option>`).join('')}
+                    </datalist>
+                  </div>
+                </div>
+
+                <!-- 4. Number (Số hiệu hồ sơ / Số công văn) -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Number (Số công văn / Số hiệu hồ sơ) <span style="color: var(--danger);">*</span></span>
+                    <button type="button" id="btn-auto-gen-docno" class="button button-outline" style="padding: 1px 6px; font-size: 0.72rem; color: #4338ca;">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i> Sinh số chuẩn
+                    </button>
+                  </label>
+                  <input type="text" class="form-control" name="doc_no" id="input-doc-no" value="${editDoc?.doc_no || ''}" placeholder="Vd: EC.IPC-PKG03.CLI.005 hoặc 125/CV-CHC1" required>
+                </div>
+
+                <!-- 5. Link (Đường dẫn tệp tin trên máy tính / OneDrive / Mạng) -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span><i class="fa-solid fa-laptop"></i> Link (Đường dẫn tệp tin trên máy tính / Local / OneDrive)</span>
+                    <button type="button" id="btn-browse-doc-file" class="button button-outline" style="padding: 2px 8px; font-size: 0.73rem; color: #0284c7; border-color: #bae6fd;">
+                      <i class="fa-solid fa-folder-open"></i> Duyệt file...
+                    </button>
+                  </label>
+                  <div style="display: flex; gap: 6px;">
+                    <input type="text" class="form-control" name="local_link" id="input-doc-local-link" value="${editDoc?.local_link || (!String(editDoc?.file_link || '').startsWith('http') ? editDoc?.file_link : '') || ''}" placeholder="Vd: D:\\OneDrive\\DuAn_CHC1\\ThanhToan\\IPC03.xlsx" style="font-size: 0.85rem; font-family: monospace;">
+                    <button type="button" id="btn-copy-doc-input-link" class="button button-outline" style="padding: 6px 10px;" title="Sao chép đường dẫn">
+                      <i class="fa-regular fa-copy"></i>
+                    </button>
+                  </div>
+                  <small style="color: #64748b; font-size: 0.72rem;">Đường dẫn file thực tế trên ổ đĩa máy tính hoặc thư mục dùng chung của dự án.</small>
+                </div>
+
+                <!-- 6. Link Drive Online -->
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label"><i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Google Drive Link (Xem trực tuyến Online URL)</label>
+                  <input type="url" class="form-control" name="drive_link" id="input-doc-drive-link" value="${editDoc?.drive_link || (String(editDoc?.file_link || '').startsWith('http') ? editDoc?.file_link : '') || ''}" placeholder="https://drive.google.com/file/d/..." style="font-size: 0.85rem;">
+                </div>
+
+                <!-- 7. Ngày xử lý (Processed Date) & Ngày hoàn thành (Completed Date) -->
+                <div class="form-grid-2" style="margin-bottom: 14px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                      <span>Processed Date (Từ ngày)</span>
+                      <button type="button" class="btn-set-today" data-target="input-doc-start-date" style="border: none; background: transparent; color: #2563eb; font-size: 0.72rem; cursor: pointer; text-decoration: underline;">today</button>
+                    </label>
+                    <input type="date" class="form-control" name="start_date" id="input-doc-start-date" value="${initialProcessedDate}">
+                  </div>
+
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
+                      <span>Completed Date (Đến ngày)</span>
+                      <button type="button" class="btn-set-today" data-target="input-doc-due-date" style="border: none; background: transparent; color: #2563eb; font-size: 0.72rem; cursor: pointer; text-decoration: underline;">today</button>
+                    </label>
+                    <input type="date" class="form-control" name="due_date" id="input-doc-due-date" value="${initialCompletedDate}">
+                  </div>
+                </div>
+
+                <!-- 8. Send To & Status -->
+                <div class="form-grid-2" style="margin-bottom: 14px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Send To (Người nhận lại / Phụ trách)</label>
+                    <input type="text" class="form-control" name="recipient" id="input-doc-recipient" value="${editDoc?.recipient || ''}" placeholder="Vd: Đạt QS KD hoặc Ban QLDA">
+                  </div>
+
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Status (Tình trạng)</label>
+                    <select class="form-control" name="status" id="select-doc-status">
+                      <option value="Completed" ${(editDoc?.status || 'Completed') === 'Completed' ? 'selected' : ''}>Completed (Đã hoàn thành)</option>
+                      <option value="Accepted" ${editDoc?.status === 'Accepted' ? 'selected' : ''}>Accepted (Đã phê duyệt)</option>
+                      <option value="Approved" ${editDoc?.status === 'Approved' ? 'selected' : ''}>Approved (Đã chấp thuận)</option>
+                      <option value="Checking" ${editDoc?.status === 'Checking' ? 'selected' : ''}>Checking (Đang kiểm tra / Rà soát)</option>
+                      <option value="Pending" ${editDoc?.status === 'Pending' ? 'selected' : ''}>Pending (Chờ xử lý)</option>
+                      <option value="UnderReview" ${editDoc?.status === 'UnderReview' ? 'selected' : ''}>UnderReview (Đang xem xét)</option>
+                      <option value="Draft" ${editDoc?.status === 'Draft' ? 'selected' : ''}>Draft (Dự thảo)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- 9. Note (Ghi chú) -->
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Note (Ghi chú diễn biến hồ sơ)</label>
+                  <textarea class="form-control" name="notes" id="input-doc-notes" rows="2" placeholder="Nhập ghi chú chi tiết về tình trạng bàn giao, xử lý hồ sơ...">${editDoc?.notes || ''}</textarea>
+                </div>
               </div>
-              <div class="form-group">
-                <label class="form-label">Phân loại hồ sơ</label>
-                <select class="form-control" name="category">
-                  <option value="Hồ sơ nghiệm thu">Hồ sơ nghiệm thu (WIR/MIR)</option>
-                  <option value="Hồ sơ thanh toán">Hồ sơ thanh toán (IPC)</option>
-                  <option value="Hợp đồng & Pháp lý">Hợp đồng & Pháp lý (CON/APP)</option>
-                  <option value="Công văn đến / đi">Công văn đến / đi (LTR)</option>
-                  <option value="Bản vẽ thiết kế">Bản vẽ thiết kế (DWG/PDF)</option>
-                </select>
+
+              <!-- CỘT PHẢI: SUPPORTING DOCUMENTS (HỒ SƠ KÈM THEO CHUẨN CPMS PLUS) -->
+              <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: var(--radius-sm); padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-weight: 700; font-size: 0.9rem; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+                  <span><i class="fa-solid fa-layer-group" style="color: #6366f1;"></i> Supporting Documents</span>
+                  <span style="font-size: 0.72rem; color: #64748b;">Qty (Số lượng)</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.82rem;">
+                  <!-- 1. GTTT -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                      <input type="checkbox" class="chk-supporting" data-code="GTTT" ${supportingObj['GTTT'] ? 'checked' : ''}>
+                      <span>Payment Certificate (GTTT)</span>
+                    </label>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="GTTT" value="${supportingObj['GTTT'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['GTTT'] ? '' : 'disabled'}>
+                  </div>
+
+                  <!-- 2. THKL -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                      <input type="checkbox" class="chk-supporting" data-code="THKL" ${supportingObj['THKL'] ? 'checked' : ''}>
+                      <span>Quantity Summary (THKL)</span>
+                    </label>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="THKL" value="${supportingObj['THKL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['THKL'] ? '' : 'disabled'}>
+                  </div>
+
+                  <!-- 3. DGKL -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                      <input type="checkbox" class="chk-supporting" data-code="DGKL" ${supportingObj['DGKL'] ? 'checked' : ''}>
+                      <span>Quantity Breakdown (DGKL)</span>
+                    </label>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="DGKL" value="${supportingObj['DGKL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['DGKL'] ? '' : 'disabled'}>
+                  </div>
+
+                  <!-- 4. NTCL -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                      <input type="checkbox" class="chk-supporting" data-code="NTCL" ${supportingObj['NTCL'] ? 'checked' : ''}>
+                      <span>Quality Acceptance (NTCL)</span>
+                    </label>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="NTCL" value="${supportingObj['NTCL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['NTCL'] ? '' : 'disabled'}>
+                  </div>
+
+                  <!-- 5. NTTVL -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                      <input type="checkbox" class="chk-supporting" data-code="NTTVL" ${supportingObj['NTTVL'] ? 'checked' : ''}>
+                      <span>Material Acceptance (NTTVL)</span>
+                    </label>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="NTTVL" value="${supportingObj['NTTVL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['NTTVL'] ? '' : 'disabled'}>
+                  </div>
+
+                  <!-- 6. ASB -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                      <input type="checkbox" class="chk-supporting" data-code="ASB" ${supportingObj['ASB'] ? 'checked' : ''}>
+                      <span>As-Built Documents (ASB)</span>
+                    </label>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="ASB" value="${supportingObj['ASB'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['ASB'] ? '' : 'disabled'}>
+                  </div>
+
+                  <!-- 7. HSK -->
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                      <input type="checkbox" class="chk-supporting" data-code="HSK" ${supportingObj['HSK'] ? 'checked' : ''}>
+                      <span>Other Documents (HS khác)</span>
+                    </label>
+                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="HSK" value="${supportingObj['HSK'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['HSK'] ? '' : 'disabled'}>
+                  </div>
+                </div>
+
+                <div style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed #e2e8f0; font-size: 0.72rem; color: #64748b;">
+                  Mã hóa tự động chuẩn CPMS Plus: Lưu chuỗi cấu trúc hồ sơ đính kèm vào sheet <code>DOCUMENT_TRACKER</code>.
+                </div>
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Số hiệu công văn / Tên hồ sơ</label>
-              <input type="text" class="form-control" name="doc_no" placeholder="Vd: 125/CV-CHC1 hoặc BB-NT-01" required>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Tiêu đề / Nội dung tài liệu</label>
-              <textarea class="form-control" name="title" rows="2" placeholder="Mô tả tóm tắt nội dung hồ sơ..." required></textarea>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-solid fa-laptop"></i> Đường dẫn tệp tin trên máy tính (Local File Path)</label>
-              <input type="text" class="form-control" name="local_link" placeholder="Vd: D:\\OneDrive\\DuAn\\CHC1\\HopDong\\HD_114.pdf">
-            </div>
-
-            <div class="form-group">
-              <label class="form-label"><i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Link xem trực tuyến Google Drive (Online URL)</label>
-              <input type="url" class="form-control" name="drive_link" placeholder="https://drive.google.com/file/d/...">
-            </div>
-
-            <div class="form-grid-2">
-              <div class="form-group">
-                <label class="form-label">Ngày tiếp nhận</label>
-                <input type="date" class="form-control" name="received_date" value="${new Date().toISOString().slice(0, 10)}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Tình trạng</label>
-                <select class="form-control" name="status">
-                  <option value="Approved" selected>Đã duyệt (Approved)</option>
-                  <option value="UnderReview">Đang xem xét (UnderReview)</option>
-                  <option value="Draft">Dự thảo (Draft)</option>
-                </select>
-              </div>
-            </div>
-
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
+            <!-- Footer Buttons -->
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color);">
               <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary">Lưu Hồ sơ</button>
+              <button type="submit" class="button button-primary" style="padding: 8px 20px; font-weight: 700;">
+                <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Lưu thay đổi Hồ sơ' : 'Lưu Hồ sơ mới'}
+              </button>
             </div>
           </form>
         </div>
@@ -5093,23 +5412,149 @@ export class ContractsManager {
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
 
-    modal.querySelector('#form-doc').addEventListener('submit', async (e) => {
+    // Nút Open File trên Header của form
+    modal.querySelector('#btn-doc-edit-open-file')?.addEventListener('click', () => {
+      const locLink = modal.querySelector('#input-doc-local-link')?.value || '';
+      const drvLink = modal.querySelector('#input-doc-drive-link')?.value || '';
+      this.handleOpenDocFile({ local_link: locLink, drive_link: drvLink, file_link: drvLink || locLink });
+    });
+
+    // Nút Open Folder trên Header của form
+    modal.querySelector('#btn-doc-edit-open-folder')?.addEventListener('click', () => {
+      const locLink = modal.querySelector('#input-doc-local-link')?.value || '';
+      const drvLink = modal.querySelector('#input-doc-drive-link')?.value || '';
+      this.handleOpenDocFolder({ local_link: locLink, drive_link: drvLink, file_link: drvLink || locLink }, targetContract);
+    });
+
+    // Nút Hoán đổi Bên gửi <=> Bên nhận
+    modal.querySelector('#btn-swap-doc-parties')?.addEventListener('click', () => {
+      const inputIssuer = modal.querySelector('#input-doc-issuer');
+      const inputRecip = modal.querySelector('#input-doc-recipients');
+      if (inputIssuer && inputRecip) {
+        const tmp = inputIssuer.value;
+        inputIssuer.value = inputRecip.value;
+        inputRecip.value = tmp;
+      }
+    });
+
+    // Nút Thiết lập ngày hôm nay (today)
+    modal.querySelectorAll('.btn-set-today').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const targetInputId = btn.getAttribute('data-target');
+        const inputEl = modal.querySelector(`#${targetInputId}`);
+        if (inputEl) {
+          inputEl.value = new Date().toISOString().slice(0, 10);
+        }
+      });
+    });
+
+    // Nút Duyệt file... (Browse file)
+    const hiddenFileInput = modal.querySelector('#doc-file-hidden-picker');
+    const localLinkInput = modal.querySelector('#input-doc-local-link');
+    const titleInput = modal.querySelector('#input-doc-title');
+
+    modal.querySelector('#btn-browse-doc-file')?.addEventListener('click', () => {
+      hiddenFileInput?.click();
+    });
+
+    hiddenFileInput?.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (file) {
+        // Lấy tên file hoặc đường dẫn gợi ý
+        const defaultDocFolder = `D:\\OneDrive\\DuAn_${this.currentProjectId || 'CHC1'}\\`;
+        const suggestedPath = defaultDocFolder + file.name;
+        if (localLinkInput) {
+          localLinkInput.value = suggestedPath;
+        }
+        if (titleInput && (!titleInput.value || titleInput.value.trim() === '')) {
+          const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+          titleInput.value = nameWithoutExt;
+        }
+      }
+    });
+
+    // Nút sao chép đường dẫn ô Link
+    modal.querySelector('#btn-copy-doc-input-link')?.addEventListener('click', () => {
+      const val = localLinkInput?.value || '';
+      if (val) {
+        navigator.clipboard.writeText(val).then(() => {
+          alert(`Đã sao chép đường dẫn: ${val}`);
+        });
+      }
+    });
+
+    // Bật / tắt ô Qty khi tick checkbox Supporting Documents
+    modal.querySelectorAll('.chk-supporting').forEach((chk) => {
+      chk.addEventListener('change', (e) => {
+        const code = chk.getAttribute('data-code');
+        const qtyInput = modal.querySelector(`.input-supporting-qty[data-code="${code}"]`);
+        if (qtyInput) {
+          qtyInput.disabled = !e.target.checked;
+          if (e.target.checked && (!qtyInput.value || parseInt(qtyInput.value) <= 0)) {
+            qtyInput.value = 1;
+          }
+        }
+      });
+    });
+
+    // Nút Sinh số chuẩn CPMS (YYMMDD.PROJ.Issuer.DocType.Recip...)
+    modal.querySelector('#btn-auto-gen-docno')?.addEventListener('click', () => {
+      const dateVal = modal.querySelector('#input-doc-start-date')?.value || new Date().toISOString().slice(0, 10);
+      const yy = dateVal.slice(2, 4);
+      const mm = dateVal.slice(5, 7);
+      const dd = dateVal.slice(8, 10);
+      const yymmdd = `${yy}${mm}${dd}`;
+      const proj = this.currentProjectId || 'CHC1';
+      const issuer = (modal.querySelector('#input-doc-issuer')?.value || 'VNCN').trim().toUpperCase();
+      const recip = (modal.querySelector('#input-doc-recipients')?.value || 'VEC').trim().toUpperCase();
+      const cat = (modal.querySelector('input[name="category"]:checked')?.value || 'OTH').toUpperCase();
+      const nextSeq = String((docs.length || 0) + 1).padStart(3, '0');
+      const genNo = `${yymmdd}.${proj}.${issuer}.${cat}.${recip}.${nextSeq}`;
+      const docNoInput = modal.querySelector('#input-doc-no');
+      if (docNoInput) docNoInput.value = genNo;
+    });
+
+    // Xử lý lưu hồ sơ
+    modal.querySelector('#form-doc-edit').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
+
+      // Mã hóa supporting docs
+      const supportingArr = [];
+      modal.querySelectorAll('.chk-supporting:checked').forEach((chk) => {
+        const code = chk.getAttribute('data-code');
+        const qtyInput = modal.querySelector(`.input-supporting-qty[data-code="${code}"]`);
+        const qty = parseInt(qtyInput?.value) || 1;
+        supportingArr.push(`${code}:${qty}`);
+      });
+      const supportingDocsStr = supportingArr.join('|');
+
       const localLink = formData.get('local_link')?.trim() || '';
       const driveLink = formData.get('drive_link')?.trim() || '';
+
       const docData = {
+        ...(editDoc || {}),
         id: formData.get('id'),
         project_id: targetContract.project_id || this.currentProjectId,
         contract_id: targetContract.id,
-        category: formData.get('category'),
-        doc_no: formData.get('doc_no'),
-        title: formData.get('title'),
+        category: formData.get('category') || 'Other',
+        title: (formData.get('title') || '').trim(),
+        doc_no: (formData.get('doc_no') || '').trim(),
+        issuer: (formData.get('issuer') || '').trim().toUpperCase(),
+        recipients: (formData.get('recipients') || '').trim().toUpperCase(),
         local_link: localLink,
         drive_link: driveLink,
         file_link: driveLink || localLink || '',
-        received_date: formData.get('received_date'),
-        status: formData.get('status'),
+        start_date: formData.get('start_date') || null,
+        due_date: formData.get('due_date') || null,
+        received_date: formData.get('start_date') || null,
+        return_date: formData.get('due_date') || null,
+        recipient: (formData.get('recipient') || '').trim(),
+        status: formData.get('status') || 'Completed',
+        notes: (formData.get('notes') || '').trim(),
+        supporting_docs: supportingDocsStr,
+        quantity: 1,
+        lan_val: editDoc?.lan_val || 1,
       };
 
       await db.put('documents', docData);
@@ -5117,7 +5562,7 @@ export class ContractsManager {
       closeSubModal();
       await this.syncToLocalFile();
       this.openContractDetail(targetContract.id);
-      alert('Đã lưu thành công Hồ sơ!');
+      alert(`Đã lưu thành công thông tin Hồ sơ "${docData.doc_no || docData.id}"!`);
     });
   }
 

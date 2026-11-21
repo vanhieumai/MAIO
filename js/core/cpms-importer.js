@@ -511,8 +511,14 @@ export class CPMSImporterExporter {
           return_date: r[9] || null,
           recipient: String(r[10] || ''),
           quantity: parseFloat(r[11] || 1) || 1,
+          supporting_docs: String(r[12] || ''),
+          lan_val: r[13] || 1,
           status: String(r[14] || 'Approved'),
           notes: String(r[15] || ''),
+          issuer: String(r[16] || ''),
+          recipients: String(r[17] || ''),
+          sub_type1: String(r[18] || ''),
+          sub_type2: String(r[19] || ''),
         });
       }
     }
@@ -792,18 +798,35 @@ export class CPMSImporterExporter {
 
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(payRows), 'PAYMENT_LEDGER');
 
-    // 4. Sheet DOCUMENT_TRACKER (16 cột chuẩn)
+    // 4. Sheet DOCUMENT_TRACKER (20 cột chuẩn CPMS Plus)
     const docHeaders = [
       'DocumentID', 'ContractID', 'Hồ sơ', 'Số', 'Tên hồ sơ', 'Link', 'Từ ngày',
       'Đến ngày', 'Tiếp nhận', 'Trả lại', 'Người nhận lại', 'Số lượng', 'Hồ sơ kèm theo',
-      'Lần', 'Tình trạng', 'Ghi chú'
+      'Lần', 'Tình trạng', 'Ghi chú', 'Issuer', 'Recipients', 'SubType1', 'SubType2'
     ];
     const docRows = [docHeaders];
     allDocs.forEach(d => {
       docRows.push([
-        d.id, d.contract_id, d.category || '', d.doc_no || '', d.title || '', d.file_link || '',
-        d.start_date || '', d.due_date || '', d.received_date || '', d.return_date || '', d.recipient || '',
-        d.quantity || 1, '', 1, d.status || 'Approved', d.notes || ''
+        d.id,
+        d.contract_id,
+        d.category || '',
+        d.doc_no || '',
+        d.title || '',
+        d.file_link || d.local_link || d.drive_link || '',
+        d.start_date || '',
+        d.due_date || '',
+        d.received_date || '',
+        d.return_date || '',
+        d.recipient || '',
+        d.quantity || 1,
+        d.supporting_docs || '',
+        d.lan_val || 1,
+        d.status || 'Approved',
+        d.notes || '',
+        d.issuer || '',
+        d.recipients || '',
+        d.sub_type1 || '',
+        d.sub_type2 || ''
       ]);
     });
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(docRows), 'DOCUMENT_TRACKER');
