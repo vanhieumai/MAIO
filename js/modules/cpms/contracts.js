@@ -5202,7 +5202,7 @@ export class ContractsManager {
       }
       const isActive = val > 0;
       return `
-        <select class="select-supporting-qty" data-code="${code}" style="width: 48px !important; min-width: 48px !important; max-width: 48px !important; flex: 0 0 48px !important; height: 26px; padding: 2px 16px 2px 6px; font-size: 0.82rem; font-weight: 700; text-align: center; border-radius: 4px; cursor: pointer; outline: none; box-sizing: border-box; appearance: none; -webkit-appearance: none; background-color: ${isActive ? '#eff6ff' : '#f8fafc'}; border: 1px solid ${isActive ? '#93c5fd' : '#cbd5e1'}; color: ${isActive ? '#1d4ed8' : '#64748b'}; background-image: url(&quot;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath fill='%2364748b' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E&quot;); background-repeat: no-repeat; background-position: right 5px center; background-size: 8px 5px;">
+        <select class="select-supporting-qty" data-code="${code}" style="width: 52px !important; min-width: 52px !important; max-width: 52px !important; flex: 0 0 52px !important; height: 26px; padding: 2px 4px; font-size: 0.82rem; font-weight: 700; text-align: center; border-radius: 4px; cursor: pointer; outline: none; box-sizing: border-box; background-color: ${isActive ? '#eff6ff' : '#f8fafc'}; border: 1px solid ${isActive ? '#93c5fd' : '#cbd5e1'}; color: ${isActive ? '#1d4ed8' : '#64748b'};">
           ${opts}
         </select>
       `;
@@ -5215,31 +5215,37 @@ export class ContractsManager {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 930px; max-height: 94vh; display: flex; flex-direction: column;">
+      <div class="modal-container" style="max-width: 950px; max-height: 94vh; display: flex; flex-direction: column;">
         <!-- Header -->
-        <div class="modal-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; background: #faf5ff;">
-          <div style="flex: 1; padding-right: 15px;">
-            <div style="display: flex; gap: 8px; align-items: center; font-size: 0.85rem; font-weight: 700; color: #7e22ce;">
-              <span><i class="fa-solid fa-file-invoice"></i> ${targetContract.contract_no || targetContract.id}</span>
-              <span style="color: #cbd5e1;">|</span>
-              <span style="color: #475569; font-weight: 600;">${targetContract.company_b || targetContract.company_a || '—'}</span>
-              <span style="color: #cbd5e1;">|</span>
-              <span style="color: #15803d; font-weight: 700;">${this.formatCurrency(targetContract.contract_val || 0)}</span>
-              ${targetContract.signing_date ? `<span style="color: #cbd5e1;">|</span><span style="color: #64748b; font-size: 0.78rem;">${this.formatDate(targetContract.signing_date)}</span>` : ''}
+        <div class="modal-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; background: #faf5ff; flex-wrap: nowrap !important; gap: 14px;">
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <span style="font-size: 0.88rem; font-weight: 700; color: #7e22ce; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                <i class="fa-solid fa-file-invoice"></i> ${targetContract.contract_no || targetContract.id}
+              </span>
+              <span style="color: #cbd5e1; flex-shrink: 0;">|</span>
+              <span style="color: #475569; font-weight: 600; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;" title="${targetContract.company_b || targetContract.company_a || '—'}">
+                ${targetContract.company_b || targetContract.company_a || '—'}
+              </span>
+              <span style="color: #cbd5e1; flex-shrink: 0;">|</span>
+              <span style="color: #15803d; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">
+                ${this.formatCurrency(targetContract.contract_val || 0)}
+              </span>
+              ${targetContract.signing_date ? `<span style="color: #cbd5e1; flex-shrink: 0;">|</span><span style="color: #64748b; font-size: 0.78rem; flex-shrink: 0;"><i class="fa-regular fa-calendar-check" style="margin-right: 3px;"></i>${this.formatDate(targetContract.signing_date)}</span>` : ''}
             </div>
-            <div style="font-size: 0.78rem; color: #64748b; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <div style="font-size: 0.78rem; color: #64748b; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${targetContract.scope_of_work || ''}">
               ${targetContract.scope_of_work || 'Hồ sơ tài liệu chứng từ theo dõi (Document Tracker)'}
             </div>
           </div>
 
           <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-            <button type="button" class="button button-outline" id="btn-doc-edit-open-file" style="padding: 5px 12px; font-size: 0.8rem; color: #0284c7; border-color: #38bdf8; background: #fff; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
-              <i class="fa-solid fa-file-arrow-up"></i> Open File
+            <button type="button" class="button button-outline" id="btn-doc-edit-open-file" style="padding: 5px 12px; font-size: 0.8rem; color: #0284c7; border-color: #38bdf8; background: #fff; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-file-arrow-up"></i> Mở file
             </button>
-            <button type="button" class="button button-outline" id="btn-doc-edit-open-folder" style="padding: 5px 12px; font-size: 0.8rem; color: #d97706; border-color: #fde68a; background: #fff; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
-              <i class="fa-solid fa-folder-open"></i> Open Folder
+            <button type="button" class="button button-outline" id="btn-doc-edit-open-folder" style="padding: 5px 12px; font-size: 0.8rem; color: #d97706; border-color: #fde68a; background: #fff; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-folder-open"></i> Mở thư mục
             </button>
-            <button class="button button-outline btn-close-submodal" style="padding: 4px 8px; margin-left: 6px;"><i class="fa-solid fa-xmark"></i></button>
+            <button class="button button-outline btn-close-submodal" style="padding: 4px 8px; margin-left: 4px;" title="Đóng"><i class="fa-solid fa-xmark"></i></button>
           </div>
         </div>
 
@@ -5389,20 +5395,24 @@ export class ContractsManager {
                   <input type="url" class="form-control" name="drive_link" id="input-doc-drive-link" value="${editDoc?.drive_link || (String(editDoc?.file_link || '').startsWith('http') ? editDoc?.file_link : '') || ''}" placeholder="https://drive.google.com/file/d/..." style="font-size: 0.85rem;">
                 </div>
 
-                <!-- 7. Ngày xử lý (Processed Date) & Ngày hoàn thành (Completed Date) -->
+                <!-- 7. Ngày xử lý & Ngày hoàn thành -->
                 <div class="form-grid-2" style="margin-bottom: 14px;">
                   <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-                      <span>Processed Date (Từ ngày)</span>
-                      <button type="button" class="btn-set-today" data-target="input-doc-start-date" style="border: none; background: transparent; color: #2563eb; font-size: 0.72rem; cursor: pointer; text-decoration: underline;">today</button>
+                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px;">
+                      <span style="font-size: 0.82rem; font-weight: 600; color: #334155; white-space: nowrap;">Ngày xử lý</span>
+                      <button type="button" class="btn-set-today" data-target="input-doc-start-date" style="border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; font-size: 0.72rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; flex-shrink: 0;">
+                        <i class="fa-regular fa-calendar-days" style="font-size: 0.68rem;"></i> Hôm nay
+                      </button>
                     </label>
                     <input type="date" class="form-control" name="start_date" id="input-doc-start-date" value="${initialProcessedDate}">
                   </div>
 
                   <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-                      <span>Completed Date (Đến ngày)</span>
-                      <button type="button" class="btn-set-today" data-target="input-doc-due-date" style="border: none; background: transparent; color: #2563eb; font-size: 0.72rem; cursor: pointer; text-decoration: underline;">today</button>
+                    <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px;">
+                      <span style="font-size: 0.82rem; font-weight: 600; color: #334155; white-space: nowrap;">Ngày hoàn thành</span>
+                      <button type="button" class="btn-set-today" data-target="input-doc-due-date" style="border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; font-size: 0.72rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; flex-shrink: 0;">
+                        <i class="fa-regular fa-calendar-days" style="font-size: 0.68rem;"></i> Hôm nay
+                      </button>
                     </label>
                     <input type="date" class="form-control" name="due_date" id="input-doc-due-date" value="${initialCompletedDate}">
                   </div>
@@ -5411,27 +5421,27 @@ export class ContractsManager {
                 <!-- 8. Send To & Status -->
                 <div class="form-grid-2" style="margin-bottom: 14px;">
                   <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label">Send To (Người nhận lại / Phụ trách)</label>
+                    <label class="form-label">Người nhận lại / Phụ trách</label>
                     <input type="text" class="form-control" name="recipient" id="input-doc-recipient" value="${editDoc?.recipient || ''}" placeholder="Vd: Đạt QS KD hoặc Ban QLDA">
                   </div>
 
                   <div class="form-group" style="margin-bottom: 0;">
-                    <label class="form-label">Status (Tình trạng)</label>
+                    <label class="form-label">Tình trạng hồ sơ</label>
                     <select class="form-control" name="status" id="select-doc-status">
-                      <option value="Completed" ${(editDoc?.status || 'Completed') === 'Completed' ? 'selected' : ''}>Completed (Đã hoàn thành)</option>
-                      <option value="Accepted" ${editDoc?.status === 'Accepted' ? 'selected' : ''}>Accepted (Đã phê duyệt)</option>
-                      <option value="Approved" ${editDoc?.status === 'Approved' ? 'selected' : ''}>Approved (Đã chấp thuận)</option>
-                      <option value="Checking" ${editDoc?.status === 'Checking' ? 'selected' : ''}>Checking (Đang kiểm tra / Rà soát)</option>
-                      <option value="Pending" ${editDoc?.status === 'Pending' ? 'selected' : ''}>Pending (Chờ xử lý)</option>
-                      <option value="UnderReview" ${editDoc?.status === 'UnderReview' ? 'selected' : ''}>UnderReview (Đang xem xét)</option>
-                      <option value="Draft" ${editDoc?.status === 'Draft' ? 'selected' : ''}>Draft (Dự thảo)</option>
+                      <option value="Completed" ${(editDoc?.status || 'Completed') === 'Completed' ? 'selected' : ''}>Đã hoàn thành (Completed)</option>
+                      <option value="Accepted" ${editDoc?.status === 'Accepted' ? 'selected' : ''}>Đã phê duyệt (Accepted)</option>
+                      <option value="Approved" ${editDoc?.status === 'Approved' ? 'selected' : ''}>Đã chấp thuận (Approved)</option>
+                      <option value="Checking" ${editDoc?.status === 'Checking' ? 'selected' : ''}>Đang kiểm tra / Rà soát</option>
+                      <option value="Pending" ${editDoc?.status === 'Pending' ? 'selected' : ''}>Chờ xử lý (Pending)</option>
+                      <option value="UnderReview" ${editDoc?.status === 'UnderReview' ? 'selected' : ''}>Đang xem xét (UnderReview)</option>
+                      <option value="Draft" ${editDoc?.status === 'Draft' ? 'selected' : ''}>Dự thảo (Draft)</option>
                     </select>
                   </div>
                 </div>
 
                 <!-- 9. Note (Ghi chú) -->
                 <div class="form-group" style="margin-bottom: 0;">
-                  <label class="form-label">Note (Ghi chú diễn biến hồ sơ)</label>
+                  <label class="form-label">Ghi chú diễn biến hồ sơ</label>
                   <textarea class="form-control" name="notes" id="input-doc-notes" rows="2" placeholder="Nhập ghi chú chi tiết về tình trạng bàn giao, xử lý hồ sơ...">${editDoc?.notes || ''}</textarea>
                 </div>
               </div>
@@ -5440,7 +5450,7 @@ export class ContractsManager {
               <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: var(--radius-sm); padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
                 <div style="font-weight: 700; font-size: 0.9rem; color: #1e293b; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding: 0 4px 8px 4px;">
                   <span><i class="fa-solid fa-layer-group" style="color: #6366f1;"></i> Supporting Documents</span>
-                  <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; width: 48px; text-align: center; display: inline-block;">Số lượng</span>
+                  <span style="font-size: 0.75rem; color: #64748b; font-weight: 600; white-space: nowrap;">Số lượng</span>
                 </div>
 
                 <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem;">
@@ -6374,7 +6384,7 @@ export class ContractsManager {
       <div class="disburse-summary-header">
         <div style="font-weight: 800; font-size: 0.95rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
           <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
-          <span>BẢNG TỔNG HỢP TÀI CHÍNH & GIẢI NGÂN (SUMMARY)</span>
+          <span>BẢNG TỔNG HỢP TÀI CHÍNH & GIẢI NGÂN</span>
         </div>
         <div style="font-size: 0.8rem; color: var(--text-muted);">
           Dự án: <strong style="color: var(--text-main);">${prjName}</strong>
@@ -6384,20 +6394,20 @@ export class ContractsManager {
         <table class="disburse-summary-table">
           <thead>
             <tr>
-              <th style="text-align: left;">Phân nhóm (Group)</th>
-              <th style="text-align: right;">Dự toán (Estimated Val)</th>
-              <th style="text-align: right;">Giá trị HĐ (Contract Val)</th>
-              <th style="text-align: right;">Khối lượng NT (Accepted Vol)</th>
-              <th style="text-align: right;">Đề nghị TT (Requested Amt)</th>
-              <th style="text-align: right;">Đã thanh toán (Paid Amt)</th>
-              <th style="text-align: right;">Còn lại (Remaining)</th>
+              <th style="text-align: left;">Phân nhóm</th>
+              <th style="text-align: right;">Dự toán</th>
+              <th style="text-align: right;">Giá trị hợp đồng</th>
+              <th style="text-align: right;">Khối lượng nghiệm thu</th>
+              <th style="text-align: right;">Đề nghị thanh toán</th>
+              <th style="text-align: right;">Đã thanh toán</th>
+              <th style="text-align: right;">Còn lại</th>
             </tr>
           </thead>
           <tbody>
             <tr style="background: #f8fafc; font-weight: 600;">
               <td>
-                <span class="badge badge-primary" style="font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-landmark"></i> Group-A</span>
-                <span style="margin-left: 6px; color: #1e293b;">Nhóm A: Dòng tiền Thu (Chủ đầu tư / Tổng thầu)</span>
+                <span class="badge badge-primary" style="font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-landmark"></i> Nhóm A</span>
+                <span style="margin-left: 6px; color: #1e293b;">Dòng tiền Thu (Chủ đầu tư / Tổng thầu)</span>
               </td>
               <td style="text-align: right;">${this.formatCurrency(summaryA.estimatedVal)}</td>
               <td style="text-align: right; font-weight: 700; color: var(--primary);">${this.formatCurrency(summaryA.contractVal)}</td>
@@ -6409,8 +6419,8 @@ export class ContractsManager {
 
             <tr style="background: #ffffff; font-weight: 600;">
               <td>
-                <span class="badge badge-warning" style="font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-handshake"></i> Group-B</span>
-                <span style="margin-left: 6px; color: #1e293b;">Nhóm B: Dòng tiền Chi (Thầu phụ, NCC & Chi phí Ban CPB)</span>
+                <span class="badge badge-warning" style="font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-handshake"></i> Nhóm B</span>
+                <span style="margin-left: 6px; color: #1e293b;">Dòng tiền Chi (Thầu phụ, NCC & Chi phí Ban CPB)</span>
               </td>
               <td style="text-align: right;">${this.formatCurrency(summaryB.estimatedVal)}</td>
               <td style="text-align: right; font-weight: 700; color: #4f46e5;">${this.formatCurrency(summaryB.contractVal)}</td>
@@ -6577,11 +6587,11 @@ export class ContractsManager {
                 <th style="width: 80px; text-align: left;">Mã</th>
                 <th style="text-align: left;">Số hiệu HĐ / Phụ lục</th>
                 <th style="text-align: left;">Nội dung / Nhà thầu</th>
-                <th style="text-align: right;">Giá trị HĐ (Contract Val)</th>
-                <th style="text-align: right;">Khối lượng NT (Accepted Vol)</th>
-                <th style="text-align: right;">Đề nghị TT (Requested Amt)</th>
-                <th style="text-align: right;">Đã thanh toán (Paid Amt)</th>
-                <th style="text-align: right;">Còn lại (Remaining)</th>
+                <th style="text-align: right;">Giá trị hợp đồng</th>
+                <th style="text-align: right;">Khối lượng nghiệm thu</th>
+                <th style="text-align: right;">Đề nghị thanh toán</th>
+                <th style="text-align: right;">Đã thanh toán</th>
+                <th style="text-align: right;">Còn lại</th>
                 <th style="width: 80px; text-align: center;">Tỷ lệ (%)</th>
               </tr>
             </thead>
@@ -6733,9 +6743,9 @@ export class ContractsManager {
         <table class="disburse-summary-table" style="width: 100%;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 90px; text-align: left;">Đợt (DN)</th>
+              <th style="width: 90px; text-align: left;">Đợt TT</th>
               <th style="width: 110px; text-align: left;">Ngày TT</th>
-              <th style="text-align: left;">Nội dung thanh toán (Payment Reference)</th>
+              <th style="text-align: left;">Nội dung thanh toán</th>
               <th style="text-align: right; width: 140px;">Khối lượng NT</th>
               <th style="text-align: right; width: 140px;">Đề nghị TT</th>
               <th style="text-align: right; width: 140px;">Thực thanh toán</th>
