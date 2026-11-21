@@ -5191,6 +5191,22 @@ export class ContractsManager {
       });
     }
 
+    const renderQtySelect = (code, currentVal) => {
+      const val = parseInt(currentVal, 10) || 0;
+      let opts = '';
+      for (let i = 0; i <= 10; i++) {
+        opts += `<option value="${i}" ${val === i ? 'selected' : ''}>${i}</option>`;
+      }
+      if (val > 10) {
+        opts += `<option value="${val}" selected>${val}</option>`;
+      }
+      return `
+        <select class="form-control select-supporting-qty" data-code="${code}" style="width: 52px; padding: 2px 4px; font-size: 0.8rem; text-align: center; height: 26px; font-weight: 700;">
+          ${opts}
+        </select>
+      `;
+    };
+
     const defaultCategory = editDoc ? (editDoc.category || 'Other') : 'Other';
     const initialProcessedDate = this.formatDateForInput(editDoc?.start_date || editDoc?.received_date) || new Date().toISOString().slice(0, 10);
     const initialCompletedDate = this.formatDateForInput(editDoc?.due_date || editDoc?.return_date) || '';
@@ -5256,6 +5272,49 @@ export class ContractsManager {
                       <strong>Other</strong> <span style="font-size: 0.72rem; color: #64748b;">(Công văn / Khác)</span>
                     </label>
                   </div>
+
+                  <!-- Khối DocType, SubType 1, SubType 2 dành riêng cho Option Other (Chuẩn frmDocumentEdit) -->
+                  <div id="other-doctype-container" style="${defaultCategory === 'Other' || (!defaultCategory.includes('Contract') && !defaultCategory.includes('Hợp đồng') && !defaultCategory.includes('CON') && !defaultCategory.includes('IPC') && !defaultCategory.includes('thanh toán')) ? 'display: block;' : 'display: none;'} margin-top: 10px; padding: 10px 12px; background: #f1f5f9; border-radius: var(--radius-sm); border: 1px dashed #cbd5e1;">
+                    <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px;">
+                      <div>
+                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block;">Mã hồ sơ (cboDocType)</label>
+                        <input type="text" class="form-control" name="other_doctype" id="cboDocType" list="list-other-doctypes" value="${editDoc?.category && editDoc.category !== 'Contract' && editDoc.category !== 'CON' && editDoc.category !== 'IPC' ? editDoc.category : (editDoc?.sub_type1 || 'RFA')}" placeholder="VD: RFA, LTR..." style="text-transform: uppercase; font-family: monospace; font-size: 0.82rem; font-weight: 700; height: 32px;">
+                        <datalist id="list-other-doctypes">
+                          <option value="RFA">RFA (Request For Approval)</option>
+                          <option value="LTR">LTR (Official Letter / Công văn)</option>
+                          <option value="MOM">MOM (Minutes of Meeting)</option>
+                          <option value="VO">VO (Variation Order)</option>
+                          <option value="APP">APP (Appendix / Phụ lục)</option>
+                          <option value="ITP">ITP (Inspection & Test Plan)</option>
+                          <option value="RFC">RFC (Request For Change)</option>
+                          <option value="RFI">RFI (Request For Information)</option>
+                          <option value="SI">SI (Site Instruction)</option>
+                          <option value="NCR">NCR (Non-Conformance Report)</option>
+                          <option value="CAR">CAR (Corrective Action Report)</option>
+                          <option value="TRN">TRN (Transmittal)</option>
+                          <option value="CMT">CMT (Comment)</option>
+                          <option value="SR">SR (Site Report)</option>
+                          <option value="AD">AD (Architectural Drawing)</option>
+                          <option value="SD">SD (Shop Drawing)</option>
+                          <option value="ABD">ABD (As-Built Drawing)</option>
+                          <option value="MOH">MOH (Method of Handover)</option>
+                          <option value="SPT">SPT (Submittal)</option>
+                        </datalist>
+                      </div>
+                      <div>
+                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block;">Phân nhánh 1 (cboSubType1)</label>
+                        <select class="form-control" name="sub_type1" id="cboSubType1" style="font-size: 0.82rem; font-weight: 600; height: 32px;">
+                          <option value="">-- SubType 1 --</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style="font-size: 0.75rem; font-weight: 700; color: #334155; margin-bottom: 3px; display: block;">Phân nhánh 2 (cboSubType2)</label>
+                        <select class="form-control" name="sub_type2" id="cboSubType2" style="font-size: 0.82rem; font-weight: 600; height: 32px;">
+                          <option value="">-- SubType 2 --</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <!-- 2. Name (Tiêu đề tài liệu) -->
@@ -5291,13 +5350,19 @@ export class ContractsManager {
 
                 <!-- 4. Number (Số hiệu hồ sơ / Số công văn) -->
                 <div class="form-group" style="margin-bottom: 14px;">
-                  <label class="form-label" style="display: flex; justify-content: space-between; align-items: center;">
-                    <span>Number (Số công văn / Số hiệu hồ sơ) <span style="color: var(--danger);">*</span></span>
-                    <button type="button" id="btn-auto-gen-docno" class="button button-outline" style="padding: 1px 6px; font-size: 0.72rem; color: #4338ca;">
-                      <i class="fa-solid fa-wand-magic-sparkles"></i> Sinh số chuẩn
-                    </button>
-                  </label>
-                  <input type="text" class="form-control" name="doc_no" id="input-doc-no" value="${editDoc?.doc_no || ''}" placeholder="Vd: EC.IPC-PKG03.CLI.005 hoặc 125/CV-CHC1" required>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <label class="form-label" style="margin-bottom: 0;">Number (Số công văn / Số hiệu hồ sơ) <span style="color: var(--danger);">*</span></label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                      <label style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.75rem; color: #475569; cursor: pointer; user-select: none;" title="Tick chọn để tạo số mới tăng dần (+1). Bỏ tick để sinh số bản sửa đổi / Revision (.A, .B...)">
+                        <input type="checkbox" id="chkNewDoc" checked>
+                        <span>Tạo số mới (chkNewDoc)</span>
+                      </label>
+                      <button type="button" id="btn-auto-gen-docno" class="button button-outline" style="padding: 2px 8px; font-size: 0.72rem; color: #4338ca; border-color: #c7d2fe; background: #eef2ff;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Sinh số chuẩn
+                      </button>
+                    </div>
+                  </div>
+                  <input type="text" class="form-control" name="doc_no" id="input-doc-no" value="${editDoc?.doc_no || ''}" placeholder="Vd: 260715.CHC1.NSH.IPC.EC.001 hoặc 125/CV-CHC1" required style="font-family: monospace; font-weight: 700; font-size: 0.88rem;">
                 </div>
 
                 <!-- 5. Link (Đường dẫn tệp tin trên máy tính / OneDrive / Mạng) -->
@@ -5377,68 +5442,68 @@ export class ContractsManager {
                   <span style="font-size: 0.72rem; color: #64748b;">Qty (Số lượng)</span>
                 </div>
 
-                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.82rem;">
+                <div style="display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem;">
                   <!-- 1. GTTT -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
                       <input type="checkbox" class="chk-supporting" data-code="GTTT" ${supportingObj['GTTT'] ? 'checked' : ''}>
                       <span>Payment Certificate (GTTT)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="GTTT" value="${supportingObj['GTTT'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['GTTT'] ? '' : 'disabled'}>
+                    ${renderQtySelect('GTTT', supportingObj['GTTT'] || 0)}
                   </div>
 
                   <!-- 2. THKL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
                       <input type="checkbox" class="chk-supporting" data-code="THKL" ${supportingObj['THKL'] ? 'checked' : ''}>
                       <span>Quantity Summary (THKL)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="THKL" value="${supportingObj['THKL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['THKL'] ? '' : 'disabled'}>
+                    ${renderQtySelect('THKL', supportingObj['THKL'] || 0)}
                   </div>
 
                   <!-- 3. DGKL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
                       <input type="checkbox" class="chk-supporting" data-code="DGKL" ${supportingObj['DGKL'] ? 'checked' : ''}>
                       <span>Quantity Breakdown (DGKL)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="DGKL" value="${supportingObj['DGKL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['DGKL'] ? '' : 'disabled'}>
+                    ${renderQtySelect('DGKL', supportingObj['DGKL'] || 0)}
                   </div>
 
                   <!-- 4. NTCL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
                       <input type="checkbox" class="chk-supporting" data-code="NTCL" ${supportingObj['NTCL'] ? 'checked' : ''}>
                       <span>Quality Acceptance (NTCL)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="NTCL" value="${supportingObj['NTCL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['NTCL'] ? '' : 'disabled'}>
+                    ${renderQtySelect('NTCL', supportingObj['NTCL'] || 0)}
                   </div>
 
                   <!-- 5. NTVL -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
                       <input type="checkbox" class="chk-supporting" data-code="NTVL" ${supportingObj['NTVL'] ? 'checked' : ''}>
                       <span>Material Acceptance (NTTVL)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="NTVL" value="${supportingObj['NTVL'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['NTVL'] ? '' : 'disabled'}>
+                    ${renderQtySelect('NTVL', supportingObj['NTVL'] || 0)}
                   </div>
 
                   <!-- 6. HC (As-Built / Hoàn công) -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
                       <input type="checkbox" class="chk-supporting" data-code="HC" ${supportingObj['HC'] ? 'checked' : ''}>
                       <span>As-Built Documents (Bản vẽ hoàn công)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="HC" value="${supportingObj['HC'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['HC'] ? '' : 'disabled'}>
+                    ${renderQtySelect('HC', supportingObj['HC'] || 0)}
                   </div>
 
                   <!-- 7. HSK (Hồ sơ khác) -->
-                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #f8fafc;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; border-radius: 4px; background: #f8fafc;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; flex: 1; margin: 0; user-select: none;">
                       <input type="checkbox" class="chk-supporting" data-code="HSK" ${supportingObj['HSK'] ? 'checked' : ''}>
                       <span>Other Documents (HS khác)</span>
                     </label>
-                    <input type="number" min="1" class="form-control input-supporting-qty" data-code="HSK" value="${supportingObj['HSK'] || 1}" style="width: 55px; padding: 2px 6px; font-size: 0.8rem; text-align: center;" ${supportingObj['HSK'] ? '' : 'disabled'}>
+                    ${renderQtySelect('HSK', supportingObj['HSK'] || 0)}
                   </div>
 
                   <!-- Ghi chú hồ sơ kèm theo (txtHoSoKemNote chuẩn VBA) -->
@@ -5543,48 +5608,267 @@ export class ContractsManager {
       }
     });
 
-    // Bật / tắt ô Qty khi tick checkbox Supporting Documents
+    // Xử lý chọn số lượng Supporting Documents qua dropdown combobox (0..10)
+    modal.querySelectorAll('.select-supporting-qty').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        const code = sel.getAttribute('data-code');
+        const chk = modal.querySelector(`.chk-supporting[data-code="${code}"]`);
+        const val = parseInt(sel.value, 10) || 0;
+        if (chk) {
+          chk.checked = val > 0;
+        }
+      });
+    });
+
+    // Khi người dùng tick checkbox: nếu đang là 0 thì chuyển thành 1. Khi bỏ tick: chuyển về 0
     modal.querySelectorAll('.chk-supporting').forEach((chk) => {
-      chk.addEventListener('change', (e) => {
+      chk.addEventListener('change', () => {
         const code = chk.getAttribute('data-code');
-        const qtyInput = modal.querySelector(`.input-supporting-qty[data-code="${code}"]`);
-        if (qtyInput) {
-          qtyInput.disabled = !e.target.checked;
-          if (e.target.checked && (!qtyInput.value || parseInt(qtyInput.value) <= 0)) {
-            qtyInput.value = 1;
+        const sel = modal.querySelector(`.select-supporting-qty[data-code="${code}"]`);
+        if (sel) {
+          if (chk.checked) {
+            if (sel.value === '0') sel.value = '1';
+          } else {
+            sel.value = '0';
           }
         }
       });
     });
 
-    // Tự động check checkbox nếu người dùng nhập số lượng > 0
-    modal.querySelectorAll('.input-supporting-qty').forEach((inp) => {
-      inp.addEventListener('input', () => {
-        const code = inp.getAttribute('data-code');
-        const chk = modal.querySelector(`.chk-supporting[data-code="${code}"]`);
-        if (chk && parseInt(inp.value) > 0) {
-          chk.checked = true;
-          inp.disabled = false;
+    // Cấu trúc phân nhánh SubType 1 và SubType 2 theo mã nguồn VBA frmDocumentEdit
+    const subType1Map = {
+      RFA: ['ITP', 'MSA', 'HSE', 'SCH', 'GEN', 'MS', 'SD'],
+      MOM: ['HSE', 'MEP', 'KOM'],
+    };
+
+    const subType2Map = {
+      GEN: ['FS', 'E'],
+      MSA: ['HVAC', 'E', 'FS', 'PL', 'FF'],
+      ITP: ['HVAC', 'E', 'PL', 'FF'],
+      SCH: ['E'],
+      MS: ['HVAC', 'E', 'PL', 'FF'],
+      SD: ['HVAC', 'E', 'ELV', 'FA', 'PL', 'FF'],
+    };
+
+    const updateSubType1 = (dt) => {
+      const cbo1 = modal.querySelector('#cboSubType1');
+      if (!cbo1) return;
+      const upperDt = String(dt || '').trim().toUpperCase();
+      const list = subType1Map[upperDt] || [];
+      const curVal = cbo1.value;
+      cbo1.innerHTML = '<option value="">-- SubType 1 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
+      cbo1.disabled = list.length === 0;
+      if (list.length === 0) {
+        cbo1.value = '';
+        updateSubType2('');
+      } else {
+        updateSubType2(cbo1.value);
+      }
+    };
+
+    const updateSubType2 = (st1) => {
+      const cbo2 = modal.querySelector('#cboSubType2');
+      if (!cbo2) return;
+      const upperSt1 = String(st1 || '').trim().toUpperCase();
+      const list = subType2Map[upperSt1] || [];
+      const curVal = cbo2.value;
+      cbo2.innerHTML = '<option value="">-- SubType 2 --</option>' + list.map((s) => `<option value="${s}" ${curVal === s ? 'selected' : ''}>${s}</option>`).join('');
+      cbo2.disabled = list.length === 0;
+      if (list.length === 0) {
+        cbo2.value = '';
+      }
+    };
+
+    // Hàm sinh số chuẩn CPMS Plus (TryGenerateDocNumber chuẩn 100% VBA)
+    const tryGenerateDocNumber = () => {
+      const catRadio = modal.querySelector('input[name="category"]:checked')?.value || 'Other';
+      const docNoInput = modal.querySelector('#input-doc-no');
+      const chkNew = modal.querySelector('#chkNewDoc');
+      if (!docNoInput) return;
+
+      if (catRadio === 'Contract') {
+        docNoInput.value = targetContract.contract_no || targetContract.id;
+        if (chkNew) {
+          chkNew.checked = true;
+          chkNew.disabled = true;
         }
+        return;
+      }
+
+      const issuerInput = modal.querySelector('#input-doc-issuer');
+      const recipInput = modal.querySelector('#input-doc-recipients');
+      const issuer = (issuerInput?.value || '').trim().toUpperCase();
+      const recip = (recipInput?.value || '').trim().toUpperCase();
+      if (!issuer || !recip) return;
+
+      let docTypeCode = '';
+      if (catRadio === 'IPC') {
+        docTypeCode = 'IPC';
+      } else {
+        const cboDocType = modal.querySelector('#cboDocType');
+        docTypeCode = (cboDocType?.value || '').trim().toUpperCase() || 'RFA';
+      }
+
+      // Ghép APP/PKG suffix nếu là Phụ lục / Gói con (Chuẩn CPMS Plus)
+      let fullDocType = docTypeCode;
+      const cno = String(targetContract.contract_no || '').trim().toUpperCase();
+      if (cno.startsWith('APP-') || cno.startsWith('PKG-')) {
+        fullDocType = fullDocType + '-' + cno.replace(/-/g, '');
+      }
+
+      // Ghép SubType1 và SubType2 nếu có (dành cho RFA, MOM...)
+      if (catRadio === 'Other') {
+        const st1 = modal.querySelector('#cboSubType1')?.value?.trim().toUpperCase();
+        const st2 = modal.querySelector('#cboSubType2')?.value?.trim().toUpperCase();
+        if (st1) fullDocType += '-' + st1;
+        if (st2) fullDocType += '-' + st2;
+      }
+
+      // Ngày YYMMDD
+      const dateVal = modal.querySelector('#input-doc-start-date')?.value || new Date().toISOString().slice(0, 10);
+      const yymmdd = dateVal.slice(2, 4) + dateVal.slice(5, 7) + dateVal.slice(8, 10);
+      const projCode = this.currentProjectId || 'CHC1';
+
+      // Tính serial cuối cùng theo đúng phân loại hồ sơ (targetContract.id, docTypeCode, issuer, recip)
+      const allDocs = this.documents || [];
+      let maxSerial = 0;
+      allDocs.forEach((d) => {
+        if (d.contract_id !== targetContract.id) return;
+        const dIssuer = String(d.issuer || '').split(';')[0].trim().toUpperCase();
+        if (dIssuer !== issuer) return;
+        const dRecip = String(d.recipients || '').split(';')[0].trim().toUpperCase();
+        if (dRecip !== recip) return;
+
+        let dCat = String(d.category || '').trim().toUpperCase();
+        if (dCat === 'CONTRACT') dCat = 'CON';
+        if (dCat !== docTypeCode && dCat !== 'OTHER') return;
+        if (dCat === 'OTHER') {
+          const dOtherType = String(d.other_doctype || d.sub_type1 || '').trim().toUpperCase();
+          if (dOtherType && dOtherType !== docTypeCode) return;
+        }
+
+        const dNo = String(d.doc_no || '').trim();
+        const parts = dNo.split('.');
+        for (let p of parts) {
+          if (/^\d{3}$/.test(p)) {
+            const sn = parseInt(p, 10);
+            if (sn > maxSerial) maxSerial = sn;
+            break;
+          }
+        }
+      });
+
+      if (maxSerial === 0) {
+        if (chkNew) {
+          chkNew.checked = true;
+          chkNew.disabled = true;
+        }
+        docNoInput.value = `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.001`;
+      } else {
+        if (chkNew) chkNew.disabled = false;
+        const isNew = chkNew ? chkNew.checked : true;
+        if (isNew) {
+          const nextSerial = String(maxSerial + 1).padStart(3, '0');
+          docNoInput.value = `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.${nextSerial}`;
+        } else {
+          // Tìm version suffix tiếp theo (A, B, C...)
+          const usedSuffixes = new Set();
+          allDocs.forEach((d) => {
+            if (d.contract_id !== targetContract.id) return;
+            const dIssuer = String(d.issuer || '').split(';')[0].trim().toUpperCase();
+            if (dIssuer !== issuer) return;
+            const dRecip = String(d.recipients || '').split(';')[0].trim().toUpperCase();
+            if (dRecip !== recip) return;
+
+            const parts = String(d.doc_no || '').split('.');
+            const sIdx = parts.findIndex((p) => p === String(maxSerial).padStart(3, '0'));
+            if (sIdx !== -1 && sIdx + 1 < parts.length) {
+              const suf = parts[sIdx + 1].trim().toUpperCase();
+              if (/^[A-Z]$/.test(suf)) usedSuffixes.add(suf);
+            }
+          });
+
+          let verSuffix = 'A';
+          for (let i = 0; i < 26; i++) {
+            const ch = String.fromCharCode(65 + i);
+            if (!usedSuffixes.has(ch)) {
+              verSuffix = ch;
+              break;
+            }
+          }
+          docNoInput.value = `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.${String(maxSerial).padStart(3, '0')}.${verSuffix}`;
+        }
+      }
+    };
+
+    // Sự kiện chuyển đổi Document Type (Contract / IPC / Other)
+    modal.querySelectorAll('input[name="category"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        const val = r.value;
+        const otherContainer = modal.querySelector('#other-doctype-container');
+        if (otherContainer) {
+          otherContainer.style.display = val === 'Other' ? 'block' : 'none';
+        }
+        if (val === 'Other') {
+          const dtVal = modal.querySelector('#cboDocType')?.value || 'RFA';
+          updateSubType1(dtVal);
+        }
+        tryGenerateDocNumber();
       });
     });
 
-    // Nút Sinh số chuẩn CPMS (YYMMDD.PROJ.Issuer.DocType.Recip...)
-    modal.querySelector('#btn-auto-gen-docno')?.addEventListener('click', () => {
-      const dateVal = modal.querySelector('#input-doc-start-date')?.value || new Date().toISOString().slice(0, 10);
-      const yy = dateVal.slice(2, 4);
-      const mm = dateVal.slice(5, 7);
-      const dd = dateVal.slice(8, 10);
-      const yymmdd = `${yy}${mm}${dd}`;
-      const proj = this.currentProjectId || 'CHC1';
-      const issuer = (modal.querySelector('#input-doc-issuer')?.value || 'VNCN').trim().toUpperCase();
-      const recip = (modal.querySelector('#input-doc-recipients')?.value || 'VEC').trim().toUpperCase();
-      const cat = (modal.querySelector('input[name="category"]:checked')?.value || 'OTH').toUpperCase();
-      const nextSeq = String((docs.length || 0) + 1).padStart(3, '0');
-      const genNo = `${yymmdd}.${proj}.${issuer}.${cat}.${recip}.${nextSeq}`;
-      const docNoInput = modal.querySelector('#input-doc-no');
-      if (docNoInput) docNoInput.value = genNo;
+    // Sự kiện khi thay đổi cboDocType, cboSubType1, cboSubType2
+    modal.querySelector('#cboDocType')?.addEventListener('input', (e) => {
+      updateSubType1(e.target.value);
+      tryGenerateDocNumber();
     });
+    modal.querySelector('#cboDocType')?.addEventListener('change', (e) => {
+      updateSubType1(e.target.value);
+      tryGenerateDocNumber();
+    });
+    modal.querySelector('#cboSubType1')?.addEventListener('change', (e) => {
+      updateSubType2(e.target.value);
+      tryGenerateDocNumber();
+    });
+    modal.querySelector('#cboSubType2')?.addEventListener('change', () => {
+      tryGenerateDocNumber();
+    });
+
+    // Sự kiện tick / bỏ tick chkNewDoc
+    modal.querySelector('#chkNewDoc')?.addEventListener('change', () => {
+      tryGenerateDocNumber();
+    });
+
+    // Nút Sinh số chuẩn
+    modal.querySelector('#btn-auto-gen-docno')?.addEventListener('click', () => {
+      tryGenerateDocNumber();
+    });
+
+    // Khi thay đổi ngày nhận hoặc đối tác -> cập nhật số nếu cần
+    modal.querySelector('#input-doc-start-date')?.addEventListener('change', () => {
+      tryGenerateDocNumber();
+    });
+    modal.querySelector('#input-doc-issuer')?.addEventListener('change', () => {
+      tryGenerateDocNumber();
+    });
+    modal.querySelector('#input-doc-recipients')?.addEventListener('change', () => {
+      tryGenerateDocNumber();
+    });
+
+    // Khởi tạo trạng thái ban đầu của cboSubType1 và cboSubType2
+    const initialDt = modal.querySelector('#cboDocType')?.value || 'RFA';
+    updateSubType1(initialDt);
+    if (editDoc?.sub_type1) {
+      const c1 = modal.querySelector('#cboSubType1');
+      if (c1) {
+        c1.value = editDoc.sub_type1;
+        updateSubType2(editDoc.sub_type1);
+        if (editDoc.sub_type2) {
+          const c2 = modal.querySelector('#cboSubType2');
+          if (c2) c2.value = editDoc.sub_type2;
+        }
+      }
+    }
 
     // Xử lý lưu hồ sơ
     modal.querySelector('#form-doc-edit').addEventListener('submit', async (e) => {
@@ -5595,9 +5879,9 @@ export class ContractsManager {
       const supportingArr = [];
       ['GTTT', 'THKL', 'DGKL', 'NTCL', 'NTVL', 'HC', 'HSK'].forEach((code) => {
         const chk = modal.querySelector(`.chk-supporting[data-code="${code}"]`);
-        const qtyInput = modal.querySelector(`.input-supporting-qty[data-code="${code}"]`);
-        if (chk && chk.checked) {
-          const qty = parseInt(qtyInput?.value) || 1;
+        const sel = modal.querySelector(`.select-supporting-qty[data-code="${code}"]`);
+        const qty = parseInt(sel?.value, 10) || 0;
+        if (chk && chk.checked && qty > 0) {
           supportingArr.push(`${code}:${qty}`);
         }
       });
@@ -5607,6 +5891,13 @@ export class ContractsManager {
       }
       const supportingDocsStr = supportingArr.join('|');
 
+      const rawCat = formData.get('category') || 'Other';
+      let finalCategory = rawCat;
+      const otherDocType = (formData.get('other_doctype') || '').trim().toUpperCase();
+      if (rawCat === 'Other' && otherDocType) {
+        finalCategory = otherDocType;
+      }
+
       const localLink = formData.get('local_link')?.trim() || '';
       const driveLink = formData.get('drive_link')?.trim() || '';
 
@@ -5615,7 +5906,10 @@ export class ContractsManager {
         id: formData.get('id'),
         project_id: targetContract.project_id || this.currentProjectId,
         contract_id: targetContract.id,
-        category: formData.get('category') || 'Other',
+        category: finalCategory,
+        other_doctype: otherDocType,
+        sub_type1: (formData.get('sub_type1') || '').trim().toUpperCase(),
+        sub_type2: (formData.get('sub_type2') || '').trim().toUpperCase(),
         title: (formData.get('title') || '').trim(),
         doc_no: (formData.get('doc_no') || '').trim(),
         issuer: (formData.get('issuer') || '').trim().toUpperCase(),
