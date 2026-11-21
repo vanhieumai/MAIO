@@ -1034,6 +1034,47 @@ Private Function GenerateProjectID() As String
         "CP" & Format(Now, "yymmddhhmmss")
 
 End Function
+
+Public Sub SafeCopyDataFile(ByVal srcPath As String, ByVal destPath As String)
+    Dim wbSrc As Workbook
+    Dim isConverted As Boolean
+    isConverted = False
+
+    ' Nếu destPath đang mở, đóng lại trước
+    Dim wb As Workbook
+    For Each wb In Workbooks
+        If LCase$(wb.fullName) = LCase$(destPath) Then
+            Application.DisplayAlerts = False
+            wb.Close False
+            Application.DisplayAlerts = True
+            Exit For
+        End If
+    Next wb
+
+    ' Thử mở file nguồn bằng Excel để chuẩn hóa sang định dạng xlExcel12 (.xlsb)
+    Application.ScreenUpdating = False
+    Application.DisplayAlerts = False
+    On Error Resume Next
+    Set wbSrc = Workbooks.Open(fileName:=srcPath, ReadOnly:=True)
+    If Not wbSrc Is Nothing Then
+        wbSrc.SaveAs fileName:=destPath, fileFormat:=50 ' 50 = xlExcel12 (.xlsb)
+        wbSrc.Close False
+        isConverted = True
+    End If
+    Err.Clear
+    Application.DisplayAlerts = True
+    Application.ScreenUpdating = True
+    On Error GoTo 0
+
+    ' Nếu mở trực tiếp không được hoặc có lỗi, fallback dùng FileCopy thông thường
+    If Not isConverted Then
+        On Error Resume Next
+        If Dir(destPath) <> "" Then Kill destPath
+        On Error GoTo 0
+        FileCopy srcPath, destPath
+    End If
+End Sub
+
 Public Sub OpenProjectWorkbook(ByVal fileName As String)
 
     Dim wb As Workbook
@@ -1076,12 +1117,36 @@ Public Sub OpenProjectWorkbook(ByVal fileName As String)
         End If
     Next wb
 
-    ' M? file m?i
+    ' Mở file mới (kèm cơ chế tự động phục hồi nếu file bị mismatch format XLSX/XLSB)
     Application.ScreenUpdating = False
     Application.DisplayAlerts = False
+    On Error Resume Next
     Set wb = Workbooks.Open(fileName)
+
+    If wb Is Nothing Or Err.Number <> 0 Then
+        Err.Clear
+        ' Nếu file bị mismatch định dạng (ví dụ nội dung XLSX OpenXML nhưng mang đuôi .xlsb)
+        ' Thử đổi tên tạm sang .xlsx để Excel nhận diện, mở ra và lưu lại chuẩn xlExcel12 (.xlsb)
+        Dim tempRepairFile As String
+        tempRepairFile = Left$(fileName, InStrRev(fileName, ".")) & "temp_repair.xlsx"
+        On Error Resume Next
+        If Dir(tempRepairFile) <> "" Then Kill tempRepairFile
+        FileCopy fileName, tempRepairFile
+        Err.Clear
+        Set wb = Workbooks.Open(tempRepairFile)
+        If Not wb Is Nothing Then
+            wb.SaveAs fileName, 50 ' 50 = xlExcel12 (.xlsb)
+            wb.Close False
+            Kill tempRepairFile
+            Err.Clear
+            Set wb = Workbooks.Open(fileName)
+        Else
+            If Dir(tempRepairFile) <> "" Then Kill tempRepairFile
+        End If
+    End If
     Application.DisplayAlerts = True
     Application.ScreenUpdating = True
+    On Error GoTo 0
 
     On Error Resume Next
     wb.Windows(1).Visible = False
@@ -2038,7 +2103,7 @@ Public Sub ImportProjectFromFileWithMeta( _
     Next wbCheck
 
     On Error GoTo EH_Meta
-    FileCopy sourcePath, newDataFile
+    SafeCopyDataFile sourcePath, newDataFile
     On Error GoTo 0
 
     Application.ScreenUpdating = False
@@ -2133,7 +2198,7 @@ Public Sub ImportProjectFromFileWithMetaold( _
     End If
 
     On Error GoTo EH_Meta
-    FileCopy sourcePath, newDataFile
+    SafeCopyDataFile sourcePath, newDataFile
     On Error GoTo 0
 
     Application.ScreenUpdating = False
@@ -2395,7 +2460,7 @@ Private Sub ReplaceExistingProjectData( _
     On Error GoTo EH_Replace
     FileCopy existDataFile, backupFile   ' Copy sang Documents (cross-drive OK)
     Kill existDataFile                   ' Xóa file g?c
-    FileCopy srcFile, existDataFile      ' Copy file import vào
+    SafeCopyDataFile srcFile, existDataFile      ' Copy file import vào (chuẩn hóa sang xlsb an toàn)
     On Error GoTo 0
 
     ' 5. Ghi dúng ProjectID / PROJ_NAME vào file m?i

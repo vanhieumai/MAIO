@@ -701,10 +701,11 @@ export class CPMSImporterExporter {
 
   /**
    * Tạo mảng nhị phân ArrayBuffer của file CPMS (để ghi trực tiếp vào FileSystemFileHandle)
+   * Định dạng chuẩn bắt buộc là 'xlsb' (Excel Binary Workbook BIFF12) để tương thích 100% với CPMS Plus
    */
   static async buildCPMSBinaryBuffer(projectId = 'CHC1') {
     const { wb } = await this.buildCPMSWorkbook(projectId);
-    const arrayBuffer = window.XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const arrayBuffer = window.XLSX.write(wb, { bookType: 'xlsb', type: 'array' });
     return arrayBuffer;
   }
 
@@ -718,7 +719,9 @@ export class CPMSImporterExporter {
     const safeProjCode = prjCode.replace(/[\\/:*?"<>|]/g, '_');
     const fileName = `${safeProjCode}_${timeStr}.${extension}`;
 
-    window.XLSX.writeFile(wb, fileName, { bookType: extension === 'cpms' ? 'xlsx' : extension });
+    // Khi xuất định dạng .cpms hoặc .xlsb, luôn xuất nhị phân BIFF12 (xlsb) tương thích CPMS Plus
+    const bookType = (extension === 'cpms' || extension === 'xlsb') ? 'xlsb' : extension;
+    window.XLSX.writeFile(wb, fileName, { bookType: bookType });
     return fileName;
   }
 }
