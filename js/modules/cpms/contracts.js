@@ -478,6 +478,17 @@ export class ContractsManager {
       this.pickAndLoadLocalCPMSFile();
     });
 
+    // Lắng nghe sự kiện chuyển nhanh đến Hợp đồng liên kết
+    document.addEventListener('click', (e) => {
+      const jumpBtn = e.target.closest('.btn-jump-linked-contract');
+      if (jumpBtn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetId = jumpBtn.getAttribute('data-jump-id');
+        this.jumpToContract(targetId);
+      }
+    });
+
     // Nút Sao chép Dự án
     document.getElementById('btn-clone-project')?.addEventListener('click', () => {
       this.openCloneProjectModal();
@@ -1913,8 +1924,16 @@ export class ContractsManager {
                 <span>
                   <i class="fa-solid fa-building"></i> Bên B: <strong>${c.company_b || 'Đơn vị thực hiện'}</strong>
                   ${c.company_b2 ? ` & <strong>${c.company_b2}</strong> <span class="badge" style="font-size: 0.68rem; background: #e0e7ff; color: #4338ca; padding: 1px 5px; vertical-align: middle;">Liên danh</span>` : ''}
+                  ${c.tax_code ? `<span class="badge" style="font-size: 0.72rem; background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; margin-left: 6px; padding: 2px 6px;"><i class="fa-solid fa-barcode"></i> MST: ${c.tax_code}</span>` : ''}
                 </span>
-                <span><i class="fa-solid fa-calendar-check"></i> Ngày ký: ${this.formatDate(c.signing_date)}</span>
+                <span><i class="fa-solid fa-calendar-check"></i> Ngày ký: <strong>${this.formatDate(c.signing_date)}</strong></span>
+                ${
+                  c.linked_contract_id
+                    ? `<button type="button" class="btn-jump-linked-contract" data-jump-id="${c.linked_contract_id}" title="Nhấp để chuyển nhanh đến hợp đồng liên kết" style="border: 1px solid #c7d2fe; background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; margin-left: 4px;">
+                        <i class="fa-solid fa-link"></i> HĐ liên kết: <strong>${(this.contracts.find((tc) => tc.id === c.linked_contract_id)?.contract_no) || c.linked_contract_id}</strong> <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.68rem;"></i>
+                      </button>`
+                    : ''
+                }
               </div>
 
               <div class="contract-stats">
@@ -2229,6 +2248,7 @@ export class ContractsManager {
                 }
                 <div><strong>Bên A (Chủ đầu tư / Tổng thầu):</strong> <p style="color: var(--text-muted);">${contract.company_a || '—'} ${contract.rep_a ? `<span style="color: #64748b; font-size: 0.8rem;">(Đại diện: ${contract.rep_a})</span>` : ''}</p></div>
                 <div><strong>Bên B (Nhà thầu B1):</strong> <p style="color: var(--text-muted);">${contract.company_b || '—'} ${contract.rep_b ? `<span style="color: #64748b; font-size: 0.8rem;">(Đại diện: ${contract.rep_b})</span>` : ''}</p></div>
+                <div><strong>Mã số thuế Bên B (Tax Code):</strong> <p style="color: var(--text-muted); font-weight: 600;">${contract.tax_code || '—'}</p></div>
                 ${
                   contract.company_b2
                     ? `<div><strong>Bên B2 (Nhà thầu Liên danh):</strong> <p style="color: var(--text-muted);">${contract.company_b2} ${contract.rep_b2 ? `<span style="color: #64748b; font-size: 0.8rem;">(Đại diện: ${contract.rep_b2})</span>` : ''}</p></div>`
@@ -2237,6 +2257,15 @@ export class ContractsManager {
                 ${
                   contract.contact_person_b
                     ? `<div><strong>Người liên hệ Bên B:</strong> <p style="color: var(--text-muted);">${contract.contact_person_b}</p></div>`
+                    : ''
+                }
+                ${
+                  contract.linked_contract_id
+                    ? `<div><strong>Hợp đồng liên kết / tương tự:</strong> <p>
+                        <button type="button" class="btn-jump-linked-contract" data-jump-id="${contract.linked_contract_id}" style="border: 1px solid #c7d2fe; background: #eef2ff; color: #4338ca; border-radius: 4px; padding: 3px 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                          <i class="fa-solid fa-link"></i> Đi đến HĐ: <strong>${(this.contracts.find((tc) => tc.id === contract.linked_contract_id)?.contract_no) || contract.linked_contract_id}</strong> <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 0.68rem;"></i>
+                        </button>
+                       </p></div>`
                     : ''
                 }
                 <div><strong>Đơn vị thụ hưởng (Payee):</strong> <p style="color: var(--text-muted);">${contract.payee || contract.company_b || '—'}</p></div>
@@ -2670,6 +2699,57 @@ export class ContractsManager {
     document.getElementById('btn-export-excel-report')?.addEventListener('click', () => {
       this.exportContractReport(contract, isMain);
     });
+  }
+
+  /**
+   * Chuyển nhanh (Jump Navigation) đến Hợp đồng liên kết
+   */
+  jumpToContract(targetId) {
+    if (!targetId) return;
+    const target = (this.contracts || []).find((c) => c.id === targetId);
+    if (!target) {
+      alert(`Không tìm thấy Hợp đồng liên kết "${targetId}" trong dự án hiện tại.`);
+      return;
+    }
+
+    // Đóng bất kỳ modal nào đang mở
+    document.querySelectorAll('.modal-overlay').forEach((m) => m.remove());
+
+    // Nếu tab Quản lý Hợp đồng chưa được chọn, chuyển sang tab Hợp đồng
+    const subtabHD = document.getElementById('subtab-contracts');
+    if (subtabHD && !subtabHD.classList.contains('active')) {
+      subtabHD.click();
+    }
+
+    // Nếu khác nhóm A/B hiện tại, tự động chuyển tab nhóm
+    const targetGroup = target.group || (target.id.startsWith('B') ? 'B' : 'A');
+    if (this.currentGroup !== targetGroup) {
+      this.currentGroup = targetGroup;
+      const tabBtns = document.querySelectorAll('.group-tab-btn');
+      tabBtns.forEach((b) => {
+        if (b.getAttribute('data-group') === targetGroup) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
+      this.render();
+    }
+
+    // Cuộn tới phần tử và kích hoạt animation phát sáng
+    setTimeout(() => {
+      const el =
+        document.getElementById(`contract-card-${target.id}`) ||
+        document.querySelector(`[data-cid="${target.id}"]`) ||
+        document.querySelector(`[data-clone-cid="${target.id}"]`)?.closest('.contract-item');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('pulse-highlight');
+        setTimeout(() => el.classList.remove('pulse-highlight'), 3000);
+      }
+      // Mở modal chi tiết của HĐ đích
+      this.openContractDetail(target.id);
+    }, 150);
   }
 
   // ==========================================
@@ -3634,6 +3714,33 @@ export class ContractsManager {
 
     const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || {};
 
+    // Thu thập danh sách gợi ý dữ liệu đã có trong dự án (Autocomplete Datalists)
+    const getUnique = (prop) => {
+      const set = new Set();
+      (this.contracts || []).forEach((c) => {
+        const val = c[prop];
+        if (val && String(val).trim()) set.add(String(val).trim());
+      });
+      return Array.from(set);
+    };
+
+    const companiesA = getUnique('company_a');
+    const repsA = getUnique('rep_a');
+    const companiesB = getUnique('company_b');
+    const repsB = getUnique('rep_b');
+    const companiesB2 = getUnique('company_b2');
+    const repsB2 = getUnique('rep_b2');
+    const taxCodes = getUnique('tax_code');
+    const payees = getUnique('payee');
+    const bankAccounts = getUnique('bank_account');
+    const bankNames = getUnique('bank_name');
+    const contactsB = getUnique('contact_person_b');
+
+    // Danh sách hợp đồng mẫu & HĐ liên kết
+    const sampleContracts = (this.contracts || []).filter((c) => !c.is_cpb && c.contract_type !== 'CPB');
+    const contractsA = (this.contracts || []).filter((c) => c.group === 'A' && !c.is_cpb);
+    const contractsB = (this.contracts || []).filter((c) => c.group === 'B' && !c.is_cpb);
+
     let formTitle = 'Thêm Hợp đồng mới';
     if (isEdit) {
       formTitle = isAppendix ? `Chỉnh sửa Phụ lục: ${editContract.contract_no || editContract.id}` : `Chỉnh sửa Hợp đồng: ${editContract.contract_no || editContract.id}`;
@@ -3644,7 +3751,7 @@ export class ContractsManager {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 820px; max-height: 92vh; display: flex; flex-direction: column;">
+      <div class="modal-container" style="max-width: 840px; max-height: 92vh; display: flex; flex-direction: column;">
         <div class="modal-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); padding: 14px 20px;">
           <div>
             <div style="font-size: 0.8rem; color: var(--primary); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -3659,6 +3766,23 @@ export class ContractsManager {
 
         <div class="modal-body" style="overflow-y: auto; padding: 20px;">
           <form id="form-contract">
+            ${
+              !isEdit && sampleContracts.length > 0
+                ? `
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 16px;">
+                  <label class="form-label" style="font-size: 0.82rem; font-weight: 700; color: #1e40af; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-copy"></i> Sao chép từ Hợp đồng mẫu đã có (Tự động điền thông tin nhanh):
+                  </label>
+                  <select id="contract-template-picker" class="form-control" style="font-size: 0.85rem; background: #fff;">
+                    <option value="">-- Chọn một hợp đồng trong dự án để sao chép thông tin --</option>
+                    ${sampleContracts.map((sc) => `<option value="${sc.id}">[Nhóm ${sc.group}] ${sc.id} — ${sc.contract_no} (${sc.company_b || sc.company_a || 'Chưa rõ đối tác'})</option>`).join('')}
+                  </select>
+                  <small style="color: #64748b; font-size: 0.73rem;">Khi chọn, hệ thống tự động điền: Bên A, Bên B, MST, Người đại diện, Tài khoản ngân hàng, Phân loại... Bạn chỉ cần nhập số HĐ mới, ngày ký và giá trị.</small>
+                </div>
+              `
+                : ''
+            }
+
             <!-- 1. CONTRACT INFORMATION -->
             <div style="font-weight: 700; font-size: 0.95rem; color: var(--primary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
               <i class="fa-solid fa-file-invoice"></i> Contract Information (Thông tin Hợp đồng & Phân cấp)
@@ -3687,12 +3811,12 @@ export class ContractsManager {
             <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label">Số hiệu HĐ / Phụ lục (Contract No.) *</label>
-                <input type="text" class="form-control" name="contract_no" value="${editContract?.contract_no || (isAddingAppendix ? `APP-${String((this.getDirectChildren(parentContract.id).length || 0) + 1).padStart(2, '0')}` : '')}" placeholder="Vd: 114/2023/HĐXD/VINAE&C-CTC hoặc APP-08" required>
+                <input type="text" class="form-control" name="contract_no" id="input-contract-no" value="${editContract?.contract_no || (isAddingAppendix ? `APP-${String((this.getDirectChildren(parentContract.id).length || 0) + 1).padStart(2, '0')}` : '')}" placeholder="Vd: 114/2023/HĐXD/VINAE&C-CTC hoặc APP-08" required>
               </div>
 
               <div class="form-group">
                 <label class="form-label">Loại hợp đồng (Contract Type) *</label>
-                <select class="form-control" name="contract_type" ${isAddingAppendix ? '' : ''}>
+                <select class="form-control" name="contract_type" id="select-contract-type" ${isAddingAppendix ? '' : ''}>
                   <option value="MAIN" ${defaultContractType === 'MAIN' ? 'selected' : ''}>MAIN (Hợp đồng chính)</option>
                   <option value="Appendix" ${defaultContractType === 'Appendix' ? 'selected' : ''}>Appendix (Phụ lục hợp đồng)</option>
                   <option value="Sub-Package" ${defaultContractType === 'Sub-Package' ? 'selected' : ''}>Sub-Package (Gói thầu con)</option>
@@ -3702,23 +3826,48 @@ export class ContractsManager {
 
             <div class="form-grid-3">
               <div class="form-group">
-                <label class="form-label">Ngày ký (Signing Date)</label>
-                <input type="date" class="form-control" name="signing_date" value="${this.formatDateForInput(editContract?.signing_date) || (isAddingAppendix ? new Date().toISOString().slice(0, 10) : '')}">
+                <label class="form-label">Ngày ký (Signing Date) *</label>
+                <input type="date" class="form-control" name="signing_date" id="input-signing-date" value="${this.formatDateForInput(editContract?.signing_date) || new Date().toISOString().slice(0, 10)}" required>
               </div>
 
               <div class="form-group">
                 <label class="form-label">Thời hạn / Ngày kết thúc (End Date)</label>
-                <input type="date" class="form-control" name="end_date" value="${this.formatDateForInput(editContract?.end_date)}">
+                <input type="date" class="form-control" name="end_date" id="input-end-date" value="${this.formatDateForInput(editContract?.end_date)}">
               </div>
 
               <div class="form-group">
                 <label class="form-label">Tình trạng (Status)</label>
-                <select class="form-control" name="status">
+                <select class="form-control" name="status" id="select-status">
                   <option value="Active" ${editContract?.status === 'Active' || !editContract ? 'selected' : ''}>Active (Đang thực hiện)</option>
                   <option value="Completed" ${editContract?.status === 'Completed' ? 'selected' : ''}>Completed (Đã quyết toán)</option>
                   <option value="Suspended" ${editContract?.status === 'Suspended' ? 'selected' : ''}>Suspended (Tạm ngưng)</option>
                 </select>
               </div>
+            </div>
+
+            <!-- HỢP ĐỒNG LIÊN KẾT / TƯƠNG TỰ (LINKED CONTRACT) -->
+            <div class="form-group" style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 8px;">
+              <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span><i class="fa-solid fa-link" style="color: #6366f1;"></i> Hợp đồng liên kết / tương tự (Linked Contract)</span>
+                <small style="color: var(--text-muted); font-size: 0.75rem;">Liên kết giữa HĐ Bên A (Chủ đầu tư) và HĐ Bên B (Thầu phụ) để chuyển nhanh</small>
+              </label>
+              <select class="form-control" name="linked_contract_id" id="contract-select-linked" style="font-size: 0.85rem;">
+                <option value="">-- Không có liên kết --</option>
+                ${
+                  contractsA.length > 0
+                    ? `<optgroup label="Hợp đồng Nhóm A (Chủ đầu tư / Tổng thầu)">
+                        ${contractsA.map((ca) => `<option value="${ca.id}" ${(editContract?.linked_contract_id || baseSource.linked_contract_id) === ca.id ? 'selected' : ''}>${ca.id}: ${ca.contract_no} — ${ca.scope_of_work || ca.company_a || ''}</option>`).join('')}
+                       </optgroup>`
+                    : ''
+                }
+                ${
+                  contractsB.length > 0
+                    ? `<optgroup label="Hợp đồng Nhóm B (Thầu phụ / Nhà cung cấp)">
+                        ${contractsB.map((cb) => `<option value="${cb.id}" ${(editContract?.linked_contract_id || baseSource.linked_contract_id) === cb.id ? 'selected' : ''}>${cb.id}: ${cb.contract_no} — ${cb.company_b || ''} (${cb.scope_of_work || ''})</option>`).join('')}
+                       </optgroup>`
+                    : ''
+                }
+              </select>
             </div>
 
             <!-- 2. PARTNERS - PROJECT -->
@@ -3729,12 +3878,12 @@ export class ContractsManager {
             <div class="form-grid-2">
               <div class="form-group">
                 <label class="form-label">Bên A (Company A - Chủ đầu tư / Tổng thầu)</label>
-                <input type="text" class="form-control" name="company_a" value="${editContract?.company_a || baseSource.company_a || curPrj.client || ''}" placeholder="Tên đơn vị Bên A">
+                <input type="text" class="form-control" name="company_a" id="input-company-a" list="datalist-companies-a" value="${editContract?.company_a || baseSource.company_a || curPrj.client || ''}" placeholder="Tên đơn vị Bên A">
               </div>
 
               <div class="form-group">
                 <label class="form-label">Người đại diện Bên A (Representative A)</label>
-                <input type="text" class="form-control" name="rep_a" value="${editContract?.rep_a || baseSource.rep_a || ''}" placeholder="Họ tên người đại diện pháp luật Bên A">
+                <input type="text" class="form-control" name="rep_a" id="input-rep-a" list="datalist-reps-a" value="${editContract?.rep_a || baseSource.rep_a || ''}" placeholder="Họ tên người đại diện pháp luật Bên A">
               </div>
             </div>
 
@@ -3746,45 +3895,57 @@ export class ContractsManager {
               <div class="form-grid-2">
                 <div class="form-group">
                   <label class="form-label">Nhà thầu B1 (Company B1 - Đơn vị đứng đầu liên danh / Nhà thầu chính) *</label>
-                  <input type="text" class="form-control" name="company_b" value="${editContract?.company_b || baseSource.company_b || ''}" placeholder="Tên công ty Bên B1" required>
+                  <input type="text" class="form-control" name="company_b" id="input-company-b" list="datalist-companies-b" value="${editContract?.company_b || baseSource.company_b || ''}" placeholder="Tên công ty Bên B1" required>
                 </div>
                 <div class="form-group">
                   <label class="form-label">Người đại diện B1 (Representative B1)</label>
-                  <input type="text" class="form-control" name="rep_b" value="${editContract?.rep_b || baseSource.rep_b || ''}" placeholder="Họ tên đại diện Bên B1">
+                  <input type="text" class="form-control" name="rep_b" id="input-rep-b" list="datalist-reps-b" value="${editContract?.rep_b || baseSource.rep_b || ''}" placeholder="Họ tên đại diện Bên B1">
+                </div>
+              </div>
+
+              <!-- MÃ SỐ THUẾ & LIÊN HỆ BÊN B -->
+              <div class="form-grid-2" style="margin-top: 8px;">
+                <div class="form-group">
+                  <label class="form-label"><i class="fa-solid fa-barcode" style="color: #059669;"></i> Mã số thuế Bên B (Tax Code)</label>
+                  <input type="text" class="form-control" name="tax_code" id="input-tax-code" list="datalist-tax-codes" value="${editContract?.tax_code || baseSource.tax_code || ''}" placeholder="Vd: 0101234567">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Người liên hệ Bên B (Contact Person B)</label>
+                  <input type="text" class="form-control" name="contact_person_b" id="input-contact-b" list="datalist-contacts-b" value="${editContract?.contact_person_b || baseSource.contact_person_b || ''}" placeholder="Họ tên & số điện thoại người liên hệ Bên B">
                 </div>
               </div>
 
               <div class="form-grid-2" style="margin-top: 8px;">
                 <div class="form-group">
                   <label class="form-label">Nhà thầu B2 (Company B2 - Đơn vị Liên danh nếu có)</label>
-                  <input type="text" class="form-control" name="company_b2" value="${editContract?.company_b2 || baseSource.company_b2 || ''}" placeholder="Tên công ty liên danh B2 (để trống nếu không có liên danh)">
+                  <input type="text" class="form-control" name="company_b2" id="input-company-b2" list="datalist-companies-b2" value="${editContract?.company_b2 || baseSource.company_b2 || ''}" placeholder="Tên công ty liên danh B2 (để trống nếu không có liên danh)">
                 </div>
                 <div class="form-group">
                   <label class="form-label">Người đại diện B2 (Representative B2)</label>
-                  <input type="text" class="form-control" name="rep_b2" value="${editContract?.rep_b2 || baseSource.rep_b2 || ''}" placeholder="Họ tên đại diện Bên B2">
+                  <input type="text" class="form-control" name="rep_b2" id="input-rep-b2" list="datalist-reps-b2" value="${editContract?.rep_b2 || baseSource.rep_b2 || ''}" placeholder="Họ tên đại diện Bên B2">
                 </div>
               </div>
             </div>
 
             <div class="form-group">
               <label class="form-label">Phạm vi công việc / Nội dung gói thầu (Scope of work)</label>
-              <textarea class="form-control" name="scope_of_work" rows="2" placeholder="Tên hạng mục thi công, mua sắm thiết bị, tư vấn...">${editContract?.scope_of_work || (isAddingAppendix ? `Phụ lục bổ sung khối lượng cho ${parentContract.contract_no}` : '')}</textarea>
+              <textarea class="form-control" name="scope_of_work" id="input-scope-of-work" rows="2" placeholder="Tên hạng mục thi công, mua sắm thiết bị, tư vấn...">${editContract?.scope_of_work || (isAddingAppendix ? `Phụ lục bổ sung khối lượng cho ${parentContract.contract_no}` : '')}</textarea>
             </div>
 
             <div class="form-grid-3">
               <div class="form-group">
                 <label class="form-label">Giá trị ký kết (Contract Value - VNĐ) *</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" value="${this.formatNumberWithDots(editContract?.contract_val || 0)}" required style="font-weight: 700; color: var(--primary);">
+                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" id="input-contract-val" value="${this.formatNumberWithDots(editContract?.contract_val || 0)}" required style="font-weight: 700; color: var(--primary);">
               </div>
 
               <div class="form-group">
                 <label class="form-label">Tỷ giá (Exchange Rate)</label>
-                <input type="number" step="any" class="form-control" name="exchange_rate" value="${editContract?.exchange_rate || baseSource.exchange_rate || 1}">
+                <input type="number" step="any" class="form-control" name="exchange_rate" id="input-exchange-rate" value="${editContract?.exchange_rate || baseSource.exchange_rate || 1}">
               </div>
 
               <div class="form-group">
                 <label class="form-label">Phân loại HĐ (Contract Category)</label>
-                <select class="form-control" name="category">
+                <select class="form-control" name="category" id="select-category">
                   <option value="Construction" ${(editContract?.category || baseSource.category) === 'Construction' ? 'selected' : ''}>Construction (Thi công / Xây lắp)</option>
                   <option value="Procurement" ${(editContract?.category || baseSource.category) === 'Procurement' ? 'selected' : ''}>Procurement (Mua sắm vật tư)</option>
                   <option value="Consultancy" ${(editContract?.category || baseSource.category) === 'Consultancy' ? 'selected' : ''}>Consultancy (Tư vấn giám sát / Thẩm tra)</option>
@@ -3799,11 +3960,6 @@ export class ContractsManager {
               </div>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Người liên hệ Bên B (Contact Person B)</label>
-              <input type="text" class="form-control" name="contact_person_b" value="${editContract?.contact_person_b || baseSource.contact_person_b || ''}" placeholder="Họ tên & số điện thoại người liên hệ Bên B">
-            </div>
-
             <!-- 3. PAYMENT - BANKING -->
             <div style="font-weight: 700; font-size: 0.95rem; color: #0891b2; margin: 18px 0 12px; display: flex; align-items: center; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">
               <i class="fa-solid fa-building-columns"></i> Payment - Banking (Thông tin Thụ hưởng & Tài khoản Ngân hàng)
@@ -3812,19 +3968,54 @@ export class ContractsManager {
             <div class="form-grid-3">
               <div class="form-group">
                 <label class="form-label">Đơn vị thụ hưởng (Payee)</label>
-                <input type="text" class="form-control" name="payee" value="${editContract?.payee || baseSource.payee || editContract?.company_b || baseSource.company_b || ''}" placeholder="Tên đơn vị thụ hưởng thanh toán">
+                <input type="text" class="form-control" name="payee" id="input-payee" list="datalist-payees" value="${editContract?.payee || baseSource.payee || editContract?.company_b || baseSource.company_b || ''}" placeholder="Tên đơn vị thụ hưởng thanh toán">
               </div>
 
               <div class="form-group">
                 <label class="form-label">Số tài khoản (Bank Acc Number)</label>
-                <input type="text" class="form-control" name="bank_account" value="${editContract?.bank_account || baseSource.bank_account || ''}" placeholder="Vd: 1221 0000 7136 52">
+                <input type="text" class="form-control" name="bank_account" id="input-bank-account" list="datalist-bank-accounts" value="${editContract?.bank_account || baseSource.bank_account || ''}" placeholder="Vd: 1221 0000 7136 52">
               </div>
 
               <div class="form-group">
                 <label class="form-label">Ngân hàng & Chi nhánh (Bank)</label>
-                <input type="text" class="form-control" name="bank_name" value="${editContract?.bank_name || baseSource.bank_name || ''}" placeholder="Vd: BIDV - Chi nhánh Hà Thành">
+                <input type="text" class="form-control" name="bank_name" id="input-bank-name" list="datalist-bank-names" value="${editContract?.bank_name || baseSource.bank_name || ''}" placeholder="Vd: BIDV - Chi nhánh Hà Thành">
               </div>
             </div>
+
+            <!-- GỢI Ý DỮ LIỆU TỰ ĐỘNG (DATALISTS CHO MỌI TRƯỜNG THÔNG TIN) -->
+            <datalist id="datalist-companies-a">
+              ${companiesA.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-reps-a">
+              ${repsA.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-companies-b">
+              ${companiesB.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-reps-b">
+              ${repsB.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-companies-b2">
+              ${companiesB2.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-reps-b2">
+              ${repsB2.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-tax-codes">
+              ${taxCodes.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-payees">
+              ${payees.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-bank-accounts">
+              ${bankAccounts.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-bank-names">
+              ${bankNames.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
+            <datalist id="datalist-contacts-b">
+              ${contactsB.map((v) => `<option value="${v}">`).join('')}
+            </datalist>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color);">
               <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
@@ -3852,6 +4043,56 @@ export class ContractsManager {
         idInput.value = nextId;
       });
     }
+
+    // Tự động điền dữ liệu khi chọn Hợp đồng mẫu
+    const tplPicker = modal.querySelector('#contract-template-picker');
+    tplPicker?.addEventListener('change', (e) => {
+      const selectedId = e.target.value;
+      if (!selectedId) return;
+      const tpl = (this.contracts || []).find((c) => c.id === selectedId);
+      if (!tpl) return;
+
+      const setVal = (sel, val) => {
+        const el = modal.querySelector(sel);
+        if (el && val !== undefined && val !== null) el.value = val;
+      };
+
+      setVal('#input-company-a', tpl.company_a || '');
+      setVal('#input-rep-a', tpl.rep_a || '');
+      setVal('#input-company-b', tpl.company_b || '');
+      setVal('#input-rep-b', tpl.rep_b || '');
+      setVal('#input-company-b2', tpl.company_b2 || '');
+      setVal('#input-rep-b2', tpl.rep_b2 || '');
+      setVal('#input-tax-code', tpl.tax_code || '');
+      setVal('#input-contact-b', tpl.contact_person_b || '');
+      setVal('#input-scope-of-work', tpl.scope_of_work || '');
+      setVal('#select-category', tpl.category || 'Construction');
+      setVal('#input-payee', tpl.payee || tpl.company_b || '');
+      setVal('#input-bank-account', tpl.bank_account || '');
+      setVal('#input-bank-name', tpl.bank_name || '');
+      setVal('#input-exchange-rate', tpl.exchange_rate || 1);
+      setVal('#contract-select-linked', tpl.linked_contract_id || '');
+    });
+
+    // Tự động gợi ý điền thông tin khi chọn Nhà thầu B1 đã có trong dữ liệu
+    const compBInput = modal.querySelector('#input-company-b');
+    compBInput?.addEventListener('change', (e) => {
+      const val = e.target.value?.trim();
+      if (!val) return;
+      const matched = (this.contracts || []).find((c) => c.company_b && c.company_b.trim().toLowerCase() === val.toLowerCase());
+      if (matched) {
+        const fillIfEmpty = (sel, newVal) => {
+          const el = modal.querySelector(sel);
+          if (el && !el.value && newVal) el.value = newVal;
+        };
+        fillIfEmpty('#input-rep-b', matched.rep_b);
+        fillIfEmpty('#input-tax-code', matched.tax_code);
+        fillIfEmpty('#input-contact-b', matched.contact_person_b);
+        fillIfEmpty('#input-payee', matched.payee || matched.company_b);
+        fillIfEmpty('#input-bank-account', matched.bank_account);
+        fillIfEmpty('#input-bank-name', matched.bank_name);
+      }
+    });
 
     modal.querySelector('#form-contract').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -3901,6 +4142,8 @@ export class ContractsManager {
         payee: formData.get('payee') || formData.get('company_b') || '',
         bank_account: formData.get('bank_account') || '',
         bank_name: formData.get('bank_name') || '',
+        tax_code: formData.get('tax_code') || '',
+        linked_contract_id: formData.get('linked_contract_id') || '',
       };
 
       await db.put('contracts', updatedData);

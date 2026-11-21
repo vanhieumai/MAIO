@@ -522,9 +522,33 @@ Private Function GetSigningDate(ws As Worksheet, contractID As String) As Date
     r = FindContractRowByID(ws, contractID)
     If r = 0 Then
         GetSigningDate = DateSerial(1900, 1, 1)
-    Else
-        GetSigningDate = ws.Cells(r, SIGNING_DATE_COL).value
+        Exit Function
     End If
+    Dim v As Variant
+    v = ws.Cells(r, SIGNING_DATE_COL).value
+    If IsDate(v) Then
+        GetSigningDate = CDate(v)
+        Exit Function
+    End If
+    Dim s As String
+    s = Trim$(CStr(v))
+    If s Like "####-##-##*" Then
+        Dim p() As String
+        p = Split(Left$(s, 10), "-")
+        On Error Resume Next
+        GetSigningDate = DateSerial(CInt(p(0)), CInt(p(1)), CInt(p(2)))
+        On Error GoTo 0
+        Exit Function
+    End If
+    If s Like "##/##/####*" Or s Like "#/##/####*" Then
+        Dim p2() As String
+        p2 = Split(Left$(s, InStr(s & " ", " ") - 1), "/")
+        On Error Resume Next
+        GetSigningDate = DateSerial(CInt(p2(2)), CInt(p2(1)), CInt(p2(0)))
+        On Error GoTo 0
+        Exit Function
+    End If
+    GetSigningDate = DateSerial(1900, 1, 1)
 End Function
 
 

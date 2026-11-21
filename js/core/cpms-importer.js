@@ -7,6 +7,66 @@ import { db } from './db.js?v=4.1';
 
 export class CPMSImporterExporter {
   /**
+   * Chuyển đổi định dạng ngày trong Excel sang chuỗi ISO YYYY-MM-DD
+   */
+  static parseExcelDate(val) {
+    if (!val) return null;
+    if (val instanceof Date) {
+      return val.toISOString().slice(0, 10);
+    }
+    if (typeof val === 'number') {
+      const d = new Date(Math.round((val - 25569) * 86400 * 1000));
+      return d.toISOString().slice(0, 10);
+    }
+    const s = String(val).trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      return s.slice(0, 10);
+    }
+    const dmY = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (dmY) {
+      return `${dmY[3]}-${String(dmY[2]).padStart(2, '0')}-${String(dmY[1]).padStart(2, '0')}`;
+    }
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().slice(0, 10);
+    }
+    return s;
+  }
+
+  /**
+   * Chuyển đổi chuỗi ngày thành ô Date chuẩn cho SheetJS với NumberFormat d/mm/yyyy
+   */
+  static dateToExcelCell(val) {
+    if (!val) return '';
+    let d = null;
+    if (val instanceof Date) {
+      d = val;
+    } else if (typeof val === 'number') {
+      d = new Date(Math.round((val - 25569) * 86400 * 1000));
+    } else if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (!trimmed) return '';
+      if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+        const [y, m, day] = trimmed.slice(0, 10).split('-').map(Number);
+        d = new Date(Date.UTC(y, m - 1, day));
+      } else {
+        const dmY = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (dmY) {
+          d = new Date(Date.UTC(Number(dmY[3]), Number(dmY[2]) - 1, Number(dmY[1])));
+        } else {
+          const parsed = new Date(trimmed);
+          if (!isNaN(parsed.getTime())) d = parsed;
+        }
+      }
+    }
+    if (d && !isNaN(d.getTime())) {
+      return { t: 'd', v: d, z: 'd/mm/yyyy' };
+    }
+    return val;
+  }
+
+  /**
    * Phân tích mã ContractID để xác định cấp bậc và HĐ cha
    * Quy tắc chuẩn:
    * A-2026-01: Root (HĐ gốc nhóm A) -> level = 0, parent_id = null
@@ -272,8 +332,8 @@ export class CPMSImporterExporter {
           level: hierarchy.level,
           contract_no: String(r[1] || c1),
           contract_type: String(r[2] || (hierarchy.level === 0 ? 'MAIN' : 'Appendix')),
-          signing_date: r[3] || null,
-          end_date: r[4] || null,
+          signing_date: this.parseExcelDate(r[3]),
+          end_date: this.parseExcelDate(r[4]),
           status: String(r[5] || 'Active'),
           company_a: String(r[6] || ''),
           company_b: String(r[7] || ''),
@@ -293,6 +353,9 @@ export class CPMSImporterExporter {
           created_at: r[22] || null,
           display_no: String(r[23] || ''),
           sort_order: parseFloat(r[24] || 0) || 0,
+          company_code: r[25] ? String(r[25]).trim() : '',
+          tax_code: r[26] ? String(r[26]).trim() : '',
+          linked_contract_id: r[27] ? String(r[27]).trim() : '',
         });
       }
     }
@@ -496,12 +559,13 @@ export class CPMSImporterExporter {
     ];
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(prjSettingsData), 'PROJECT_SETTINGS');
 
-    // 2. Sheet CONTRACT_DB (25 cột chuẩn xác)
+    // 2. Sheet CONTRACT_DB (25 cột gốc chuẩn CPMS Plus + các cột mở rộng ở ngoài cùng bên phải)
     const contractHeaders = [
       'ContractID', 'ContractNo.', 'ContractType', 'SigningDate', 'EndDate', 'Status',
       'Company1', 'Company2', 'Company3', 'RepB2', 'ScopeOfWork', 'temp2', 'ExchangeRate',
       'EstimatedValue', 'ContractValue', 'RepA', 'RepB', 'Categories', 'Payee', 'BankAccountNo.',
-      'BankName', 'ContactPersonB', 'CreatedDate', 'DisplayNo', 'SortOrder'
+      'BankName', 'ContactPersonB', 'CreatedDate', 'DisplayNo', 'SortOrder',
+      'CompanyCode', 'TaxCode', 'LinkedContractID'
     ];
     const contractRows = [contractHeaders];
 
@@ -509,10 +573,12 @@ export class CPMSImporterExporter {
     contractRows.push(['GROUP-A', 'Hợp đồng với chủ đầu tư / Tổng thầu']);
     allContracts.filter(c => c.group === 'A').forEach(c => {
       contractRows.push([
-        c.id, c.contract_no, c.contract_type || (c.parent_id ? 'Appendix' : 'MAIN'), c.signing_date, c.end_date, c.status || 'Active',
+        c.id, c.contract_no, c.contract_type || (c.parent_id ? 'Appendix' : 'MAIN'),
+        this.dateToExcelCell(c.signing_date), this.dateToExcelCell(c.end_date), c.status || 'Active',
         c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
-        c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0
+        c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
+        c.company_code || '', c.tax_code || '', c.linked_contract_id || ''
       ]);
     });
 
@@ -520,10 +586,12 @@ export class CPMSImporterExporter {
     contractRows.push(['GROUP-B', 'Hợp đồng với thầu phụ / Nhà cung cấp']);
     allContracts.filter(c => c.group === 'B' && !c.is_cpb && c.contract_type !== 'CPB').forEach(c => {
       contractRows.push([
-        c.id, c.contract_no, c.contract_type || (c.parent_id ? 'Appendix' : 'MAIN'), c.signing_date, c.end_date, c.status || 'Active',
+        c.id, c.contract_no, c.contract_type || (c.parent_id ? 'Appendix' : 'MAIN'),
+        this.dateToExcelCell(c.signing_date), this.dateToExcelCell(c.end_date), c.status || 'Active',
         c.company_a || '', c.company_b || '', c.company_b2 || '', c.rep_b2 || '', c.scope_of_work || '', '', c.exchange_rate || 1.0,
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
-        c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0
+        c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
+        c.company_code || '', c.tax_code || '', c.linked_contract_id || ''
       ]);
     });
 

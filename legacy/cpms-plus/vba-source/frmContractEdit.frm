@@ -817,12 +817,14 @@ Private Sub WriteContractToSheet(ws As Worksheet, _
 
         If IsDate(txtSignDate.value) Then
             .Cells(r, "D").value = CDate(txtSignDate.value)
+            .Cells(r, "D").NumberFormat = "d/mm/yyyy"
         Else
             .Cells(r, "D").ClearContents
         End If
 
         If IsDate(txtEndDate.value) Then
             .Cells(r, "E").value = CDate(txtEndDate.value)
+            .Cells(r, "E").NumberFormat = "d/mm/yyyy"
         Else
             .Cells(r, "E").ClearContents
         End If
@@ -1035,11 +1037,32 @@ End Sub
 ' TI?N ÍCH
 '==============================================================================
 Private Function FormatDate(v As Variant) As String
+    If IsEmpty(v) Or IsNull(v) Then Exit Function
     If IsDate(v) Then
         FormatDate = Format(v, "dd/mm/yyyy")
-    Else
-        FormatDate = ""
+        Exit Function
     End If
+    Dim s As String
+    s = Trim$(CStr(v))
+    If Len(s) = 0 Then Exit Function
+
+    ' Hỗ trợ định dạng chuẩn ISO: YYYY-MM-DD
+    If s Like "####-##-##*" Then
+        Dim parts() As String
+        parts = Split(Left$(s, 10), "-")
+        FormatDate = parts(2) & "/" & parts(1) & "/" & parts(0)
+        Exit Function
+    End If
+
+    ' Hỗ trợ định dạng DD/MM/YYYY
+    If s Like "##/##/####*" Or s Like "#/##/####*" Or s Like "##/#/####*" Then
+        FormatDate = Left$(s, InStr(s & " ", " ") - 1)
+        Exit Function
+    End If
+
+    On Error Resume Next
+    FormatDate = Format(CDate(s), "dd/mm/yyyy")
+    On Error GoTo 0
 End Function
 
 Private Function FormatContractValue(v As Variant) As String
@@ -1074,10 +1097,8 @@ Public Sub LoadContractFromSearch(contractID As String)
         .txtContractNo.value = ws.Cells(r, 2).value
         .cboContractType.value = ws.Cells(r, 3).value
 
-        .txtSignDate.value = IIf(IsDate(ws.Cells(r, 4).value), _
-                                 Format(ws.Cells(r, 4).value, "dd/mm/yyyy"), "")
-        .txtEndDate.value = IIf(IsDate(ws.Cells(r, 5).value), _
-                                Format(ws.Cells(r, 5).value, "dd/mm/yyyy"), "")
+        .txtSignDate.value = FormatDate(ws.Cells(r, 4).value)
+        .txtEndDate.value = FormatDate(ws.Cells(r, 5).value)
 
         .cboStatus.value = ws.Cells(r, 6).value
 
