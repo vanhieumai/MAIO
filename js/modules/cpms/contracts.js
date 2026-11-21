@@ -1656,13 +1656,35 @@ export class ContractsManager {
     const isMain = !contract.parent_id;
     const directChildren = this.getDirectChildren(contract.id);
 
-    const baseVal = contract.contract_val || 0;
-    const appendixSum = directChildren.reduce((sum, ch) => sum + (ch.contract_val || 0), 0);
+    const exchangeRate = Number(contract.exchange_rate) || 1.0;
+    const baseValRaw = contract.contract_val || 0;
+    const baseVal = Math.round(baseValRaw * exchangeRate);
 
-    // Giá trị hợp đồng chuẩn xác:
-    // Nếu HĐ đã có giá trị tạm tính ban đầu (như 1.200 tỷ) thì giữ nguyên, không cộng lẫn phụ lục.
-    // Nếu HĐ khung không có giá trị (baseVal === 0) thì mới lấy tổng các phụ lục con.
-    let totalSigned = baseVal > 0 ? baseVal : appendixSum;
+    // Tính tổng phụ lục con (đã nhân tỷ giá) và tổng các phụ lục có tích chọn cộng dồn (is_additive)
+    let appendixSum = 0;
+    let additiveAppendixSum = 0;
+
+    directChildren.forEach((ch) => {
+      const chRate = Number(ch.exchange_rate) || 1.0;
+      const chVal = Math.round((ch.contract_val || 0) * chRate);
+      appendixSum += chVal;
+
+      const isAdditive = ch.is_additive === true || ch.is_additive === 1 || ch.is_additive === '1';
+      if (isAdditive) {
+        additiveAppendixSum += chVal;
+      }
+    });
+
+    // Giá trị hợp đồng chuẩn xác (VNĐ):
+    // 1. Nếu HĐ chính đã có giá trị (baseVal > 0): Tổng = baseVal + các phụ lục ĐƯỢC TÍCH CHỌN CỘNG DỒN.
+    //    Các phụ lục không tích chọn sẽ KHÔNG cộng dồn, tránh bị nhân đôi / đội khống giá trị HĐ và nhóm giải ngân.
+    // 2. Nếu HĐ khung ban đầu không có giá trị (baseVal === 0): Tổng = appendixSum (tổng các gói/phụ lục con).
+    let totalSigned = 0;
+    if (baseVal > 0) {
+      totalSigned = baseVal + additiveAppendixSum;
+    } else {
+      totalSigned = appendixSum;
+    }
 
     // Lấy thanh toán thực tế
     const realPayments = this.getRealPayments(contract.id);
@@ -1674,7 +1696,10 @@ export class ContractsManager {
 
     return {
       baseVal,
+      baseValRaw,
+      exchangeRate,
       appendixSum,
+      additiveAppendixSum,
       totalSigned,
       totalAccepted,
       totalRequested,
@@ -1918,6 +1943,8 @@ export class ContractsManager {
                       ${this.formatCurrency(stats.totalSigned)}
                     </div>
                     ${directChildren.length > 0 ? `<div class="contract-val-sub">(Đã giao ${directChildren.length} PL: ${this.formatCurrency(stats.appendixSum)})</div>` : ''}
+                    ${stats.additiveAppendixSum > 0 ? `<div class="contract-val-sub" style="color: #059669; font-weight: 600;">(+${this.formatCurrency(stats.additiveAppendixSum)} PL phát sinh)</div>` : ''}
+                    ${c.exchange_rate && c.exchange_rate !== 1 ? `<div class="contract-val-sub" style="color: #64748b;">${this.formatNumberWithDots(c.contract_val)} nguyên tệ (TG: ${c.exchange_rate})</div>` : ''}
                   </div>
                 </div>
               </div>
@@ -2150,7 +2177,10 @@ export class ContractsManager {
             <td class="col-app-status">
               <span class="badge ${child.status === 'Active' ? 'badge-success' : 'badge-warning'}">${child.status || 'Active'}</span>
             </td>
-            <td class="col-app-val">${this.formatCurrency(child.contract_val)}</td>
+            <td class="col-app-val">
+              ${this.formatCurrency(Math.round((child.contract_val || 0) * (child.exchange_rate || 1)))}
+              ${child.is_additive ? '<span class="badge badge-success" style="font-size: 0.65rem; margin-left: 4px;" title="Cộng dồn vào HĐ cha">+ Cộng dồn</span>' : '<span class="badge" style="font-size: 0.65rem; margin-left: 4px; background: #f1f5f9; color: #64748b;" title="Không cộng dồn vào HĐ cha">Không cộng dồn</span>'}
+            </td>
             <td class="col-app-paid">${this.formatCurrency(childStats.totalPaid)}</td>
           </tr>
         `;
@@ -2262,7 +2292,14 @@ export class ContractsManager {
                 <div><strong>Tình trạng:</strong> <p><span class="badge badge-success">${contract.status || 'Active'}</span></p></div>
                 <div><strong>Ngày ký kết:</strong> <p style="color: var(--text-muted);">${this.formatDate(contract.signing_date)}</p></div>
                 <div><strong>Thời hạn kết thúc:</strong> <p style="color: var(--text-muted);">${contract.end_date ? this.formatDate(contract.end_date) : '—'}</p></div>
-                <div><strong>Giá trị ký kết Hợp đồng:</strong> <p style="font-weight: 700; color: var(--primary);">${this.formatCurrency(contract.contract_val)} <small style="font-weight: normal; color: var(--text-muted);">(Tỷ giá: ${contract.exchange_rate || 1})</small></p></div>
+                <div>
+                  <strong>Giá trị ký kết Hợp đồng:</strong>
+                  <p style="font-weight: 700; color: var(--primary);">
+                    ${this.formatCurrency(stats.baseVal)}
+                    ${contract.exchange_rate && contract.exchange_rate !== 1 ? `<small style="font-weight: normal; color: var(--text-muted); display: block;">(${this.formatNumberWithDots(contract.contract_val)} nguyên tệ × Tỷ giá ${contract.exchange_rate})</small>` : ''}
+                    ${!isMain ? (contract.is_additive ? `<span class="badge badge-success" style="font-size: 0.72rem; margin-top: 3px; display: inline-block;"><i class="fa-solid fa-plus-circle"></i> Có cộng dồn vào HĐ cha</span>` : `<span class="badge" style="font-size: 0.72rem; margin-top: 3px; display: inline-block; background: #f1f5f9; color: #64748b;"><i class="fa-solid fa-circle-info"></i> Không cộng dồn vào HĐ cha</span>`) : ''}
+                  </p>
+                </div>
                 ${
                   isMain && directChildren.length > 0
                     ? `<div><strong>Tổng giá trị các Phụ lục đã giao:</strong> <p style="font-weight: 700; color: #0284c7;">${this.formatCurrency(stats.appendixSum)}</p></div>`
@@ -2327,7 +2364,10 @@ export class ContractsManager {
                           <td><strong style="color: var(--primary);">${a.contract_no}</strong></td>
                           <td>${a.scope_of_work || '—'}</td>
                           <td style="text-align: center;"><span class="badge ${a.status === 'Active' ? 'badge-success' : 'badge-warning'}">${a.status || 'Active'}</span></td>
-                          <td class="num-col" style="color: var(--primary); font-weight: 700;">${this.formatCurrency(a.contract_val)}</td>
+                          <td class="num-col" style="color: var(--primary); font-weight: 700;">
+                            ${this.formatCurrency(Math.round((a.contract_val || 0) * (a.exchange_rate || 1)))}
+                            ${a.is_additive ? '<span class="badge badge-success" style="font-size: 0.65rem; margin-left: 4px;">+ Cộng dồn</span>' : '<span class="badge" style="font-size: 0.65rem; margin-left: 4px; background: #f1f5f9; color: #64748b;">Không cộng dồn</span>'}
+                          </td>
                           <td style="text-align: center;">${this.formatDate(a.signing_date)}</td>
                         </tr>
                       `
@@ -3812,6 +3852,10 @@ export class ContractsManager {
       ? (editContract.contract_type || (isAppendix ? 'Appendix' : 'MAIN'))
       : 'MAIN';
 
+    const isAdditive = editContract
+      ? (editContract.is_additive === true || editContract.is_additive === 1 || editContract.is_additive === '1')
+      : false; // Mặc định phụ lục mới là Không cộng dồn
+
     const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || {};
 
     // Sửa giá trị mặc định Bên A: Không để mặc định là CLI
@@ -4161,18 +4205,36 @@ export class ContractsManager {
               <textarea class="form-control" name="scope_of_work" id="input-scope-of-work" rows="2" placeholder="Tên hạng mục thi công, mua sắm thiết bị, tư vấn...">${editContract?.scope_of_work || (isAddingAppendix ? `Phụ lục bổ sung khối lượng cho ${parentContract.contract_no}` : '')}</textarea>
             </div>
 
-            <div class="form-grid-3">
-              <div class="form-group">
-                <label class="form-label">Giá trị ký kết (VNĐ) *</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" id="input-contract-val" value="${this.formatNumberWithDots(editContract?.contract_val || 0)}" required style="font-weight: 700; color: var(--primary);">
+            <!-- KHỐI GIÁ TRỊ HỢP ĐỒNG, TỶ GIÁ & PHÂN LOẠI -->
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: var(--radius-sm); padding: 14px; margin-bottom: 14px;">
+              <div style="font-weight: 700; font-size: 0.88rem; color: #1e40af; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                <span><i class="fa-solid fa-coins" style="color: #eab308;"></i> Giá trị hợp đồng & Tỷ giá quy đổi</span>
+                <span id="converted-vnd-badge" style="font-size: 0.78rem; font-weight: 600; color: #15803d; background: #dcfce7; padding: 2px 10px; border-radius: 12px; border: 1px solid #bbf7d0;">
+                  Quy đổi: <strong id="converted-vnd-text">0 đ</strong>
+                </span>
               </div>
 
-              <div class="form-group">
-                <label class="form-label">Tỷ giá</label>
-                <input type="number" step="any" class="form-control" name="exchange_rate" id="input-exchange-rate" value="${editContract?.exchange_rate || baseSource.exchange_rate || 1}">
+              <div class="form-grid-3">
+                <div class="form-group">
+                  <label class="form-label">Giá trị ký kết (Nguyên tệ) *</label>
+                  <input type="text" inputmode="numeric" class="form-control currency-input" name="contract_val" id="input-contract-val" value="${this.formatNumberWithDots(editContract?.contract_val || 0)}" required style="font-weight: 700; color: var(--primary);">
+                  <small style="color: #64748b; font-size: 0.72rem;">Số tiền nguyên tệ trong HĐ (VND, USD...)</small>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Tỷ giá (Exchange Rate)</label>
+                  <input type="number" step="any" class="form-control" name="exchange_rate" id="input-exchange-rate" value="${editContract?.exchange_rate || baseSource.exchange_rate || 1}" style="font-weight: 600;">
+                  <small style="color: #64748b; font-size: 0.72rem;">Mặc định là 1 nếu ký tiền VNĐ</small>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label"><i class="fa-solid fa-money-bill-wave" style="color: #16a34a;"></i> Giá trị quy đổi (VNĐ)</label>
+                  <input type="text" class="form-control" id="input-converted-vnd" readonly style="background: #f0fdf4; border-color: #86efac; color: #15803d; font-weight: 800; font-family: monospace; cursor: not-allowed;" value="0 đ">
+                  <small style="color: #16a34a; font-size: 0.72rem;">= Giá trị ký kết × Tỷ giá</small>
+                </div>
               </div>
 
-              <div class="form-group">
+              <div class="form-group" style="margin-top: 10px; margin-bottom: 0;">
                 <label class="form-label">Phân loại hợp đồng</label>
                 <select class="form-control" name="category" id="select-category">
                   <option value="Construction" ${(editContract?.category || baseSource.category) === 'Construction' ? 'selected' : ''}>Thi công / Xây lắp (Construction)</option>
@@ -4187,6 +4249,39 @@ export class ContractsManager {
                   <option value="Khác" ${(editContract?.category || baseSource.category) === 'Khác' || !(editContract?.category || baseSource.category) ? 'selected' : ''}>Khác / Chưa phân loại</option>
                 </select>
               </div>
+
+              ${
+                isAppendix
+                  ? `
+                <!-- TÙY CHỌN TÍNH TOÁN GIÁ TRỊ PHỤ LỤC -->
+                <div style="background: #ffffff; border: 1px dashed #cbd5e1; border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 14px;">
+                  <label class="form-label" style="font-weight: 700; color: #1e40af; margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-calculator" style="color: #3b82f6;"></i> Tùy chọn cộng dồn vào Giá trị Hợp đồng chính:
+                  </label>
+                  <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.85rem;">
+                    <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; color: #334155;">
+                      <input type="radio" name="is_additive" value="0" ${!isAdditive ? 'checked' : ''} style="margin-top: 3px;">
+                      <div>
+                        <strong>Không cộng dồn vào Hợp đồng chính</strong> <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 0.7rem;">Mặc định chuẩn CPMS</span>
+                        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">
+                          Giá trị dùng để theo dõi giải ngân riêng của phụ lục này; <u>KHÔNG</u> làm tăng giá trị HĐ chính & Tổng nhóm giải ngân (tránh cộng dồn trùng lặp).
+                        </div>
+                      </div>
+                    </label>
+                    <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; color: #334155;">
+                      <input type="radio" name="is_additive" value="1" ${isAdditive ? 'checked' : ''} style="margin-top: 3px;">
+                      <div>
+                        <strong style="color: #059669;"><i class="fa-solid fa-plus-circle"></i> Cộng thêm vào Giá trị Hợp đồng chính (Phụ lục phát sinh / bổ sung)</strong>
+                        <div style="font-size: 0.75rem; color: #64748b; margin-top: 2px;">
+                          Giá trị quy đổi VNĐ của phụ lục này sẽ được cộng thêm vào tổng giá trị của Hợp đồng chính và Tổng nhóm trong Báo cáo Giải ngân.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              `
+                  : ''
+              }
             </div>
 
             <!-- 3. THÔNG TIN THỤ HƯỞNG & THANH TOÁN -->
@@ -4359,6 +4454,27 @@ export class ContractsManager {
     setupCustomAutocomplete(modal.querySelector('#input-bank-account'), bankAccounts);
     setupCustomAutocomplete(modal.querySelector('#input-bank-name'), bankNames);
 
+    // Live update Thành tiền quy đổi VNĐ tự động theo thời gian thực
+    const inputVal = modal.querySelector('#input-contract-val');
+    const inputRate = modal.querySelector('#input-exchange-rate');
+    const inputVnd = modal.querySelector('#input-converted-vnd');
+    const badgeVndText = modal.querySelector('#converted-vnd-text');
+
+    const updateConvertedVnd = () => {
+      const rawVal = this.parseNumberFromDots(inputVal?.value || '0');
+      const rate = parseFloat(inputRate?.value) || 1.0;
+      const vndVal = Math.round(rawVal * rate);
+      const formattedVnd = this.formatCurrency(vndVal);
+      if (inputVnd) inputVnd.value = formattedVnd;
+      if (badgeVndText) badgeVndText.textContent = formattedVnd;
+    };
+
+    if (inputVal && inputRate) {
+      inputVal.addEventListener('input', updateConvertedVnd);
+      inputRate.addEventListener('input', updateConvertedVnd);
+      updateConvertedVnd();
+    }
+
     // Nếu tạo mới Hợp đồng cấp 0 và thay đổi nhóm A/B thì tự sinh lại ContractID tương ứng
     if (!isEdit && !isAddingAppendix) {
       const grpSelect = modal.querySelector('#contract-select-group');
@@ -4402,8 +4518,10 @@ export class ContractsManager {
       setVal('#input-payee', tpl.payee || tpl.company_b || '');
       setVal('#input-bank-account', tpl.bank_account || '');
       setVal('#input-bank-name', tpl.bank_name || '');
+      setVal('#input-contract-val', this.formatNumberWithDots(tpl.contract_val || 0));
       setVal('#input-exchange-rate', tpl.exchange_rate || 1);
       setVal('#contract-select-linked', tpl.linked_contract_id || '');
+      updateConvertedVnd();
     });
 
     modal.querySelector('#form-contract').addEventListener('submit', async (e) => {
@@ -4459,6 +4577,7 @@ export class ContractsManager {
         scope_of_work: (formData.get('scope_of_work') || '').trim(),
         contract_val: this.parseNumberFromDots(formData.get('contract_val')),
         exchange_rate: parseFloat(formData.get('exchange_rate')) || 1.0,
+        is_additive: isAppendix ? (formData.get('is_additive') === '1') : true,
         category: formData.get('category') || 'Construction',
         payee: (formData.get('payee') || formData.get('company_b') || '').trim(),
         bank_account: (formData.get('bank_account') || '').trim(),
@@ -5150,8 +5269,11 @@ export class ContractsManager {
           cRequested += Number(p.request_amount) || 0;
           cPaid += Number(p.paid_amount) || 0;
         });
+
+        const st = this.calculateTotals(c);
+        const exRate = Number(c.exchange_rate) || 1.0;
+        const cVal = isMain ? st.totalSigned : Math.round((c.contract_val || 0) * exRate);
         const cRemaining = cRequested - cPaid;
-        const cVal = c.contract_val || 0;
         const cRate = cVal > 0 ? ((cPaid / cVal) * 100).toFixed(1) : (cRequested > 0 ? ((cPaid / cRequested) * 100).toFixed(1) : 0);
 
         const partnerName = this.disburseGroup === 'A' ? (c.company_a || 'Chủ đầu tư') : (c.company_b || 'Ban QLDA / Thầu phụ');
@@ -5176,6 +5298,9 @@ export class ContractsManager {
             </td>
             <td style="text-align: right; font-weight: 700; color: #1e293b; padding: 10px 14px; white-space: nowrap;">
               ${this.formatCurrency(cVal)}
+              ${exRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(c.contract_val)} nguyên tệ (TG: ${exRate})</div>` : ''}
+              ${!isMain && !c.is_additive ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;"><i class="fa-solid fa-circle-info"></i> Không cộng dồn</div>` : ''}
+              ${!isMain && c.is_additive ? `<div style="font-size: 0.68rem; color: #059669; font-weight: normal;"><i class="fa-solid fa-plus-circle"></i> + Cộng dồn HĐ</div>` : ''}
             </td>
             <td style="text-align: right; padding: 10px 14px; white-space: nowrap;">
               ${this.formatCurrency(cAccepted)}
@@ -5337,6 +5462,10 @@ export class ContractsManager {
 
     const partnerLabel = this.disburseGroup === 'A' ? (selectedContract.company_a || 'Chủ đầu tư') : (selectedContract.company_b || 'Ban QLDA / Thầu phụ');
     const partnerRole = this.disburseGroup === 'A' ? 'Bên A' : 'Bên B';
+    const selIsMain = !selectedContract.parent_id;
+    const selStats = this.calculateTotals(selectedContract);
+    const selRate = Number(selectedContract.exchange_rate) || 1.0;
+    const selValVnd = selIsMain ? selStats.totalSigned : Math.round((selectedContract.contract_val || 0) * selRate);
 
     detailContainer.innerHTML = `
       <div class="disburse-detail-header">
@@ -5352,7 +5481,7 @@ export class ContractsManager {
           </div>
           <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; display: flex; gap: 14px; flex-wrap: wrap;">
             <span><i class="fa-solid fa-building"></i> ${partnerRole}: <strong>${partnerLabel}</strong></span>
-            <span><i class="fa-solid fa-file-contract"></i> Giá trị HĐ: <strong>${this.formatCurrency(selectedContract.contract_val)}</strong></span>
+            <span><i class="fa-solid fa-file-contract"></i> Giá trị HĐ: <strong>${this.formatCurrency(selValVnd)}</strong>${selRate !== 1 ? ` <small style="font-weight: normal; color: #64748b;">(${this.formatNumberWithDots(selectedContract.contract_val)} nguyên tệ × TG ${selRate})</small>` : ''}</span>
             <span><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Đã thanh toán: <strong style="color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatCurrency(dnTotalPaid)}</strong></span>
           </div>
         </div>
