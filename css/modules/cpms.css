@@ -1467,4 +1467,80 @@ textarea.form-control:focus {
   box-shadow: 0 2px 6px rgba(79, 70, 229, 0.15);
 }
 
+/* ==========================================================================
+   Table Scroll & Compact Styles cho Tab Giải ngân (CPMS Disbursements)
+   ========================================================================== */
+.disburse-scroll-container {
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f8fafc;
+}
+
+.disburse-scroll-container::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.disburse-scroll-container::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+.disburse-scroll-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.disburse-scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.disburse-scroll-15 {
+  max-height: 520px; /* Hiển thị ~15 dòng */
+}
+
+.disburse-scroll-10 {
+  max-height: 380px; /* Hiển thị ~10 dòng + thead + tfoot */
+}
+
+.disburse-compact-table {
+  width: 100%;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 0.81rem;
+}
+
+.disburse-compact-table thead th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 10 !important;
+  background: #f1f5f9 !important;
+  color: #334155;
+  font-weight: 700;
+  padding: 8px 10px !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.disburse-compact-table tbody td {
+  padding: 6px 10px !important;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+  font-size: 0.81rem;
+  line-height: 1.35;
+}
+
+.disburse-compact-table tfoot td {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 10 !important;
+  background: #f8fafc !important;
+  border-top: 2px solid #cbd5e1 !important;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.04);
+  padding: 8px 10px !important;
+}
+
+
 
