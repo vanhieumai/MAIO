@@ -981,31 +981,70 @@ export class ContractsManager {
     return `ĐN-${s}`;
   }
 
+  getPaymentRate(p) {
+    const r = parseFloat(p?.exchange_rate);
+    return !isNaN(r) && r > 0 ? r : 1.0;
+  }
+
+  getPaymentVnd(p, field, fallbackField = null) {
+    const rate = this.getPaymentRate(p);
+    let raw = Number(p?.[field]);
+    if (isNaN(raw)) raw = 0;
+    if (raw === 0 && fallbackField) {
+      const fb = Number(p?.[fallbackField]);
+      if (!isNaN(fb)) raw = fb;
+    }
+    return Math.round(raw * rate);
+  }
+
   formatNumberWithDots(val) {
     if (val === undefined || val === null || val === '') return '0';
     if (typeof val === 'number') {
-      return new Intl.NumberFormat('vi-VN').format(Math.round(val));
+      if (isNaN(val)) return '0';
+      return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(val);
     }
-    const cleanDigits = String(val).replace(/\D/g, '');
-    if (!cleanDigits) return '0';
-    try {
-      return new Intl.NumberFormat('vi-VN').format(BigInt(cleanDigits));
-    } catch (e) {
-      return cleanDigits;
+    const str = String(val).trim();
+    if (str === '-') return '-';
+    const isNegative = str.startsWith('-');
+    const unsigned = isNegative ? str.slice(1) : str;
+
+    // Tách phần nguyên và phần thập phân (theo dấu phẩy ',' chuẩn vi-VN)
+    const parts = unsigned.split(',');
+    const intDigits = parts[0].replace(/\D/g, '');
+    const decDigits = parts.length > 1 ? parts[1].replace(/\D/g, '').slice(0, 2) : null;
+
+    if (!intDigits && !decDigits) return isNegative ? '-' : '0';
+
+    let formattedInt = '0';
+    if (intDigits) {
+      try {
+        formattedInt = new Intl.NumberFormat('vi-VN').format(BigInt(intDigits));
+      } catch (e) {
+        formattedInt = intDigits;
+      }
     }
+    const sign = isNegative && (formattedInt !== '0' || (decDigits && decDigits.length > 0)) ? '-' : '';
+    return decDigits !== null ? `${sign}${formattedInt},${decDigits}` : `${sign}${formattedInt}`;
   }
 
   parseNumberFromDots(val) {
     if (!val && val !== 0) return 0;
-    const cleanStr = String(val).replace(/\./g, '').replace(/,/g, '').replace(/[^\d.-]/g, '').trim();
+    if (typeof val === 'number') return isNaN(val) ? 0 : val;
+    const str = String(val).trim();
+    if (!str || str === '-') return 0;
+    const isNegative = str.startsWith('-');
+    const unsigned = isNegative ? str.slice(1) : str;
+    // Bỏ dấu chấm phân cách nghìn, đổi dấu phẩy thập phân sang dấu chấm JS
+    const cleanStr = unsigned.replace(/\./g, '').replace(',', '.').replace(/[^\d.]/g, '');
     const num = parseFloat(cleanStr);
-    return isNaN(num) ? 0 : num;
+    if (isNaN(num)) return 0;
+    return isNegative ? -num : num;
   }
 
   setupCurrencyInputListeners(container = document) {
     container.querySelectorAll('.currency-input').forEach((input) => {
       input.type = 'text';
-      input.setAttribute('inputmode', 'numeric');
+      input.setAttribute('inputmode', 'decimal');
 
       if (input.value !== undefined && input.value !== '') {
         input.value = this.formatNumberWithDots(input.value);
@@ -1014,19 +1053,40 @@ export class ContractsManager {
       input.addEventListener('input', () => {
         const cursorPosition = input.selectionStart || 0;
         const originalLength = input.value.length;
-        const rawDigits = input.value.replace(/\D/g, '');
+        const rawVal = input.value;
+        const trimmed = rawVal.trim();
 
-        if (!rawDigits) {
+        if (!trimmed) {
           input.value = '';
           return;
         }
-
-        let formatted = '';
-        try {
-          formatted = new Intl.NumberFormat('vi-VN').format(BigInt(rawDigits));
-        } catch (e) {
-          formatted = rawDigits;
+        if (trimmed === '-') {
+          input.value = '-';
+          return;
         }
+
+        const isNegative = trimmed.startsWith('-');
+        const unsigned = isNegative ? trimmed.slice(1) : trimmed;
+        const hasComma = unsigned.includes(',');
+        const parts = unsigned.split(',');
+        const intDigits = parts[0].replace(/\D/g, '');
+        const decDigits = hasComma ? parts[1].replace(/\D/g, '').slice(0, 2) : null;
+
+        if (!intDigits && !hasComma) {
+          input.value = isNegative ? '-' : '';
+          return;
+        }
+
+        let formattedInt = '0';
+        if (intDigits) {
+          try {
+            formattedInt = new Intl.NumberFormat('vi-VN').format(BigInt(intDigits));
+          } catch (e) {
+            formattedInt = intDigits;
+          }
+        }
+        const sign = isNegative ? '-' : '';
+        const formatted = hasComma ? `${sign}${formattedInt},${decDigits}` : `${sign}${formattedInt}`;
         input.value = formatted;
 
         const newLength = formatted.length;
@@ -1037,10 +1097,11 @@ export class ContractsManager {
       });
 
       input.addEventListener('blur', () => {
-        if (!input.value.trim()) {
+        const v = input.value.trim();
+        if (!v || v === '-' || v === '-,' || v === ',') {
           input.value = '0';
         } else {
-          input.value = this.formatNumberWithDots(input.value);
+          input.value = this.formatNumberWithDots(this.parseNumberFromDots(v));
         }
       });
 
@@ -2029,11 +2090,11 @@ export class ContractsManager {
       totalSigned = appendixSum;
     }
 
-    // Lấy thanh toán thực tế
+    // Lấy thanh toán thực tế (nhân tỷ giá thời điểm thanh toán của từng đợt)
     const realPayments = this.getRealPayments(contract.id);
-    const totalAccepted = realPayments.reduce((sum, p) => sum + (p.accepted_vol || 0), 0);
-    const totalRequested = realPayments.reduce((sum, p) => sum + (p.request_amount || 0), 0);
-    const totalPaid = realPayments.reduce((sum, p) => sum + (p.paid_amount || 0), 0);
+    const totalAccepted = realPayments.reduce((sum, p) => sum + this.getPaymentVnd(p, 'accepted_vol'), 0);
+    const totalRequested = realPayments.reduce((sum, p) => sum + this.getPaymentVnd(p, 'request_amount'), 0);
+    const totalPaid = realPayments.reduce((sum, p) => sum + this.getPaymentVnd(p, 'paid_amount'), 0);
     const remaining = totalRequested - totalPaid;
     const paymentRate = totalSigned > 0 ? (totalPaid / totalSigned) * 100 : 0;
 
@@ -2866,17 +2927,34 @@ export class ContractsManager {
                     realPayments.length === 0
                       ? '<tr><td colspan="9" style="text-align:center; padding: 20px;">Chưa có đợt giải ngân nào. Bấm "+ Nhập đợt Giải ngân" để tạo.</td></tr>'
                       : realPayments
-                          .map(
-                            (p) => `
+                          .map((p) => {
+                            const pRate = this.getPaymentRate(p);
+                            const pAccVnd = this.getPaymentVnd(p, 'accepted_vol');
+                            const pReqVnd = this.getPaymentVnd(p, 'request_amount');
+                            const pPaidVnd = this.getPaymentVnd(p, 'paid_amount');
+                            const pRemVnd = pReqVnd - pPaidVnd;
+                            return `
                         <tr>
                           <td><strong>${this.formatDnNo(p.payment_no || p.item_index || '01')}</strong></td>
-                          <td>${p.item_name || 'Nghiệm thu giai đoạn'}</td>
+                          <td>
+                            ${p.item_name || 'Nghiệm thu giai đoạn'}
+                            ${pRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b;">Tỷ giá TT: ${pRate}</div>` : ''}
+                          </td>
                           <td>${this.formatDate(p.payment_date)}</td>
-                          <td class="num-col">${this.formatCurrency(p.accepted_vol)}</td>
-                          <td class="num-col">${this.formatCurrency(p.request_amount)}</td>
-                          <td class="num-col" style="color: var(--success);">${this.formatCurrency(p.paid_amount)}</td>
-                          <td class="num-col" style="color: ${p.remaining > 0 ? 'var(--danger)' : 'var(--text-main)'};">
-                            ${this.formatCurrency(p.remaining)}
+                          <td class="num-col">
+                            ${this.formatCurrency(pAccVnd)}
+                            ${pRate !== 1 && p.accepted_vol ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(p.accepted_vol)} nt</div>` : ''}
+                          </td>
+                          <td class="num-col">
+                            ${this.formatCurrency(pReqVnd)}
+                            ${pRate !== 1 && p.request_amount ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(p.request_amount)} nt</div>` : ''}
+                          </td>
+                          <td class="num-col" style="color: ${pPaidVnd < 0 ? 'var(--danger)' : 'var(--success)'};">
+                            ${this.formatCurrency(pPaidVnd)}
+                            ${pRate !== 1 && p.paid_amount ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(p.paid_amount)} nt</div>` : ''}
+                          </td>
+                          <td class="num-col" style="color: ${pRemVnd > 0 ? 'var(--danger)' : 'var(--text-main)'};">
+                            ${this.formatCurrency(pRemVnd)}
                           </td>
                           <td>
                             ${p.invoice_ref ? `<span class="badge badge-primary">HĐ: ${p.invoice_ref}</span>` : ''}
@@ -2891,8 +2969,8 @@ export class ContractsManager {
                             </button>
                           </td>
                         </tr>
-                      `
-                          )
+                      `;
+                          })
                           .join('')
                   }
                 </tbody>
@@ -6096,20 +6174,21 @@ export class ContractsManager {
 
     // Lọc danh sách hợp đồng khả dụng để người dùng có thể đổi HĐ ngay trong form
     const availableContracts = this.contracts.filter(c => c.project_id === (targetContract.project_id || this.currentProjectId));
+    const defaultPayRate = Number(targetContract.exchange_rate) || 1;
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 680px;">
+      <div class="modal-container" style="max-width: 700px;">
         <div class="modal-header">
-          <h3 id="payment-modal-title" style="font-size: 1.15rem; font-weight: 700; color: ${isCpb ? '#92400e' : 'inherit'};">
+          <h3 id="payment-modal-title" style="font-size: 1.05rem; font-weight: 700; color: ${isCpb ? '#92400e' : 'inherit'};">
             ${isCpb ? `<i class="fa-solid fa-receipt" style="color: #d97706;"></i> Nhập đợt Chi phí cho ${targetContract.scope_of_work || targetContract.contract_no}` : `Nhập đợt Giải ngân cho ${targetContract.contract_no}`}
           </h3>
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
         <div class="modal-body">
           <form id="form-payment">
-            <div class="form-group" style="margin-bottom: 14px;">
+            <div class="form-group" style="margin-bottom: 12px;">
               <label class="form-label">Chọn Hợp đồng / Khoản chi phí cần giải ngân <span style="color: var(--danger);">*</span></label>
               <select class="form-control" name="contract_id" id="payment-select-contract" required>
                 ${availableContracts.map((c) => {
@@ -6120,14 +6199,18 @@ export class ContractsManager {
               </select>
             </div>
 
-            <div class="form-grid-2">
+            <div class="form-grid-3">
               <div class="form-group">
-                <label class="form-label" id="lbl-payment-no">${isCpb ? 'Số Phiếu chi / Đợt chi' : 'Số Đề nghị thanh toán (Số ĐN)'}</label>
+                <label class="form-label" id="lbl-payment-no">${isCpb ? 'Số Phiếu chi / Đợt chi' : 'Số ĐN thanh toán'}</label>
                 <input type="text" class="form-control" name="payment_no" value="${String(nextIdx).padStart(2, '0')}" placeholder="Vd: 01 hoặc PC-01" required>
               </div>
               <div class="form-group">
                 <label class="form-label" id="lbl-payment-date">${isCpb ? 'Ngày chi tiền' : 'Ngày thanh toán'}</label>
                 <input type="date" class="form-control" name="payment_date" value="${new Date().toISOString().slice(0, 10)}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tỷ giá thời điểm TT</label>
+                <input type="number" step="any" min="0" class="form-control" id="pay-exchange-rate" name="exchange_rate" value="${defaultPayRate}" placeholder="Vd: 1 hoặc 25450.5" style="font-weight: 600;">
               </div>
             </div>
 
@@ -6137,17 +6220,17 @@ export class ContractsManager {
             </div>
 
             <div class="form-grid-2">
-              <div class="form-group" id="grp-accepted-vol">
-                <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-accepted" name="accepted_vol" value="0">
+              <div class="form-group" id="grp-accepted-vol" style="${isCpb ? 'display:none;' : ''}">
+                <label class="form-label">Khối lượng Nghiệm thu</label>
+                <input type="text" inputmode="decimal" class="form-control currency-input" id="pay-accepted" name="accepted_vol" value="0">
               </div>
               <div class="form-group">
-                <label class="form-label" id="lbl-request-amount">${isCpb ? 'Số tiền đề nghị chi (VNĐ)' : 'Bên B Đề nghị thanh toán (VNĐ)'}</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-requested" name="request_amount" value="0" required>
+                <label class="form-label" id="lbl-request-amount">${isCpb ? 'Số tiền đề nghị chi' : 'Đề nghị thanh toán'}</label>
+                <input type="text" inputmode="decimal" class="form-control currency-input" id="pay-requested" name="request_amount" value="0" required>
               </div>
               <div class="form-group">
-                <label class="form-label" id="lbl-paid-amount">${isCpb ? 'Số tiền thực tế đã chi (VNĐ)' : 'Bên A Thực tế đã thanh toán (VNĐ)'}</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" id="pay-paid" name="paid_amount" value="0" required>
+                <label class="form-label" id="lbl-paid-amount">${isCpb ? 'Số tiền thực tế đã chi' : 'Thực tế đã thanh toán'}</label>
+                <input type="text" inputmode="decimal" class="form-control currency-input" id="pay-paid" name="paid_amount" value="0" required>
               </div>
               <div class="form-group">
                 <label class="form-label" id="lbl-invoice-ref">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
@@ -6155,15 +6238,24 @@ export class ContractsManager {
               </div>
             </div>
 
+            <div id="pay-vnd-preview" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; font-size: 0.8rem; color: #0369a1; display: ${defaultPayRate !== 1 ? 'flex' : 'none'}; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <span><i class="fa-solid fa-coins"></i> Quy đổi VNĐ (× Tỷ giá <strong id="preview-rate-val">${defaultPayRate}</strong>):</span>
+              <span>Thực thanh toán: <strong id="preview-paid-vnd" style="font-size: 0.88rem; color: #0f172a;">0 ₫</strong></span>
+            </div>
+
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 10px;">
+              <i class="fa-solid fa-circle-info"></i> Cho phép nhập <strong>số âm (-)</strong> để ghi nhận dòng tiền trả về / điều chỉnh giảm, và tỷ giá <strong>số thập phân</strong> (vd: 25450.5).
+            </div>
+
             <div class="form-group">
               <label class="form-label">Ghi chú diễn giải</label>
               <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú người nhận tiền, số UNC hoặc mục đích chi..."></textarea>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
-              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" id="btn-submit-payment" class="button button-primary" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
-                ${isCpb ? '<i class="fa-solid fa-receipt"></i> Ghi sổ Chi phí' : 'Ghi sổ Thanh toán'}
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+              <button type="button" class="button button-outline button-sm btn-close-submodal">Hủy</button>
+              <button type="submit" id="btn-submit-payment" class="button button-primary button-sm" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
+                ${isCpb ? '<i class="fa-solid fa-receipt"></i> Ghi sổ Chi phí' : '<i class="fa-solid fa-floppy-disk"></i> Ghi sổ Thanh toán'}
               </button>
             </div>
           </form>
@@ -6176,6 +6268,29 @@ export class ContractsManager {
 
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
+
+    // Cập nhật realtime preview quy đổi VNĐ
+    const rateInput = modal.querySelector('#pay-exchange-rate');
+    const paidInput = modal.querySelector('#pay-paid');
+    const vndPreviewBox = modal.querySelector('#pay-vnd-preview');
+    const previewRateVal = modal.querySelector('#preview-rate-val');
+    const previewPaidVnd = modal.querySelector('#preview-paid-vnd');
+
+    const updatePayVndPreview = () => {
+      const rate = parseFloat(rateInput?.value) || 1;
+      const paid = this.parseNumberFromDots(paidInput?.value || '0');
+      if (vndPreviewBox) {
+        vndPreviewBox.style.display = rate !== 1 ? 'flex' : 'none';
+      }
+      if (previewRateVal) previewRateVal.textContent = rate;
+      if (previewPaidVnd) {
+        const vnd = Math.round(paid * rate);
+        previewPaidVnd.textContent = this.formatCurrency(vnd);
+        previewPaidVnd.style.color = vnd < 0 ? 'var(--danger)' : '#0f172a';
+      }
+    };
+    rateInput?.addEventListener('input', updatePayVndPreview);
+    paidInput?.addEventListener('input', updatePayVndPreview);
 
     // Lắng nghe thay đổi dropdown Hợp đồng
     const contractSelect = modal.querySelector('#payment-select-contract');
@@ -6197,10 +6312,14 @@ export class ContractsManager {
         if (submitBtn) {
           submitBtn.style.background = isCurrentCpb ? '#d97706' : '';
           submitBtn.style.borderColor = isCurrentCpb ? '#b45309' : '';
-          submitBtn.innerHTML = isCurrentCpb ? '<i class="fa-solid fa-receipt"></i> Ghi sổ Chi phí' : 'Ghi sổ Thanh toán';
+          submitBtn.innerHTML = isCurrentCpb ? '<i class="fa-solid fa-receipt"></i> Ghi sổ Chi phí' : '<i class="fa-solid fa-floppy-disk"></i> Ghi sổ Thanh toán';
         }
         if (acceptedGrp) {
           acceptedGrp.style.display = isCurrentCpb ? 'none' : '';
+        }
+        if (rateInput) {
+          rateInput.value = Number(foundContract.exchange_rate) || 1;
+          updatePayVndPreview();
         }
       }
     });
@@ -6212,6 +6331,8 @@ export class ContractsManager {
       const actualContract = this.contracts.find((c) => c.id === chosenContractId) || targetContract;
       const isActualCpb = actualContract.is_cpb || actualContract.contract_type === 'CPB' || (actualContract.id && actualContract.id.startsWith('B-CPB-'));
 
+      const exRate = parseFloat(formData.get('exchange_rate'));
+      const validRate = !isNaN(exRate) && exRate > 0 ? exRate : 1.0;
       const reqAmt = this.parseNumberFromDots(formData.get('request_amount'));
       const paidAmt = this.parseNumberFromDots(formData.get('paid_amount'));
 
@@ -6224,6 +6345,7 @@ export class ContractsManager {
         payment_no: formData.get('payment_no'),
         item_index: nextIdx,
         item_name: formData.get('item_name'),
+        exchange_rate: validRate,
         payment_date: formData.get('payment_date'),
         accepted_vol: isActualCpb ? paidAmt : this.parseNumberFromDots(formData.get('accepted_vol')),
         request_amount: reqAmt,
@@ -6249,12 +6371,14 @@ export class ContractsManager {
   // ==========================================
   openEditPaymentModal(payment, targetContract) {
     const isCpb = targetContract.is_cpb || targetContract.contract_type === 'CPB' || (targetContract.id && targetContract.id.startsWith('B-CPB-'));
+    const currentPayRate = this.getPaymentRate(payment);
+    const initialPaidVnd = Math.round((Number(payment.paid_amount) || 0) * currentPayRate);
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 650px;">
+      <div class="modal-container" style="max-width: 700px;">
         <div class="modal-header">
-          <h3 style="font-size: 1.15rem; font-weight: 700; color: ${isCpb ? '#92400e' : 'inherit'};">
+          <h3 style="font-size: 1.05rem; font-weight: 700; color: ${isCpb ? '#92400e' : 'inherit'};">
             <i class="fa-solid fa-pen-to-square" style="color: ${isCpb ? '#d97706' : 'var(--primary)'};"></i>
             ${isCpb ? `Chỉnh sửa Đợt Chi phí: ${this.formatDnNo(payment.payment_no)}` : `Chỉnh sửa Đợt Giải ngân: ${this.formatDnNo(payment.payment_no)}`}
           </h3>
@@ -6262,14 +6386,18 @@ export class ContractsManager {
         </div>
         <div class="modal-body">
           <form id="form-edit-payment">
-            <div class="form-grid-2">
+            <div class="form-grid-3">
               <div class="form-group">
-                <label class="form-label">${isCpb ? 'Số Phiếu chi / Đợt chi' : 'Số Đề nghị thanh toán (Số ĐN)'} <span style="color: var(--danger);">*</span></label>
+                <label class="form-label">${isCpb ? 'Số Phiếu chi / Đợt chi' : 'Số ĐN thanh toán'} <span style="color: var(--danger);">*</span></label>
                 <input type="text" class="form-control" name="payment_no" value="${payment.payment_no || ''}" placeholder="Vd: 01 hoặc PC-01" required>
               </div>
               <div class="form-group">
                 <label class="form-label">${isCpb ? 'Ngày chi tiền' : 'Ngày thanh toán'}</label>
                 <input type="date" class="form-control" name="payment_date" value="${this.formatDateForInput(payment.payment_date)}" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Tỷ giá thời điểm TT</label>
+                <input type="number" step="any" min="0" class="form-control" id="edit-pay-exchange-rate" name="exchange_rate" value="${currentPayRate}" placeholder="Vd: 1 hoặc 25450.5" style="font-weight: 600;">
               </div>
             </div>
 
@@ -6281,17 +6409,17 @@ export class ContractsManager {
             <div class="form-grid-2">
               ${isCpb ? '' : `
                 <div class="form-group">
-                  <label class="form-label">Khối lượng Nghiệm thu (VNĐ)</label>
-                  <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-accepted" name="accepted_vol" value="${this.formatNumberWithDots(payment.accepted_vol || 0)}">
+                  <label class="form-label">Khối lượng Nghiệm thu</label>
+                  <input type="text" inputmode="decimal" class="form-control currency-input" id="edit-pay-accepted" name="accepted_vol" value="${this.formatNumberWithDots(payment.accepted_vol || 0)}">
                 </div>
               `}
               <div class="form-group">
-                <label class="form-label">${isCpb ? 'Số tiền đề nghị chi (VNĐ)' : 'Bên B Đề nghị thanh toán (VNĐ)'}</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-requested" name="request_amount" value="${this.formatNumberWithDots(payment.request_amount || 0)}" required>
+                <label class="form-label">${isCpb ? 'Số tiền đề nghị chi' : 'Đề nghị thanh toán'}</label>
+                <input type="text" inputmode="decimal" class="form-control currency-input" id="edit-pay-requested" name="request_amount" value="${this.formatNumberWithDots(payment.request_amount || 0)}" required>
               </div>
               <div class="form-group">
-                <label class="form-label">${isCpb ? 'Số tiền thực tế đã chi (VNĐ)' : 'Bên A Thực tế đã thanh toán (VNĐ)'}</label>
-                <input type="text" inputmode="numeric" class="form-control currency-input" id="edit-pay-paid" name="paid_amount" value="${this.formatNumberWithDots(payment.paid_amount || 0)}" required>
+                <label class="form-label">${isCpb ? 'Số tiền thực tế đã chi' : 'Thực tế đã thanh toán'}</label>
+                <input type="text" inputmode="decimal" class="form-control currency-input" id="edit-pay-paid" name="paid_amount" value="${this.formatNumberWithDots(payment.paid_amount || 0)}" required>
               </div>
               <div class="form-group">
                 <label class="form-label">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
@@ -6299,14 +6427,23 @@ export class ContractsManager {
               </div>
             </div>
 
+            <div id="edit-pay-vnd-preview" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; font-size: 0.8rem; color: #0369a1; display: ${currentPayRate !== 1 ? 'flex' : 'none'}; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+              <span><i class="fa-solid fa-coins"></i> Quy đổi VNĐ (× Tỷ giá <strong id="edit-preview-rate-val">${currentPayRate}</strong>):</span>
+              <span>Thực thanh toán: <strong id="edit-preview-paid-vnd" style="font-size: 0.88rem; color: ${initialPaidVnd < 0 ? 'var(--danger)' : '#0f172a'};">${this.formatCurrency(initialPaidVnd)}</strong></span>
+            </div>
+
+            <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 10px;">
+              <i class="fa-solid fa-circle-info"></i> Cho phép nhập <strong>số âm (-)</strong> để ghi nhận dòng tiền trả về / điều chỉnh giảm, và tỷ giá <strong>số thập phân</strong> (vd: 25450.5).
+            </div>
+
             <div class="form-group">
               <label class="form-label">Ghi chú diễn giải</label>
               <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú người nhận tiền, số UNC...">${payment.note || ''}</textarea>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;">
-              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+              <button type="button" class="button button-outline button-sm btn-close-submodal">Hủy</button>
+              <button type="submit" class="button button-primary button-sm" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi
               </button>
             </div>
@@ -6321,16 +6458,39 @@ export class ContractsManager {
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
 
+    const editRateInput = modal.querySelector('#edit-pay-exchange-rate');
+    const editPaidInput = modal.querySelector('#edit-pay-paid');
+    const editVndBox = modal.querySelector('#edit-pay-vnd-preview');
+    const editPreviewRate = modal.querySelector('#edit-preview-rate-val');
+    const editPreviewPaidVnd = modal.querySelector('#edit-preview-paid-vnd');
+
+    const updateEditVndPreview = () => {
+      const rate = parseFloat(editRateInput?.value) || 1;
+      const paid = this.parseNumberFromDots(editPaidInput?.value || '0');
+      if (editVndBox) editVndBox.style.display = rate !== 1 ? 'flex' : 'none';
+      if (editPreviewRate) editPreviewRate.textContent = rate;
+      if (editPreviewPaidVnd) {
+        const vnd = Math.round(paid * rate);
+        editPreviewPaidVnd.textContent = this.formatCurrency(vnd);
+        editPreviewPaidVnd.style.color = vnd < 0 ? 'var(--danger)' : '#0f172a';
+      }
+    };
+    editRateInput?.addEventListener('input', updateEditVndPreview);
+    editPaidInput?.addEventListener('input', updateEditVndPreview);
+
     modal.querySelector('#form-edit-payment').addEventListener('submit', async (e) => {
       e.preventDefault();
       const formData = new FormData(e.target);
+      const exRate = parseFloat(formData.get('exchange_rate'));
+      const validRate = !isNaN(exRate) && exRate > 0 ? exRate : 1.0;
       const reqAmt = this.parseNumberFromDots(formData.get('request_amount'));
       const paidAmt = this.parseNumberFromDots(formData.get('paid_amount'));
 
       payment.payment_no = formData.get('payment_no');
       payment.payment_date = formData.get('payment_date');
       payment.item_name = formData.get('item_name');
-      payment.accepted_vol = this.parseNumberFromDots(formData.get('accepted_vol'));
+      payment.exchange_rate = validRate;
+      payment.accepted_vol = isCpb ? paidAmt : this.parseNumberFromDots(formData.get('accepted_vol'));
       payment.request_amount = reqAmt;
       payment.paid_amount = paidAmt;
       payment.remaining = reqAmt - paidAmt;
@@ -6378,7 +6538,11 @@ export class ContractsManager {
     csvContent += `--- BẢNG KÊ CÁC ĐỢT GIẢI NGÂN (ĐỀ NGHỊ THANH TOÁN - ĐN) ---\r\n`;
     csvContent += `ĐN,Nội dung thanh toán,Ngày thanh toán,Giá trị nghiệm thu,Đề nghị thanh toán,Thực trả,Chênh lệch,Hóa đơn VAT,Ghi chú\r\n`;
     realPayments.forEach((p) => {
-      csvContent += `"${this.formatDnNo(p.payment_no || p.item_index)}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${p.accepted_vol},${p.request_amount},${p.paid_amount},${p.remaining},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+      const pAcc = this.getPaymentVnd(p, 'accepted_vol');
+      const pReq = this.getPaymentVnd(p, 'request_amount');
+      const pPaid = this.getPaymentVnd(p, 'paid_amount');
+      const pRem = pReq - pPaid;
+      csvContent += `"${this.formatDnNo(p.payment_no || p.item_index)}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pAcc},${pReq},${pPaid},${pRem},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
     });
     csvContent += `\r\n`;
 
@@ -6442,10 +6606,10 @@ export class ContractsManager {
     contractsA.forEach((c) => familyAIds.add(c.id));
     realPayments.forEach((p) => {
       if (familyAIds.has(p.contract_id)) {
-        summaryA.acceptedVol += Number(p.accepted_vol) || 0;
-        summaryA.certifiedVol += Number(p.certified_vol || p.accepted_vol) || 0;
-        summaryA.requestedAmt += Number(p.request_amount) || 0;
-        summaryA.paidAmt += Number(p.paid_amount) || 0;
+        summaryA.acceptedVol += this.getPaymentVnd(p, 'accepted_vol');
+        summaryA.certifiedVol += this.getPaymentVnd(p, 'certified_vol', 'accepted_vol');
+        summaryA.requestedAmt += this.getPaymentVnd(p, 'request_amount');
+        summaryA.paidAmt += this.getPaymentVnd(p, 'paid_amount');
       }
     });
     summaryA.remaining = summaryA.requestedAmt - summaryA.paidAmt;
@@ -6472,11 +6636,11 @@ export class ContractsManager {
     realPayments.forEach((p) => {
       if (familyBIds.has(p.contract_id)) {
         const isCpbPay = /^B-CPB/i.test(p.contract_id);
-        const pAccepted = Number(p.accepted_vol) || (isCpbPay ? Number(p.paid_amount) || 0 : 0);
+        const pAccepted = this.getPaymentVnd(p, 'accepted_vol', isCpbPay ? 'paid_amount' : null);
         summaryB.acceptedVol += pAccepted;
-        summaryB.certifiedVol += Number(p.certified_vol) || pAccepted;
-        summaryB.requestedAmt += Number(p.request_amount) || 0;
-        summaryB.paidAmt += Number(p.paid_amount) || 0;
+        summaryB.certifiedVol += this.getPaymentVnd(p, 'certified_vol') || pAccepted;
+        summaryB.requestedAmt += this.getPaymentVnd(p, 'request_amount');
+        summaryB.paidAmt += this.getPaymentVnd(p, 'paid_amount');
       }
     });
     summaryB.remaining = summaryB.requestedAmt - summaryB.paidAmt;
@@ -6652,9 +6816,9 @@ export class ContractsManager {
         let cRequested = 0;
         let cPaid = 0;
         cPayments.forEach((p) => {
-          cAccepted += Number(p.accepted_vol) || (isCpb ? Number(p.paid_amount) || 0 : 0);
-          cRequested += Number(p.request_amount) || 0;
-          cPaid += Number(p.paid_amount) || 0;
+          cAccepted += this.getPaymentVnd(p, 'accepted_vol', isCpb ? 'paid_amount' : null);
+          cRequested += this.getPaymentVnd(p, 'request_amount');
+          cPaid += this.getPaymentVnd(p, 'paid_amount');
         });
 
         const st = this.calculateTotals(c);
@@ -6768,14 +6932,14 @@ export class ContractsManager {
       return dateA - dateB;
     });
 
-    // Tính tổng kết Total của hợp đồng này
+    // Tính tổng kết Total của hợp đồng này (đã quy đổi VNĐ theo tỷ giá thời điểm thanh toán)
     let dnTotalAccepted = 0;
     let dnTotalRequested = 0;
     let dnTotalPaid = 0;
     contractPayments.forEach((p) => {
-      dnTotalAccepted += Number(p.accepted_vol) || (isSelectedCpb ? Number(p.paid_amount) || 0 : 0);
-      dnTotalRequested += Number(p.request_amount) || 0;
-      dnTotalPaid += Number(p.paid_amount) || 0;
+      dnTotalAccepted += this.getPaymentVnd(p, 'accepted_vol', isSelectedCpb ? 'paid_amount' : null);
+      dnTotalRequested += this.getPaymentVnd(p, 'request_amount');
+      dnTotalPaid += this.getPaymentVnd(p, 'paid_amount');
     });
     const dnTotalRemaining = dnTotalRequested - dnTotalPaid;
 
@@ -6785,12 +6949,21 @@ export class ContractsManager {
         <tr>
           <td colspan="9" style="text-align: center; padding: 32px 16px; color: var(--text-muted);">
             <i class="fa-solid fa-receipt" style="font-size: 1.8rem; color: #cbd5e1; margin-bottom: 8px; display: block;"></i>
-            Hợp đồng này chưa có đợt giải ngân nào. Bấm nút <strong>"+ Thêm đợt thanh toán"</strong> ở góc phải để ghi nhận đợt thanh toán đầu tiên.
+            Hợp đồng này chưa có đợt giải ngân nào. Bấm nút <strong>"+ Thêm Đợt"</strong> ở góc phải để ghi nhận đợt thanh toán đầu tiên.
           </td>
         </tr>
       `;
     } else {
       contractPayments.forEach((p, idx) => {
+        const pRate = this.getPaymentRate(p);
+        const pAccRaw = Number(p.accepted_vol) || (isSelectedCpb ? Number(p.paid_amount) || 0 : 0);
+        const pReqRaw = Number(p.request_amount) || 0;
+        const pPaidRaw = Number(p.paid_amount) || 0;
+        const pAccVnd = Math.round(pAccRaw * pRate);
+        const pReqVnd = Math.round(pReqRaw * pRate);
+        const pPaidVnd = Math.round(pPaidRaw * pRate);
+        const pRemVnd = pReqVnd - pPaidVnd;
+
         detailRowsHtml += `
           <tr style="border-bottom: 1px solid #f1f5f9;">
             <td style="font-weight: 700; padding: 6px 10px; white-space: nowrap;">
@@ -6803,18 +6976,22 @@ export class ContractsManager {
             </td>
             <td style="padding: 6px 10px;">
               <div style="font-weight: 600; color: #1e293b; font-size: 0.81rem;">${p.item_name || 'Đợt thanh toán'}</div>
+              ${pRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b;">Tỷ giá TT: <strong>${pRate}</strong></div>` : ''}
             </td>
             <td style="text-align: right; padding: 6px 10px; white-space: nowrap;">
-              ${this.formatCurrency(p.accepted_vol || (isSelectedCpb ? p.paid_amount : 0))}
+              ${this.formatCurrency(pAccVnd)}
+              ${pRate !== 1 && pAccRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pAccRaw)} nt</div>` : ''}
             </td>
             <td style="text-align: right; padding: 6px 10px; white-space: nowrap; font-weight: 600;">
-              ${this.formatCurrency(p.request_amount || 0)}
+              ${this.formatCurrency(pReqVnd)}
+              ${pRate !== 1 && pReqRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pReqRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap; font-weight: 700; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">
-              ${this.formatCurrency(p.paid_amount || 0)}
+            <td style="text-align: right; padding: 6px 10px; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
+              ${this.formatCurrency(pPaidVnd)}
+              ${pRate !== 1 && pPaidRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(pPaidRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap; color: ${(p.remaining || 0) > 0 ? 'var(--danger)' : '#64748b'};">
-              ${this.formatCurrency(p.remaining || 0)}
+            <td style="text-align: right; padding: 6px 10px; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+              ${this.formatCurrency(pRemVnd)}
             </td>
             <td style="padding: 6px 10px; font-size: 0.78rem; color: #64748b;">
               ${p.invoice_ref ? `<span style="background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-family: monospace;">${p.invoice_ref}</span>` : ''}
@@ -7019,7 +7196,9 @@ export class ContractsManager {
       const cNo = c ? (c.contract_no || '') : '';
       const partner = c ? (isGroupA ? (c.company_a || '') : (c.company_b || '')) : '';
 
-      csvContent += `"${idx + 1}","${this.formatDnNo(p.payment_no || p.item_index)}","${groupName}","${p.contract_id || ''}","${cNo.replace(/"/g, '""')}","${partner.replace(/"/g, '""')}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${p.request_amount || 0},${p.paid_amount || 0},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+      const pReqVnd = this.getPaymentVnd(p, 'request_amount');
+      const pPaidVnd = this.getPaymentVnd(p, 'paid_amount');
+      csvContent += `"${idx + 1}","${this.formatDnNo(p.payment_no || p.item_index)}","${groupName}","${p.contract_id || ''}","${cNo.replace(/"/g, '""')}","${partner.replace(/"/g, '""')}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pReqVnd},${pPaidVnd},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
