@@ -2097,22 +2097,21 @@ export class ContractsManager {
    * - Đối với Giải ngân:
    *   Chỉ cộng các dòng thanh toán thực tế (is_header === false), không bao giờ cộng dòng Header.
    */
-  calculateTotals(contract) {
-    const isMain = !contract.parent_id;
-    const directChildren = this.getDirectChildren(contract.id);
+  calculateTotals(contract, depth = 0) {
+    const directChildren = depth < 10 ? this.getDirectChildren(contract.id) : [];
 
     const exchangeRate = Number(contract.exchange_rate) || 1.0;
     const baseValRaw = contract.contract_val || 0;
     const baseVal = Math.round(baseValRaw * exchangeRate);
 
-    // Tính tổng phụ lục con (đã nhân tỷ giá) và tổng các phụ lục có tích chọn cộng dồn (is_additive)
+    // Tính tổng phụ lục con đệ quy (hỗ trợ cả phụ lục có phụ lục con tạm tính, loại trừ Cancel)
     let appendixSum = 0;
     let additiveAppendixSum = 0;
 
     directChildren.forEach((ch) => {
       if (this.isContractCanceled(ch)) return;
-      const chRate = Number(ch.exchange_rate) || 1.0;
-      const chVal = Math.round((ch.contract_val || 0) * chRate);
+      const chStats = this.calculateTotals(ch, depth + 1);
+      const chVal = chStats.totalSigned;
       appendixSum += chVal;
 
       const isAdditive = ch.is_additive === true || ch.is_additive === 1 || ch.is_additive === '1';
@@ -2121,12 +2120,12 @@ export class ContractsManager {
       }
     });
 
-    // Giá trị hợp đồng chuẩn xác (VNĐ):
-    // 1. Nếu HĐ chủ được đánh dấu là tạm tính (is_provisional_val = true): KHÔNG cộng giá trị HĐ chủ, chỉ tổng hợp tổng giá trị các phụ lục con (không bị Cancel).
-    // 2. Nếu HĐ chính đã có giá trị (baseVal > 0): Tổng = baseVal + các phụ lục ĐƯỢC TÍCH CHỌN CỘNG DỒN.
-    //    Các phụ lục không tích chọn sẽ KHÔNG cộng dồn, tránh bị nhân đôi / đội khống giá trị HĐ và nhóm giải ngân.
-    // 3. Nếu HĐ khung ban đầu không có giá trị (baseVal === 0): Tổng = appendixSum (tổng các gói/phụ lục con).
-    const isProvisional = isMain && (contract.is_provisional_val === true || contract.is_provisional_val === 1 || contract.is_provisional_val === '1');
+    // Giá trị hợp đồng / phụ lục chuẩn xác (VNĐ):
+    // 1. Nếu HĐ chủ hoặc Phụ lục được đánh dấu là tạm tính (is_provisional_val = true):
+    //    KHÔNG cộng giá trị baseVal của chính nó, mà tổng hợp bằng tổng giá trị các phụ lục con trực tiếp (không bị Cancel).
+    // 2. Nếu có giá trị gốc (baseVal > 0): Tổng = baseVal + các phụ lục con ĐƯỢC TÍCH CHỌN CỘNG DỒN.
+    // 3. Nếu giá trị gốc = 0: Tổng = appendixSum (tổng các gói/phụ lục con).
+    const isProvisional = contract.is_provisional_val === true || contract.is_provisional_val === 1 || contract.is_provisional_val === '1';
     let totalSigned = 0;
     if (isProvisional) {
       totalSigned = appendixSum;
@@ -2635,7 +2634,7 @@ export class ContractsManager {
               ${this.getContractStatusBadgeHtml(child.status)}
             </td>
             <td class="col-app-val">
-              ${this.formatCurrency(Math.round((child.contract_val || 0) * (child.exchange_rate || 1)))}
+              ${this.formatCurrency(this.calculateTotals(child).totalSigned)}
               ${child.is_additive ? '<span class="badge badge-success" style="font-size: 0.65rem; margin-left: 4px;" title="Cộng dồn vào HĐ cha">+ Cộng dồn</span>' : '<span class="badge" style="font-size: 0.65rem; margin-left: 4px; background: #f1f5f9; color: #64748b;" title="Không cộng dồn vào HĐ cha">Không cộng dồn</span>'}
             </td>
             <td class="col-app-paid">${this.formatCurrency(childStats.totalPaid)}</td>
@@ -2821,7 +2820,7 @@ export class ContractsManager {
                           <td>${a.scope_of_work || '—'}</td>
                           <td style="text-align: center;">${this.getContractStatusBadgeHtml(a.status)}</td>
                           <td class="num-col" style="color: var(--primary); font-weight: 700;">
-                            ${this.formatCurrency(Math.round((a.contract_val || 0) * (a.exchange_rate || 1)))}
+                            ${this.formatCurrency(this.calculateTotals(a).totalSigned)}
                             ${a.is_additive ? '<span class="badge badge-success" style="font-size: 0.65rem; margin-left: 4px;">+ Cộng dồn</span>' : '<span class="badge" style="font-size: 0.65rem; margin-left: 4px; background: #f1f5f9; color: #64748b;">Không cộng dồn</span>'}
                           </td>
                           <td style="text-align: center;">${this.formatDate(a.signing_date)}</td>
@@ -4814,21 +4813,21 @@ export class ContractsManager {
                   </div>
                 </div>
               `
-                  : `
-                <!-- TÙY CHỌN GIÁ TRỊ HỢP ĐỒNG CHỦ LÀ TẠM TÍNH -->
-                <div style="background: #fffbeb; border: 1px dashed #fcd34d; border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 12px;">
-                  <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; color: #92400e; font-size: 0.84rem; margin: 0;">
-                    <input type="checkbox" name="is_provisional_val" id="chk-provisional-val" value="1" ${editContract?.is_provisional_val === true || editContract?.is_provisional_val === 1 || editContract?.is_provisional_val === '1' ? 'checked' : ''} style="margin-top: 3px; width: 15px; height: 15px; cursor: pointer; accent-color: #d97706;">
-                    <div>
-                      <strong>Giá trị hợp đồng chủ là tạm tính</strong>
-                      <div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">
-                        Khi tích chọn, giá trị hợp đồng chủ sẽ <strong>không tính</strong> vào bảng tổng hợp; hệ thống sẽ tự động lấy <strong>tổng giá trị các phụ lục con</strong> của hợp đồng này để cộng vào tổng hợp.
-                      </div>
-                    </div>
-                  </label>
-                </div>
-                  `
+                  : ''
               }
+
+              <!-- TÙY CHỌN GIÁ TRỊ TẠM TÍNH (ÁP DỤNG CHO CẢ HỢP ĐỒNG CHỦ VÀ PHỤ LỤC) -->
+              <div style="background: #fffbeb; border: 1px dashed #fcd34d; border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 12px;">
+                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; color: #92400e; font-size: 0.84rem; margin: 0;">
+                  <input type="checkbox" name="is_provisional_val" id="chk-provisional-val" value="1" ${editContract?.is_provisional_val === true || editContract?.is_provisional_val === 1 || editContract?.is_provisional_val === '1' ? 'checked' : ''} style="margin-top: 3px; width: 15px; height: 15px; cursor: pointer; accent-color: #d97706;">
+                  <div>
+                    <strong>${isAppendix ? 'Giá trị phụ lục này là tạm tính' : 'Giá trị hợp đồng chủ là tạm tính'}</strong>
+                    <div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">
+                      Khi tích chọn, giá trị ${isAppendix ? 'phụ lục này' : 'hợp đồng chủ'} sẽ <strong>không tính</strong> vào tổng hợp; hệ thống sẽ tự động lấy <strong>tổng giá trị các phụ lục con</strong> trực thuộc ${isAppendix ? 'phụ lục này' : 'hợp đồng này'} để tổng hợp.
+                    </div>
+                  </div>
+                </label>
+              </div>
             </div>
 
             <!-- 3. THÔNG TIN THỤ HƯỞNG & THANH TOÁN -->
@@ -5334,7 +5333,7 @@ export class ContractsManager {
         contract_val: this.parseNumberFromDots(formData.get('contract_val')),
         exchange_rate: parseFloat(formData.get('exchange_rate')) || 1.0,
         is_additive: isAppendix ? (formData.get('is_additive') === '1') : true,
-        is_provisional_val: !isAppendix ? (formData.get('is_provisional_val') === '1') : false,
+        is_provisional_val: formData.get('is_provisional_val') === '1',
         category: formData.get('category') || 'Construction',
         payee: (formData.get('payee') || compB || '').trim(),
         bank_account: (formData.get('bank_account') || '').trim(),
@@ -6902,7 +6901,7 @@ export class ContractsManager {
 
         const st = this.calculateTotals(c);
         const exRate = Number(c.exchange_rate) || 1.0;
-        const cVal = isMain ? st.totalSigned : Math.round((c.contract_val || 0) * exRate);
+        const cVal = st.totalSigned;
         const cRemaining = cRequested - cPaid;
         const cRate = cVal > 0 ? ((cPaid / cVal) * 100).toFixed(1) : (cRequested > 0 ? ((cPaid / cRequested) * 100).toFixed(1) : 0);
 
@@ -7119,7 +7118,7 @@ export class ContractsManager {
     const selIsMain = !selectedContract.parent_id;
     const selStats = this.calculateTotals(selectedContract);
     const selRate = Number(selectedContract.exchange_rate) || 1.0;
-    const selValVnd = selIsMain ? selStats.totalSigned : Math.round((selectedContract.contract_val || 0) * selRate);
+    const selValVnd = selStats.totalSigned;
 
     detailContainer.innerHTML = `
       <div class="disburse-detail-header" style="padding: 8px 16px; background: #ffffff; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
