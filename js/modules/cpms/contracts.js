@@ -2237,7 +2237,7 @@ export class ContractsManager {
               <div class="accordion-toggle-bar" data-toggle-appendix="${c.id}">
                 <span>
                   <i class="fa-solid ${isExpanded ? 'fa-folder-open' : 'fa-folder'}"></i>
-                  <span>${isExpanded ? 'Thu gọn' : 'Xem danh sách'} <strong>${directChildren.length} phụ lục con</strong> (Bấm vào bất kỳ dòng nào để vào riêng phụ lục đó)</span>
+                  <span>${isExpanded ? 'Thu gọn' : 'Xem danh sách'} <strong>${directChildren.length} phụ lục con</strong></span>
                 </span>
                 <i class="fa-solid ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
               </div>
@@ -2570,11 +2570,10 @@ export class ContractsManager {
 
             <!-- Danh sách phụ lục / gói con trực tiếp -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-              <h3 style="font-size: 1rem; font-weight: 700;">
+              <h3 style="font-size: 0.95rem; font-weight: 700;">
                 <i class="fa-solid fa-layer-group"></i> ${isMain ? 'Danh sách Phụ lục trực tiếp' : 'Các Gói con trực thuộc'} (${directChildren.length})
-                <small style="font-weight: normal; color: var(--text-muted); font-size: 0.8rem;">(Bấm vào bất kỳ dòng nào để vào riêng gói đó)</small>
               </h3>
-              <button id="btn-add-appendix" class="button button-primary" style="font-size: 0.8rem; padding: 4px 10px;">
+              <button id="btn-add-appendix" class="button button-primary button-sm">
                 <i class="fa-solid fa-plus"></i> ${isMain ? 'Thêm Phụ lục mới' : 'Thêm Gói con mới'}
               </button>
             </div>
@@ -6382,19 +6381,16 @@ export class ContractsManager {
     // 1.1 RENDER BẢNG SUMMARY CHUẨN CPMS PLUS
     summaryContainer.innerHTML = `
       <div class="disburse-summary-header">
-        <div style="font-weight: 800; font-size: 0.95rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
+        <div style="font-weight: 800; font-size: 0.9rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
           <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
           <span>BẢNG TỔNG HỢP TÀI CHÍNH & GIẢI NGÂN</span>
-        </div>
-        <div style="font-size: 0.8rem; color: var(--text-muted);">
-          Dự án: <strong style="color: var(--text-main);">${prjName}</strong>
         </div>
       </div>
       <div style="overflow-x: auto;">
         <table class="disburse-summary-table">
           <thead>
             <tr>
-              <th style="text-align: left;">Phân nhóm</th>
+              <th style="text-align: left; width: 120px;">Phân nhóm</th>
               <th style="text-align: right;">Dự toán</th>
               <th style="text-align: right;">Giá trị hợp đồng</th>
               <th style="text-align: right;">Khối lượng nghiệm thu</th>
@@ -6406,8 +6402,7 @@ export class ContractsManager {
           <tbody>
             <tr style="background: #f8fafc; font-weight: 600;">
               <td>
-                <span class="badge badge-primary" style="font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-landmark"></i> Nhóm A</span>
-                <span style="margin-left: 6px; color: #1e293b;">Dòng tiền Thu (Chủ đầu tư / Tổng thầu)</span>
+                <span class="badge badge-primary" style="font-size: 0.76rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 5px;"><i class="fa-solid fa-landmark"></i> Nhóm A</span>
               </td>
               <td style="text-align: right;">${this.formatCurrency(summaryA.estimatedVal)}</td>
               <td style="text-align: right; font-weight: 700; color: var(--primary);">${this.formatCurrency(summaryA.contractVal)}</td>
@@ -6419,8 +6414,7 @@ export class ContractsManager {
 
             <tr style="background: #ffffff; font-weight: 600;">
               <td>
-                <span class="badge badge-warning" style="font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-handshake"></i> Nhóm B</span>
-                <span style="margin-left: 6px; color: #1e293b;">Dòng tiền Chi (Thầu phụ, NCC & Chi phí Ban CPB)</span>
+                <span class="badge badge-warning" style="font-size: 0.76rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 5px;"><i class="fa-solid fa-handshake"></i> Nhóm B</span>
               </td>
               <td style="text-align: right;">${this.formatCurrency(summaryB.estimatedVal)}</td>
               <td style="text-align: right; font-weight: 700; color: #4f46e5;">${this.formatCurrency(summaryB.contractVal)}</td>
@@ -6431,15 +6425,13 @@ export class ContractsManager {
             </tr>
 
             <tr style="background: #f0fdf4; border-top: 2px solid #86efac; font-weight: 700;">
-              <td colspan="5" style="color: #166534; font-size: 0.825rem;">
-                <i class="fa-solid fa-scale-balanced" style="color: #16a34a; margin-right: 6px;"></i> Cân đối Dòng tiền Dự án (A Thu - B Chi)
+              <td colspan="5" style="color: #166534; font-size: 0.85rem;">
+                <i class="fa-solid fa-scale-balanced" style="color: #16a34a; margin-right: 6px;"></i> A - B
               </td>
-              <td style="text-align: right; font-size: 0.95rem; color: ${balance >= 0 ? 'var(--success)' : 'var(--danger)'};">
+              <td style="text-align: right; font-size: 0.92rem; color: ${balance >= 0 ? 'var(--success)' : 'var(--danger)'};">
                 ${balance >= 0 ? '+' : ''}${this.formatCurrency(balance)}
               </td>
-              <td style="text-align: right; font-size: 0.8rem; color: #166534;">
-                ${balance >= 0 ? 'Thặng dư dòng tiền' : 'Thâm hụt dòng tiền'}
-              </td>
+              <td></td>
             </tr>
           </tbody>
         </table>
@@ -6562,12 +6554,12 @@ export class ContractsManager {
       });
 
       contractsTableContainer.innerHTML = `
-        <div style="padding: 8px 16px; background: #f8fafc; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.825rem;">
+        <div style="padding: 8px 16px; background: #f8fafc; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem;">
           <span style="font-weight: 700; color: #1e293b;">
-            <i class="fa-solid fa-list-check" style="color: var(--primary);"></i> DANH SÁCH HỢP ĐỒNG & GIÁ TRỊ TỔNG HỢP (NHÓM ${this.disburseGroup})
+            <i class="fa-solid fa-list-check" style="color: var(--primary); margin-right: 4px;"></i> DANH SÁCH HỢP ĐỒNG & GIÁ TRỊ (NHÓM ${this.disburseGroup})
           </span>
-          <span style="color: var(--text-muted); font-size: 0.78rem;">
-            (Click vào một dòng để xem chi tiết các đợt giải ngân)
+          <span style="color: var(--text-muted); font-size: 0.78rem; font-weight: 600;">
+            ${filteredContracts.length} mục
           </span>
         </div>
         <div class="disburse-scroll-container disburse-scroll-15">

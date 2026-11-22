@@ -264,9 +264,9 @@
               <div class="dash-ab-header">
                 <div class="dash-ab-title">
                   <span class="badge badge-primary"><i class="fa-solid fa-landmark"></i> NHÓM A</span>
-                  <h3>Hợp đồng với Bên A (Chủ đầu tư / Tổng thầu)</h3>
+                  <h3>Hợp đồng Bên A (Chủ đầu tư)</h3>
                 </div>
-                <span class="dash-ab-tag tag-income"><i class="fa-solid fa-arrow-down-left"></i> Dòng tiền Thu vào</span>
+                <span class="dash-ab-tag tag-income"><i class="fa-solid fa-arrow-down-left"></i> Thu</span>
               </div>
               <div class="dash-ab-grid">
                 <div class="dash-ab-stat">
@@ -297,9 +297,9 @@
               <div class="dash-ab-header">
                 <div class="dash-ab-title">
                   <span class="badge badge-warning"><i class="fa-solid fa-handshake"></i> NHÓM B</span>
-                  <h3>Hợp đồng với Bên B (Nhà thầu phụ / Nhà cung cấp)</h3>
+                  <h3>Hợp đồng Bên B (Thầu phụ / NCC)</h3>
                 </div>
-                <span class="dash-ab-tag tag-expense"><i class="fa-solid fa-arrow-up-right"></i> Dòng tiền Chi ra</span>
+                <span class="dash-ab-tag tag-expense"><i class="fa-solid fa-arrow-up-right"></i> Chi</span>
               </div>
               <div class="dash-ab-grid">
                 <div class="dash-ab-stat">
@@ -329,11 +329,11 @@
           <!-- HÀNG THỐNG KÊ CÂN ĐỐI DÒNG TIỀN & HỒ SƠ DỰ ÁN -->
           <div class="grid-3" style="margin-bottom: 20px;">
             <div class="stat-box">
-              <div class="stat-label">Cân đối Dòng tiền (A Thu - B Chi)</div>
+              <div class="stat-label">Cân đối Dòng tiền (A - B)</div>
               <div class="stat-value" id="stat-cashflow-diff" style="color: var(--success);">
                 0 ₫
               </div>
-              <div class="stat-note">Thặng dư dòng tiền dự án</div>
+              <div class="stat-note">Chênh lệch Thu - Chi</div>
             </div>
             <div class="stat-box">
               <div class="stat-label">Tổng số Hồ sơ & Công văn</div>
@@ -404,17 +404,17 @@
           </div>
 
           <div class="cpms-container">
-            <!-- Tabs Nhóm A (Chủ đầu tư) / Nhóm B (Thầu phụ) + Nút Thêm Hợp đồng -->
-            <div class="tab-nav" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <!-- Tabs Nhóm A / Nhóm B + Nút Thêm Hợp đồng -->
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-color); margin-bottom: 14px; padding-bottom: 2px;">
+              <div class="tab-nav" style="margin-bottom: 0; border-bottom: none;">
                 <button class="tab-btn active group-tab-btn" data-group="A">
-                  <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Chủ đầu tư / Tổng thầu
+                  <i class="fa-solid fa-landmark"></i> Nhóm A (Chủ đầu tư)
                 </button>
                 <button class="tab-btn group-tab-btn" data-group="B">
-                  <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B: Hợp đồng Nhà thầu phụ / Nhà cung cấp
+                  <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B (Thầu phụ / NCC)
                 </button>
               </div>
-              <button id="btn-add-contract" class="button button-primary button-sm" style="font-weight: 600; white-space: nowrap;">
+              <button id="btn-add-contract" class="button button-primary button-sm" style="margin-bottom: 6px;">
                 <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
               </button>
             </div>
@@ -423,7 +423,7 @@
             <div class="filter-row">
               <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
                 <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-                <input type="text" id="contract-search-input" class="search-input" placeholder="Tìm theo số HĐ, tên đối tác, nội dung gói thầu, ghi chú thanh toán (hỗ trợ gõ không dấu)...">
+                <input type="text" id="contract-search-input" class="search-input" placeholder="Tìm theo số HĐ, tên đối tác, nội dung gói thầu...">
               </div>
               
               <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 8px;">
@@ -451,24 +451,24 @@
           </div>
 
           <!-- 2. THANH CÔNG CỤ TAB (A THU / B CHI) & CÁC NÚT HÀNH ĐỘNG -->
-          <div class="disburse-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-            <div class="tab-nav" style="margin: 0; display: flex; gap: 8px; flex-wrap: wrap;">
+          <div class="disburse-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 2px;">
+            <div class="tab-nav" style="margin: 0; border-bottom: none;">
               <button class="tab-btn disburse-group-btn active" data-disburse-group="A">
-                <i class="fa-solid fa-landmark"></i> Nhóm A: Hợp đồng Thu (Chủ đầu tư)
+                <i class="fa-solid fa-landmark"></i> Nhóm A (Thu)
               </button>
               <button class="tab-btn disburse-group-btn" data-disburse-group="B">
-                <i class="fa-solid fa-handshake"></i> Nhóm B: Hợp đồng Chi (Thầu phụ, NCC & CPB)
+                <i class="fa-solid fa-handshake"></i> Nhóm B (Chi)
               </button>
             </div>
 
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-              <!-- Nút Thêm Chi phí Ban (CPB) chuyển sang tab này, chỉ hiện khi chọn Nhóm B -->
-              <button id="btn-disburse-add-cpb" class="button button-outline button-sm hidden" style="color: #b45309; border-color: #fde68a; background: #fffbeb; font-weight: 600;" title="Thêm khoản Chi phí Ban (CPB) quản lý nội bộ">
-                <i class="fa-solid fa-receipt"></i> Thêm Chi phí Ban (CPB)
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px;">
+              <!-- Nút Thêm Chi phí Ban (CPB), chỉ hiện khi chọn Nhóm B -->
+              <button id="btn-disburse-add-cpb" class="button button-outline button-sm hidden" style="color: #b45309; border-color: #fde68a; background: #fffbeb;" title="Thêm khoản Chi phí Ban (CPB) quản lý nội bộ">
+                <i class="fa-solid fa-receipt"></i> Thêm CPB
               </button>
 
               <!-- Nút Thêm Thanh toán mới -->
-              <button id="btn-disburse-add-payment" class="button button-primary button-sm" style="font-weight: 600;" title="Ghi nhận thêm một đợt giải ngân / thanh toán mới">
+              <button id="btn-disburse-add-payment" class="button button-primary button-sm" title="Ghi nhận thêm một đợt giải ngân / thanh toán mới">
                 <i class="fa-solid fa-plus"></i> Thêm Thanh toán
               </button>
 
@@ -483,7 +483,7 @@
           <div class="filter-row" style="margin-bottom: 12px;">
             <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
               <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-              <input type="text" id="disburse-contract-search" class="search-input" placeholder="Tìm theo mã HĐ, số hiệu, tên đối tác, nội dung gói thầu...">
+              <input type="text" id="disburse-contract-search" class="search-input" placeholder="Tìm theo mã HĐ, số hiệu, tên đối tác...">
             </div>
           </div>
 
