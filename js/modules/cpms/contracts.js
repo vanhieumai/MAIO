@@ -6591,6 +6591,34 @@ export class ContractsManager {
       return cNo.includes(searchTerm) || cDisplay.includes(searchTerm) || cScope.includes(searchTerm) || cPartA.includes(searchTerm) || cPartB.includes(searchTerm);
     });
 
+    // Sắp xếp danh sách theo cột Mã từ nhỏ đến lớn (Natural Hierarchical Sort: B-1 < B-2 < B-11 < B-11.1 < B-11.2 ...; CPB xếp cuối)
+    filteredContracts.sort((a, b) => {
+      const isCpbA = Boolean(a.is_cpb || a.contract_type === 'CPB' || (a.id && String(a.id).startsWith('B-CPB-')));
+      const isCpbB = Boolean(b.is_cpb || b.contract_type === 'CPB' || (b.id && String(b.id).startsWith('B-CPB-')));
+      if (isCpbA !== isCpbB) return isCpbA ? 1 : -1;
+
+      const codeA = String(a.display_no || a.id || '').trim();
+      const codeB = String(b.display_no || b.id || '').trim();
+      const partsA = codeA.split(/[-.]/);
+      const partsB = codeB.split(/[-.]/);
+      const minLen = Math.min(partsA.length, partsB.length);
+
+      for (let i = 0; i < minLen; i++) {
+        const pA = partsA[i];
+        const pB = partsB[i];
+        const isNumA = /^\d+$/.test(pA);
+        const isNumB = /^\d+$/.test(pB);
+        if (isNumA && isNumB) {
+          const diff = Number(pA) - Number(pB);
+          if (diff !== 0) return diff;
+        } else {
+          const cmp = pA.localeCompare(pB, 'vi', { numeric: true, sensitivity: 'base' });
+          if (cmp !== 0) return cmp;
+        }
+      }
+      return partsA.length - partsB.length;
+    });
+
     // Xác định mục đang chọn (nếu chưa có hoặc không nằm trong nhóm thì chọn mục đầu tiên)
     const existsSelected = filteredContracts.some((c) => c.id === this.selectedDisburseContractId);
     if (!existsSelected && filteredContracts.length > 0) {
