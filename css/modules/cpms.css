@@ -1093,6 +1093,8 @@ textarea.form-control:focus {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 6px 10px;
+  min-height: 48px;
+  box-sizing: border-box;
   margin-bottom: 12px;
   box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
   position: sticky;
@@ -1475,6 +1477,93 @@ textarea.form-control:focus {
   border-color: #818cf8 !important;
   transform: translateY(-1px);
   box-shadow: 0 2px 6px rgba(79, 70, 229, 0.15);
+}
+
+/* ==========================================================================
+   Sticky Controls Bar (Tab Nhóm A/B + Thanh tìm kiếm & Bộ lọc dính trên cùng)
+   ========================================================================== */
+.cpms-sticky-controls {
+  position: sticky;
+  top: 102px; /* Khít sát cạnh dưới .cpms-subnav-tabs (54px header + 48px subnav) */
+  z-index: 65;
+  background: rgba(255, 255, 255, 0.97);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 4px 12px 9px 12px;
+  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.06);
+  margin-bottom: 12px;
+}
+
+.cpms-sticky-tabs-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 8px;
+  padding-bottom: 2px;
+}
+
+.cpms-sticky-filter-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Ô tìm kiếm có icon và nút Clear Search (×) */
+.search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 220px;
+}
+
+.search-input-wrap .search-icon {
+  position: absolute;
+  left: 11px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  pointer-events: none;
+}
+
+.search-input-wrap .search-input {
+  width: 100%;
+  padding: 6px 32px 6px 32px;
+  height: 34px;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.btn-clear-search {
+  position: absolute;
+  right: 7px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #e2e8f0;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.btn-clear-search:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+
+.btn-clear-search.hidden {
+  display: none !important;
 }
 
 /* ==========================================================================

@@ -676,8 +676,22 @@ export class ContractsManager {
     });
 
     const searchInput = document.getElementById('contract-search-input');
+    const clearContractSearchBtn = document.getElementById('btn-clear-contract-search');
     searchInput?.addEventListener('input', (e) => {
       this.searchQuery = e.target.value.trim();
+      if (clearContractSearchBtn) {
+        clearContractSearchBtn.classList.toggle('hidden', !e.target.value);
+      }
+      this.render();
+    });
+
+    clearContractSearchBtn?.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
+      this.searchQuery = '';
+      clearContractSearchBtn.classList.add('hidden');
       this.render();
     });
 
@@ -1811,6 +1825,98 @@ export class ContractsManager {
       select.value = this.categoryFilter;
     } else {
       this.categoryFilter = 'ALL';
+      select.value = 'ALL';
+    }
+  }
+
+  getEffectiveCategory(contract) {
+    if (!contract) return '';
+    if (contract.is_cpb || contract.contract_type === 'CPB' || (contract.id && contract.id.startsWith('B-CPB-'))) {
+      return 'CPB';
+    }
+    let cat = (contract.category || '').trim();
+    if (cat) return cat;
+    // Kế thừa từ hợp đồng cha nếu là phụ lục con
+    let cur = contract;
+    let guard = 0;
+    while (cur && cur.parent_id && guard < 10) {
+      const parent = this.contracts.find((item) => item.id === cur.parent_id);
+      if (!parent) break;
+      if (parent.is_cpb || parent.contract_type === 'CPB') return 'CPB';
+      if ((parent.category || '').trim()) return parent.category.trim();
+      cur = parent;
+      guard++;
+    }
+    return '';
+  }
+
+  updateDisburseCategoryFilterUI() {
+    const select = document.getElementById('disburse-category-filter');
+    if (!select) return;
+
+    const groupContracts = this.contracts.filter((c) => c.group === this.disburseGroup);
+    const standardCategories = [
+      { key: 'Construction', name: 'Thi công / Xây lắp' },
+      { key: 'Procurement', name: 'Mua sắm vật tư' },
+      { key: 'Consultancy', name: 'Tư vấn giám sát / Thẩm tra' },
+      { key: 'Design', name: 'Thiết kế / Khảo sát' },
+      { key: 'Equipment', name: 'Thiết bị MEP / Cơ điện' },
+      { key: 'Service', name: 'Dịch vụ / Vệ sinh / Bảo vệ' },
+      { key: 'Maintenance', name: 'Bảo trì / Vận hành' },
+      { key: 'Rental', name: 'Thuê thiết bị / Nhân công' },
+      { key: 'Design & Build', name: 'Tổng thầu EPC / D&B' },
+      { key: 'CPB', name: 'Chi phí Ban / Quản lý' },
+    ];
+
+    const catCounts = {};
+    let otherCount = 0;
+
+    groupContracts.forEach((c) => {
+      const cCat = this.getEffectiveCategory(c);
+      if (!cCat) {
+        otherCount++;
+        return;
+      }
+      const matched = standardCategories.find(
+        (sc) => sc.key.toLowerCase() === cCat.toLowerCase()
+      );
+      if (matched) {
+        catCounts[matched.key] = (catCounts[matched.key] || 0) + 1;
+      } else {
+        catCounts[cCat] = (catCounts[cCat] || 0) + 1;
+      }
+    });
+
+    let optionsHtml = `<option value="ALL">📁 Tất cả loại hợp đồng (${groupContracts.length})</option>`;
+
+    standardCategories.forEach((sc) => {
+      const count = catCounts[sc.key] || 0;
+      if (count > 0) {
+        optionsHtml += `<option value="${sc.key}">🏷️ ${sc.key} - ${sc.name} (${count})</option>`;
+      }
+    });
+
+    Object.keys(catCounts).forEach((catKey) => {
+      const isStd = standardCategories.some(
+        (sc) => sc.key.toLowerCase() === catKey.toLowerCase()
+      );
+      if (!isStd) {
+        optionsHtml += `<option value="${catKey}">🏷️ ${catKey} (${catCounts[catKey]})</option>`;
+      }
+    });
+
+    if (otherCount > 0) {
+      optionsHtml += `<option value="OTHER">📁 Khác / Chưa phân loại (${otherCount})</option>`;
+    }
+
+    select.innerHTML = optionsHtml;
+
+    const curFilter = this.disburseCategoryFilter || 'ALL';
+    const exists = Array.from(select.options).some((opt) => opt.value === curFilter);
+    if (exists) {
+      select.value = curFilter;
+    } else {
+      this.disburseCategoryFilter = 'ALL';
       select.value = 'ALL';
     }
   }
@@ -6458,18 +6564,31 @@ export class ContractsManager {
       }
     }
 
+    // Cập nhật dropdown bộ lọc Loại hợp đồng cho Tab Giải ngân
+    this.updateDisburseCategoryFilterUI();
+
     // 3. LẤY DANH SÁCH HỢP ĐỒNG THUỘC NHÓM ĐANG CHỌN (KÈM CPB TRONG NHÓM B)
     const curGroupContracts = this.contracts.filter((c) => c.group === this.disburseGroup);
     
-    // Nếu có tìm kiếm thì lọc
+    // Lọc theo Loại hợp đồng và từ khóa tìm kiếm
+    const catFilter = this.disburseCategoryFilter || 'ALL';
     const searchTerm = (this.disburseContractSearchTerm || '').trim().toLowerCase();
     const filteredContracts = curGroupContracts.filter((c) => {
+      if (catFilter !== 'ALL') {
+        const effCat = this.getEffectiveCategory(c);
+        if (catFilter === 'OTHER') {
+          if (effCat) return false;
+        } else if (effCat.toLowerCase() !== catFilter.toLowerCase()) {
+          return false;
+        }
+      }
       if (!searchTerm) return true;
       const cNo = String(c.contract_no || c.id || '').toLowerCase();
+      const cDisplay = String(c.display_no || '').toLowerCase();
       const cScope = String(c.scope_of_work || '').toLowerCase();
       const cPartA = String(c.company_a || '').toLowerCase();
       const cPartB = String(c.company_b || '').toLowerCase();
-      return cNo.includes(searchTerm) || cScope.includes(searchTerm) || cPartA.includes(searchTerm) || cPartB.includes(searchTerm);
+      return cNo.includes(searchTerm) || cDisplay.includes(searchTerm) || cScope.includes(searchTerm) || cPartA.includes(searchTerm) || cPartB.includes(searchTerm);
     });
 
     // Xác định mục đang chọn (nếu chưa có hoặc không nằm trong nhóm thì chọn mục đầu tiên)
@@ -6800,6 +6919,7 @@ export class ContractsManager {
         btn.addEventListener('click', () => {
           this.disburseGroup = btn.getAttribute('data-disburse-group');
           this.selectedDisburseContractId = null;
+          this.disburseCategoryFilter = 'ALL';
           this.renderDisbursementsTab();
         });
       });
@@ -6815,9 +6935,31 @@ export class ContractsManager {
         this.openPaymentEntryModal(curContract);
       });
 
-      // Tìm kiếm hợp đồng giải ngân
-      document.getElementById('disburse-contract-search')?.addEventListener('input', (e) => {
+      // Tìm kiếm hợp đồng giải ngân & nút Clear Search
+      const disburseSearchInput = document.getElementById('disburse-contract-search');
+      const clearDisburseSearchBtn = document.getElementById('btn-clear-disburse-search');
+      disburseSearchInput?.addEventListener('input', (e) => {
         this.disburseContractSearchTerm = e.target.value.trim().toLowerCase();
+        if (clearDisburseSearchBtn) {
+          clearDisburseSearchBtn.classList.toggle('hidden', !e.target.value);
+        }
+        this.renderDisbursementsTab();
+      });
+
+      clearDisburseSearchBtn?.addEventListener('click', () => {
+        if (disburseSearchInput) {
+          disburseSearchInput.value = '';
+          disburseSearchInput.focus();
+        }
+        this.disburseContractSearchTerm = '';
+        clearDisburseSearchBtn.classList.add('hidden');
+        this.renderDisbursementsTab();
+      });
+
+      // Lọc theo Loại hợp đồng trong tab Giải ngân
+      document.getElementById('disburse-category-filter')?.addEventListener('change', (e) => {
+        this.disburseCategoryFilter = e.target.value;
+        this.selectedDisburseContractId = null;
         this.renderDisbursementsTab();
       });
 

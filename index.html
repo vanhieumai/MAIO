@@ -403,36 +403,40 @@
             <!-- Render tự động bởi contracts.js -->
           </div>
 
-          <div class="cpms-container">
-            <!-- Tabs Nhóm A / Nhóm B + Nút Thêm Hợp đồng -->
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-color); margin-bottom: 14px; padding-bottom: 2px;">
-              <div class="tab-nav" style="margin-bottom: 0; border-bottom: none;">
-                <button class="tab-btn active group-tab-btn" data-group="A">
-                  <i class="fa-solid fa-landmark"></i> Nhóm A (Chủ đầu tư)
-                </button>
-                <button class="tab-btn group-tab-btn" data-group="B">
-                  <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B (Thầu phụ / NCC)
+          <div class="cpms-container" style="gap: 0;">
+            <!-- KHỐI ĐIỀU KHIỂN STICKY: Tabs Nhóm A/B + Thanh tìm kiếm & Lọc loại HĐ -->
+            <div class="cpms-sticky-controls">
+              <div class="cpms-sticky-tabs-row">
+                <div class="tab-nav" style="margin-bottom: 0; border-bottom: none;">
+                  <button class="tab-btn active group-tab-btn" data-group="A">
+                    <i class="fa-solid fa-landmark"></i> Nhóm A (Chủ đầu tư)
+                  </button>
+                  <button class="tab-btn group-tab-btn" data-group="B">
+                    <i class="fa-solid fa-truck-ramp-box"></i> Nhóm B (Thầu phụ / NCC)
+                  </button>
+                </div>
+                <button id="btn-add-contract" class="button button-primary button-sm" style="margin-bottom: 4px;">
+                  <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
                 </button>
               </div>
-              <button id="btn-add-contract" class="button button-primary button-sm" style="margin-bottom: 6px;">
-                <i class="fa-solid fa-plus"></i> Thêm Hợp đồng
-              </button>
-            </div>
 
-            <!-- Bộ lọc & Tìm kiếm -->
-            <div class="filter-row">
-              <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
-                <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-                <input type="text" id="contract-search-input" class="search-input" placeholder="Tìm theo số HĐ, tên đối tác, nội dung gói thầu...">
-              </div>
-              
-              <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 8px;">
-                <label for="contract-category-filter" style="font-size: 0.825rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap;">
-                  <i class="fa-solid fa-filter"></i> Loại HĐ:
-                </label>
-                <select id="contract-category-filter" class="form-control" style="width: auto; min-width: 200px; height: 34px; padding: 4px 10px; font-size: 0.825rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer;">
-                  <option value="ALL">📁 Tất cả loại hợp đồng</option>
-                </select>
+              <div class="cpms-sticky-filter-row">
+                <div class="search-input-wrap">
+                  <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                  <input type="text" id="contract-search-input" class="search-input" placeholder="Tìm theo số HĐ, tên đối tác, nội dung gói thầu...">
+                  <button type="button" id="btn-clear-contract-search" class="btn-clear-search hidden" title="Xóa từ khóa tìm kiếm">
+                    <i class="fa-solid fa-xmark"></i>
+                  </button>
+                </div>
+                
+                <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 8px;">
+                  <label for="contract-category-filter" style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                    <i class="fa-solid fa-filter"></i> Loại HĐ:
+                  </label>
+                  <select id="contract-category-filter" class="form-control" style="width: auto; min-width: 200px; height: 34px; padding: 4px 10px; font-size: 0.82rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer;">
+                    <option value="ALL">📁 Tất cả loại hợp đồng</option>
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -450,40 +454,53 @@
             <!-- Render tự động bởi contracts.js -->
           </div>
 
-          <!-- 2. THANH CÔNG CỤ TAB (A THU / B CHI) & CÁC NÚT HÀNH ĐỘNG -->
-          <div class="disburse-toolbar" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--border-color); padding-bottom: 2px;">
-            <div class="tab-nav" style="margin: 0; border-bottom: none;">
-              <button class="tab-btn disburse-group-btn active" data-disburse-group="A">
-                <i class="fa-solid fa-landmark"></i> Nhóm A (Thu)
-              </button>
-              <button class="tab-btn disburse-group-btn" data-disburse-group="B">
-                <i class="fa-solid fa-handshake"></i> Nhóm B (Chi)
-              </button>
+          <!-- 2 & 3. KHỐI ĐIỀU KHIỂN STICKY: Tab A/B + Nút hành động + Thanh tìm kiếm & Lọc loại HĐ -->
+          <div class="cpms-sticky-controls">
+            <div class="cpms-sticky-tabs-row">
+              <div class="tab-nav" style="margin: 0; border-bottom: none;">
+                <button class="tab-btn disburse-group-btn active" data-disburse-group="A">
+                  <i class="fa-solid fa-landmark"></i> Nhóm A (Thu)
+                </button>
+                <button class="tab-btn disburse-group-btn" data-disburse-group="B">
+                  <i class="fa-solid fa-handshake"></i> Nhóm B (Chi)
+                </button>
+              </div>
+
+              <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px;">
+                <!-- Nút Thêm Chi phí Ban (CPB), chỉ hiện khi chọn Nhóm B -->
+                <button id="btn-disburse-add-cpb" class="button button-outline button-sm hidden" style="color: #b45309; border-color: #fde68a; background: #fffbeb;" title="Thêm khoản Chi phí Ban (CPB) quản lý nội bộ">
+                  <i class="fa-solid fa-receipt"></i> Thêm CPB
+                </button>
+
+                <!-- Nút Thêm Thanh toán mới -->
+                <button id="btn-disburse-add-payment" class="button button-primary button-sm" title="Ghi nhận thêm một đợt giải ngân / thanh toán mới">
+                  <i class="fa-solid fa-plus"></i> Thêm Thanh toán
+                </button>
+
+                <!-- Nút Xuất Excel -->
+                <button id="btn-export-disbursements-excel" class="button button-outline button-sm" title="Xuất toàn bộ bảng kê giải ngân ra file Excel / CSV">
+                  <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất Excel
+                </button>
+              </div>
             </div>
 
-            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px;">
-              <!-- Nút Thêm Chi phí Ban (CPB), chỉ hiện khi chọn Nhóm B -->
-              <button id="btn-disburse-add-cpb" class="button button-outline button-sm hidden" style="color: #b45309; border-color: #fde68a; background: #fffbeb;" title="Thêm khoản Chi phí Ban (CPB) quản lý nội bộ">
-                <i class="fa-solid fa-receipt"></i> Thêm CPB
-              </button>
+            <div class="cpms-sticky-filter-row">
+              <div class="search-input-wrap">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="disburse-contract-search" class="search-input" placeholder="Tìm theo mã HĐ, số hiệu, tên đối tác...">
+                <button type="button" id="btn-clear-disburse-search" class="btn-clear-search hidden" title="Xóa từ khóa tìm kiếm">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
 
-              <!-- Nút Thêm Thanh toán mới -->
-              <button id="btn-disburse-add-payment" class="button button-primary button-sm" title="Ghi nhận thêm một đợt giải ngân / thanh toán mới">
-                <i class="fa-solid fa-plus"></i> Thêm Thanh toán
-              </button>
-
-              <!-- Nút Xuất Excel -->
-              <button id="btn-export-disbursements-excel" class="button button-outline button-sm" title="Xuất toàn bộ bảng kê giải ngân ra file Excel / CSV">
-                <i class="fa-solid fa-file-excel" style="color: #10b981;"></i> Xuất Excel
-              </button>
-            </div>
-          </div>
-
-          <!-- 3. THANH TÌM KIẾM HỢP ĐỒNG GIẢI NGÂN -->
-          <div class="filter-row" style="margin-bottom: 12px;">
-            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 250px;">
-              <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-              <input type="text" id="disburse-contract-search" class="search-input" placeholder="Tìm theo mã HĐ, số hiệu, tên đối tác...">
+              <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 8px;">
+                <label for="disburse-category-filter" style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap;">
+                  <i class="fa-solid fa-filter"></i> Loại HĐ:
+                </label>
+                <select id="disburse-category-filter" class="form-control" style="width: auto; min-width: 200px; height: 34px; padding: 4px 10px; font-size: 0.82rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer;">
+                  <option value="ALL">📁 Tất cả loại hợp đồng</option>
+                </select>
+              </div>
             </div>
           </div>
 
