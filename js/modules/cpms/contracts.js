@@ -981,6 +981,47 @@ export class ContractsManager {
     return `ĐN-${s}`;
   }
 
+  isContractCanceled(c) {
+    const s = String(c?.status || '').trim().toLowerCase();
+    return s === 'cancel' || s === 'cancelled' || s === 'canceled' || s === 'hủy' || s === 'terminated';
+  }
+
+  isContractCompleted(c) {
+    const s = String(c?.status || '').trim().toLowerCase();
+    return s === 'completed' || s === 'closed' || s === 'done' || s === 'hoàn thành' || s === 'đã quyết toán';
+  }
+
+  isContractOrAncestorCanceled(c) {
+    if (!c) return false;
+    if (this.isContractCanceled(c)) return true;
+    let cur = c;
+    let guard = 0;
+    while (cur && cur.parent_id && guard < 10) {
+      const parent = this.contracts.find((item) => item.id === cur.parent_id);
+      if (!parent) break;
+      if (this.isContractCanceled(parent)) return true;
+      cur = parent;
+      guard++;
+    }
+    return false;
+  }
+
+  getContractStatusBadgeHtml(status, compact = false) {
+    const raw = String(status || 'Active').trim();
+    const s = raw.toLowerCase();
+    const style = compact ? ' style="font-size: 0.66rem; padding: 1px 5px; margin-left: 5px;"' : '';
+    if (s === 'cancel' || s === 'cancelled' || s === 'canceled' || s === 'hủy' || s === 'terminated') {
+      return `<span class="badge badge-status-cancel"${style}><i class="fa-solid fa-ban"></i> ${raw}</span>`;
+    }
+    if (s === 'completed' || s === 'closed' || s === 'done' || s === 'hoàn thành' || s === 'đã quyết toán') {
+      return `<span class="badge badge-status-completed"${style}><i class="fa-solid fa-circle-check"></i> ${raw}</span>`;
+    }
+    if (s === 'suspended' || s === 'pending' || s === 'tạm ngưng' || s === 'tạm dừng') {
+      return `<span class="badge badge-warning"${style}>${raw}</span>`;
+    }
+    return `<span class="badge badge-success"${style}>${raw}</span>`;
+  }
+
   getPaymentRate(p) {
     const r = parseFloat(p?.exchange_rate);
     return !isNaN(r) && r > 0 ? r : 1.0;
@@ -1219,9 +1260,9 @@ export class ContractsManager {
       selOpt.textContent = `📁 ${curPrj.name || curPrj.id}`;
     }
 
-    // 2. Thống kê chi tiết Hợp đồng & Phụ lục nhóm A (Chủ đầu tư / Tổng thầu)
-    const mainA = this.contracts.filter((c) => !c.parent_id && c.group === 'A');
-    const appA = this.contracts.filter((c) => c.parent_id && c.group === 'A');
+    // 2. Thống kê chi tiết Hợp đồng & Phụ lục nhóm A (loại trừ hợp đồng Cancel)
+    const mainA = this.contracts.filter((c) => !c.parent_id && c.group === 'A' && !this.isContractCanceled(c));
+    const appA = this.contracts.filter((c) => c.parent_id && c.group === 'A' && !this.isContractOrAncestorCanceled(c));
     let totalSignedA = 0;
     let totalPaidA = 0;
     mainA.forEach((c) => {
@@ -1230,9 +1271,9 @@ export class ContractsManager {
       totalPaidA += st.totalPaid;
     });
 
-    // 3. Thống kê chi tiết Hợp đồng & Phụ lục nhóm B (Nhà thầu phụ / Nhà cung cấp)
-    const mainB = this.contracts.filter((c) => !c.parent_id && c.group === 'B');
-    const appB = this.contracts.filter((c) => c.parent_id && c.group === 'B');
+    // 3. Thống kê chi tiết Hợp đồng & Phụ lục nhóm B (loại trừ hợp đồng Cancel)
+    const mainB = this.contracts.filter((c) => !c.parent_id && c.group === 'B' && !this.isContractCanceled(c));
+    const appB = this.contracts.filter((c) => c.parent_id && c.group === 'B' && !this.isContractOrAncestorCanceled(c));
     let totalSignedB = 0;
     let totalPaidB = 0;
     mainB.forEach((c) => {
@@ -2069,6 +2110,7 @@ export class ContractsManager {
     let additiveAppendixSum = 0;
 
     directChildren.forEach((ch) => {
+      if (this.isContractCanceled(ch)) return;
       const chRate = Number(ch.exchange_rate) || 1.0;
       const chVal = Math.round((ch.contract_val || 0) * chRate);
       appendixSum += chVal;
@@ -2318,8 +2360,14 @@ export class ContractsManager {
           `;
         }
 
+        const cardStatusClass = this.isContractCanceled(c)
+          ? ' card-status-cancel'
+          : this.isContractCompleted(c)
+          ? ' card-status-completed'
+          : '';
+
         return `
-          <div class="contract-group-wrapper" data-contract-id="${c.id}">
+          <div class="contract-group-wrapper${cardStatusClass}" data-contract-id="${c.id}">
             <!-- Card Hợp đồng -->
             <div class="contract-card-main" data-open-detail="${c.id}">
               <div class="contract-header">
@@ -2329,7 +2377,7 @@ export class ContractsManager {
                     <span>${c.contract_no || c.id}</span>
                     <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}">Nhóm ${c.group}</span>
                     ${c.category ? `<span class="badge" style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${c.category}</span>` : ''}
-                    <span class="badge badge-success">${c.status || 'Active'}</span>
+                    ${this.getContractStatusBadgeHtml(c.status)}
                   </div>
                   <div class="contract-title">${c.scope_of_work || 'Hợp đồng thực hiện dự án'}</div>
                 </div>
@@ -2579,7 +2627,7 @@ export class ContractsManager {
               ${hasSub ? '<strong>' + child.scope_of_work + '</strong>' : child.scope_of_work || 'Phụ lục hợp đồng'}
             </td>
             <td class="col-app-status">
-              <span class="badge ${child.status === 'Active' ? 'badge-success' : 'badge-warning'}">${child.status || 'Active'}</span>
+              ${this.getContractStatusBadgeHtml(child.status)}
             </td>
             <td class="col-app-val">
               ${this.formatCurrency(Math.round((child.contract_val || 0) * (child.exchange_rate || 1)))}
@@ -2648,7 +2696,7 @@ export class ContractsManager {
               </h2>
               <span class="badge ${contract.group === 'A' ? 'badge-primary' : 'badge-warning'}">Nhóm ${contract.group}</span>
               ${contract.category ? `<span class="badge" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${contract.category}</span>` : ''}
-              <span class="badge badge-success">${contract.status || 'Active'}</span>
+              ${this.getContractStatusBadgeHtml(contract.status)}
             </div>
             <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">${contract.scope_of_work || ''}</p>
           </div>
@@ -2693,7 +2741,7 @@ export class ContractsManager {
                 <div><strong>Mã nội bộ (Contract ID):</strong> <p style="color: var(--text-muted); font-family: monospace; font-weight: 600;">${contract.id}</p></div>
                 <div><strong>Số hiệu chính thức:</strong> <p style="font-weight: 700; color: var(--primary);">${contract.contract_no}</p></div>
                 <div><strong>Loại hợp đồng:</strong> <p><span class="badge" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${contract.category || 'Chưa phân loại'}</span></p></div>
-                <div><strong>Tình trạng:</strong> <p><span class="badge badge-success">${contract.status || 'Active'}</span></p></div>
+                <div><strong>Tình trạng:</strong> <p>${this.getContractStatusBadgeHtml(contract.status)}</p></div>
                 <div><strong>Ngày ký kết:</strong> <p style="color: var(--text-muted);">${this.formatDate(contract.signing_date)}</p></div>
                 <div><strong>Thời hạn kết thúc:</strong> <p style="color: var(--text-muted);">${contract.end_date ? this.formatDate(contract.end_date) : '—'}</p></div>
                 <div>
@@ -2766,7 +2814,7 @@ export class ContractsManager {
                         <tr class="clickable-appendix-row" data-sub-id="${a.id}" style="cursor: pointer;" title="Bấm để vào quản lý riêng ${a.contract_no}">
                           <td><strong style="color: var(--primary);">${a.contract_no}</strong></td>
                           <td>${a.scope_of_work || '—'}</td>
-                          <td style="text-align: center;"><span class="badge ${a.status === 'Active' ? 'badge-success' : 'badge-warning'}">${a.status || 'Active'}</span></td>
+                          <td style="text-align: center;">${this.getContractStatusBadgeHtml(a.status)}</td>
                           <td class="num-col" style="color: var(--primary); font-weight: 700;">
                             ${this.formatCurrency(Math.round((a.contract_val || 0) * (a.exchange_rate || 1)))}
                             ${a.is_additive ? '<span class="badge badge-success" style="font-size: 0.65rem; margin-left: 4px;">+ Cộng dồn</span>' : '<span class="badge" style="font-size: 0.65rem; margin-left: 4px; background: #f1f5f9; color: #64748b;">Không cộng dồn</span>'}
@@ -4488,8 +4536,9 @@ export class ContractsManager {
                 <label class="form-label">Tình trạng</label>
                 <select class="form-control" name="status" id="select-status">
                   <option value="Active" ${editContract?.status === 'Active' || !editContract ? 'selected' : ''}>Đang thực hiện (Active)</option>
-                  <option value="Completed" ${editContract?.status === 'Completed' ? 'selected' : ''}>Đã quyết toán (Completed)</option>
+                  <option value="Completed" ${this.isContractCompleted(editContract) ? 'selected' : ''}>Đã quyết toán (Completed)</option>
                   <option value="Suspended" ${editContract?.status === 'Suspended' ? 'selected' : ''}>Tạm ngưng (Suspended)</option>
+                  <option value="Cancel" ${this.isContractCanceled(editContract) ? 'selected' : ''}>Đã hủy (Cancel)</option>
                 </select>
               </div>
             </div>
@@ -6599,8 +6648,8 @@ export class ContractsManager {
     // 1. TÍNH TOÁN BẢNG TỔNG HỢP SUMMARY (FINANCIAL SUMMARY)
     const realPayments = this.payments.filter((p) => !p.is_header);
 
-    // Summary Nhóm A (Thu)
-    const contractsA = this.contracts.filter((c) => c.group === 'A');
+    // Summary Nhóm A (Thu - LOẠI TRỪ hoàn toàn các hợp đồng Cancel)
+    const contractsA = this.contracts.filter((c) => c.group === 'A' && !this.isContractOrAncestorCanceled(c));
     const mainA = contractsA.filter((c) => !c.parent_id);
     let summaryA = {
       contractVal: 0,
@@ -6626,8 +6675,8 @@ export class ContractsManager {
     });
     summaryA.remaining = summaryA.requestedAmt - summaryA.paidAmt;
 
-    // Summary Nhóm B (Chi - TÍNH GỘP CẢ CÁC HỢP ĐỒNG B VÀ CHI PHÍ BAN CPB)
-    const contractsB = this.contracts.filter((c) => c.group === 'B');
+    // Summary Nhóm B (Chi - TÍNH GỘP CẢ CÁC HỢP ĐỒNG B VÀ CPB, LOẠI TRỪ hoàn toàn các hợp đồng Cancel)
+    const contractsB = this.contracts.filter((c) => c.group === 'B' && !this.isContractOrAncestorCanceled(c));
     const mainB = contractsB.filter((c) => !c.parent_id);
     let summaryB = {
       contractVal: 0,
@@ -6839,16 +6888,26 @@ export class ContractsManager {
         const cRate = cVal > 0 ? ((cPaid / cVal) * 100).toFixed(1) : (cRequested > 0 ? ((cPaid / cRequested) * 100).toFixed(1) : 0);
 
         const partnerName = this.disburseGroup === 'A' ? (c.company_a || 'Chủ đầu tư') : (c.company_b || 'Ban QLDA / Thầu phụ');
+        const isCanceledRow = this.isContractOrAncestorCanceled(c);
+        const isCompletedRow = !isCanceledRow && this.isContractCompleted(c);
+        const rowStatusClass = isCanceledRow
+          ? ' row-status-cancel'
+          : isCompletedRow
+          ? ' row-status-completed'
+          : '';
+        const statusMiniBadge = (isCanceledRow || isCompletedRow)
+          ? this.getContractStatusBadgeHtml(c.status, true)
+          : '';
 
         contractRowsHtml += `
-          <tr class="disburse-contract-row ${isSelected ? 'selected-contract-row' : ''}" data-disburse-cid="${c.id}" title="${(c.scope_of_work || 'Hợp đồng thực hiện dự án')} | ${partnerName}">
+          <tr class="disburse-contract-row ${isSelected ? 'selected-contract-row' : ''}${rowStatusClass}" data-disburse-cid="${c.id}" title="${(c.scope_of_work || 'Hợp đồng thực hiện dự án')} | ${partnerName} (${c.status || 'Active'})">
             <td style="white-space: nowrap; font-weight: 700; padding: 6px 8px;">
               ${isCpb 
                 ? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-receipt"></i> CPB</span>` 
-                : `<span style="font-family: monospace; color: var(--primary); font-size: 0.8rem;">${c.display_no || c.id}</span>`}
+                : `<span style="font-family: monospace; color: ${isCanceledRow ? '#94a3b8' : 'var(--primary)'}; font-size: 0.8rem;">${c.display_no || c.id}</span>`}
             </td>
             <td style="font-weight: 700; color: #1e293b; padding: 6px 8px; white-space: nowrap;">
-              ${c.contract_no || c.id}
+              <span>${c.contract_no || c.id}</span>${statusMiniBadge}
             </td>
             <td style="text-align: right; font-weight: 700; color: #1e293b; padding: 6px 8px; white-space: nowrap;">
               ${this.formatCurrency(cVal)}

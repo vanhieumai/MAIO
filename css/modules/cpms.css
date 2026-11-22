@@ -1651,5 +1651,69 @@ textarea.form-control:focus {
   padding: 8px 10px !important;
 }
 
+/* ==========================================================================
+   Phân biệt màu sắc theo Trạng thái Hợp đồng (Completed / Cancel)
+   ========================================================================== */
+.badge-status-completed {
+  background: #e0f2fe !important;
+  color: #0369a1 !important;
+  border: 1px solid #bae6fd !important;
+}
+
+.badge-status-cancel {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border: 1px solid #fecaca !important;
+}
+
+.contract-group-wrapper.card-status-completed,
+.contract-card.card-status-completed {
+  border-left: 4px solid #0284c7 !important;
+  background: #f8fafc !important;
+}
+
+.contract-group-wrapper.card-status-cancel,
+.contract-card.card-status-cancel {
+  border-left: 4px solid #ef4444 !important;
+  background: #fff5f5 !important;
+  opacity: 0.82;
+}
+
+.contract-group-wrapper.card-status-cancel .contract-no span:first-of-type,
+.contract-group-wrapper.card-status-cancel .contract-val-amount,
+.contract-card.card-status-cancel .contract-number,
+.contract-card.card-status-cancel .contract-val-amount {
+  text-decoration: line-through;
+  color: #94a3b8 !important;
+}
+
+.disburse-contract-row.row-status-completed {
+  background-color: #f0f9ff;
+}
+
+.disburse-contract-row.row-status-completed:hover {
+  background-color: #e0f2fe;
+}
+
+.disburse-contract-row.row-status-cancel {
+  background-color: #fef2f2;
+  color: #94a3b8 !important;
+}
+
+.disburse-contract-row.row-status-cancel td {
+  color: #94a3b8 !important;
+  text-decoration: line-through;
+}
+
+.disburse-contract-row.row-status-cancel td:first-child,
+.disburse-contract-row.row-status-cancel td:last-child,
+.disburse-contract-row.row-status-cancel .badge {
+  text-decoration: none;
+}
+
+.disburse-contract-row.row-status-cancel:hover {
+  background-color: #fee2e2;
+}
+
 
 

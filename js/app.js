@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.0';
 import { db } from './core/db.js?v=5.0';
-import { contractsManager } from './modules/cpms/contracts.js?v=5.3';
+import { contractsManager } from './modules/cpms/contracts.js?v=5.4';
 
 class App {
   constructor() {
@@ -137,9 +137,9 @@ class App {
     const realPayments = contractsManager.payments.filter((p) => !p.is_header);
     const docs = contractsManager.documents;
 
-    // 1. Nhóm A (Chủ đầu tư / Tổng thầu)
-    const mainA = contracts.filter((c) => !c.parent_id && c.group === 'A');
-    const appA = contracts.filter((c) => c.parent_id && c.group === 'A');
+    // 1. Nhóm A (Chủ đầu tư / Tổng thầu - loại trừ hợp đồng Cancel)
+    const mainA = contracts.filter((c) => !c.parent_id && c.group === 'A' && !contractsManager.isContractCanceled(c));
+    const appA = contracts.filter((c) => c.parent_id && c.group === 'A' && !contractsManager.isContractOrAncestorCanceled(c));
     let totalSignedA = 0;
     let totalPaidA = 0;
     mainA.forEach((c) => {
@@ -149,14 +149,14 @@ class App {
     });
 
     const familyAIds = new Set();
-    mainA.forEach((c) => {
-      contractsManager.getAllDescendantIds(c.id).forEach((id) => familyAIds.add(id));
-    });
+    contracts
+      .filter((c) => c.group === 'A' && !contractsManager.isContractOrAncestorCanceled(c))
+      .forEach((c) => familyAIds.add(c.id));
     const paymentsA = realPayments.filter((p) => familyAIds.has(p.contract_id));
 
-    // 2. Nhóm B (Nhà thầu phụ / Nhà cung cấp)
-    const mainB = contracts.filter((c) => !c.parent_id && c.group === 'B');
-    const appB = contracts.filter((c) => c.parent_id && c.group === 'B');
+    // 2. Nhóm B (Nhà thầu phụ / Nhà cung cấp - loại trừ hợp đồng Cancel)
+    const mainB = contracts.filter((c) => !c.parent_id && c.group === 'B' && !contractsManager.isContractCanceled(c));
+    const appB = contracts.filter((c) => c.parent_id && c.group === 'B' && !contractsManager.isContractOrAncestorCanceled(c));
     let totalSignedB = 0;
     let totalPaidB = 0;
     mainB.forEach((c) => {
@@ -166,9 +166,9 @@ class App {
     });
 
     const familyBIds = new Set();
-    mainB.forEach((c) => {
-      contractsManager.getAllDescendantIds(c.id).forEach((id) => familyBIds.add(id));
-    });
+    contracts
+      .filter((c) => c.group === 'B' && !contractsManager.isContractOrAncestorCanceled(c))
+      .forEach((c) => familyBIds.add(c.id));
     const paymentsB = realPayments.filter((p) => familyBIds.has(p.contract_id));
 
     // 3. Gán lên giao diện Dashboard
