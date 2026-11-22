@@ -1161,14 +1161,18 @@ textarea.form-control:focus {
   .cpms-subnav-tabs {
     padding: 4px;
     gap: 4px;
-    top: 50px;
+    top: 0;
+    min-height: 44px;
     border-radius: var(--radius-sm);
   }
   .cpms-subtab-btn {
     flex: 1 1 0;
-    padding: 8px 6px;
+    padding: 7px 6px;
     font-size: 0.8rem;
     gap: 5px;
+  }
+  .cpms-sticky-controls {
+    top: 44px;
   }
 }
 
