@@ -6220,8 +6220,12 @@ export class ContractsManager {
             </div>
 
             <div class="form-grid-2">
+              <div class="form-group" id="grp-actual-vol" style="${isCpb ? 'display:none;' : ''}">
+                <label class="form-label">Khối lượng hoàn thành</label>
+                <input type="text" inputmode="decimal" class="form-control currency-input" id="pay-actual" name="actual_volume" value="0">
+              </div>
               <div class="form-group" id="grp-accepted-vol" style="${isCpb ? 'display:none;' : ''}">
-                <label class="form-label">Khối lượng Nghiệm thu</label>
+                <label class="form-label">Khối lượng chấp nhận TT</label>
                 <input type="text" inputmode="decimal" class="form-control currency-input" id="pay-accepted" name="accepted_vol" value="0">
               </div>
               <div class="form-group">
@@ -6229,13 +6233,13 @@ export class ContractsManager {
                 <input type="text" inputmode="decimal" class="form-control currency-input" id="pay-requested" name="request_amount" value="0" required>
               </div>
               <div class="form-group">
-                <label class="form-label" id="lbl-paid-amount">${isCpb ? 'Số tiền thực tế đã chi' : 'Thực tế đã thanh toán'}</label>
+                <label class="form-label" id="lbl-paid-amount">${isCpb ? 'Số tiền thực tế đã chi' : 'Đã thanh toán'}</label>
                 <input type="text" inputmode="decimal" class="form-control currency-input" id="pay-paid" name="paid_amount" value="0" required>
               </div>
-              <div class="form-group">
-                <label class="form-label" id="lbl-invoice-ref">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
-                <input type="text" class="form-control" name="invoice_ref" placeholder="Vd: PC-001 hoặc HD-1234">
-              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="lbl-invoice-ref">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
+              <input type="text" class="form-control" name="invoice_ref" placeholder="Vd: PC-001 hoặc HD-1234">
             </div>
 
             <div id="pay-vnd-preview" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; font-size: 0.8rem; color: #0369a1; display: ${defaultPayRate !== 1 ? 'flex' : 'none'}; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
@@ -6301,6 +6305,7 @@ export class ContractsManager {
         const isCurrentCpb = foundContract.is_cpb || foundContract.contract_type === 'CPB' || (foundContract.id && foundContract.id.startsWith('B-CPB-'));
         const titleEl = modal.querySelector('#payment-modal-title');
         const submitBtn = modal.querySelector('#btn-submit-payment');
+        const actualGrp = modal.querySelector('#grp-actual-vol');
         const acceptedGrp = modal.querySelector('#grp-accepted-vol');
         
         if (titleEl) {
@@ -6313,6 +6318,9 @@ export class ContractsManager {
           submitBtn.style.background = isCurrentCpb ? '#d97706' : '';
           submitBtn.style.borderColor = isCurrentCpb ? '#b45309' : '';
           submitBtn.innerHTML = isCurrentCpb ? '<i class="fa-solid fa-receipt"></i> Ghi sổ Chi phí' : '<i class="fa-solid fa-floppy-disk"></i> Ghi sổ Thanh toán';
+        }
+        if (actualGrp) {
+          actualGrp.style.display = isCurrentCpb ? 'none' : '';
         }
         if (acceptedGrp) {
           acceptedGrp.style.display = isCurrentCpb ? 'none' : '';
@@ -6347,6 +6355,7 @@ export class ContractsManager {
         item_name: formData.get('item_name'),
         exchange_rate: validRate,
         payment_date: formData.get('payment_date'),
+        actual_volume: isActualCpb ? paidAmt : this.parseNumberFromDots(formData.get('actual_volume')),
         accepted_vol: isActualCpb ? paidAmt : this.parseNumberFromDots(formData.get('accepted_vol')),
         request_amount: reqAmt,
         paid_amount: paidAmt,
@@ -6409,7 +6418,11 @@ export class ContractsManager {
             <div class="form-grid-2">
               ${isCpb ? '' : `
                 <div class="form-group">
-                  <label class="form-label">Khối lượng Nghiệm thu</label>
+                  <label class="form-label">Khối lượng hoàn thành</label>
+                  <input type="text" inputmode="decimal" class="form-control currency-input" id="edit-pay-actual" name="actual_volume" value="${this.formatNumberWithDots(payment.actual_volume || 0)}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Khối lượng chấp nhận TT</label>
                   <input type="text" inputmode="decimal" class="form-control currency-input" id="edit-pay-accepted" name="accepted_vol" value="${this.formatNumberWithDots(payment.accepted_vol || 0)}">
                 </div>
               `}
@@ -6418,13 +6431,13 @@ export class ContractsManager {
                 <input type="text" inputmode="decimal" class="form-control currency-input" id="edit-pay-requested" name="request_amount" value="${this.formatNumberWithDots(payment.request_amount || 0)}" required>
               </div>
               <div class="form-group">
-                <label class="form-label">${isCpb ? 'Số tiền thực tế đã chi' : 'Thực tế đã thanh toán'}</label>
+                <label class="form-label">${isCpb ? 'Số tiền thực tế đã chi' : 'Đã thanh toán'}</label>
                 <input type="text" inputmode="decimal" class="form-control currency-input" id="edit-pay-paid" name="paid_amount" value="${this.formatNumberWithDots(payment.paid_amount || 0)}" required>
               </div>
-              <div class="form-group">
-                <label class="form-label">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
-                <input type="text" class="form-control" name="invoice_ref" value="${payment.invoice_ref || ''}" placeholder="Vd: PC-001 hoặc HD-1234">
-              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${isCpb ? 'Số Chứng từ / Phiếu chi / Hóa đơn' : 'Số Hóa đơn VAT / Tham chiếu'}</label>
+              <input type="text" class="form-control" name="invoice_ref" value="${payment.invoice_ref || ''}" placeholder="Vd: PC-001 hoặc HD-1234">
             </div>
 
             <div id="edit-pay-vnd-preview" style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 12px; font-size: 0.8rem; color: #0369a1; display: ${currentPayRate !== 1 ? 'flex' : 'none'}; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
@@ -6490,6 +6503,7 @@ export class ContractsManager {
       payment.payment_date = formData.get('payment_date');
       payment.item_name = formData.get('item_name');
       payment.exchange_rate = validRate;
+      payment.actual_volume = isCpb ? paidAmt : this.parseNumberFromDots(formData.get('actual_volume'));
       payment.accepted_vol = isCpb ? paidAmt : this.parseNumberFromDots(formData.get('accepted_vol'));
       payment.request_amount = reqAmt;
       payment.paid_amount = paidAmt;
@@ -6589,10 +6603,9 @@ export class ContractsManager {
     const contractsA = this.contracts.filter((c) => c.group === 'A');
     const mainA = contractsA.filter((c) => !c.parent_id);
     let summaryA = {
-      estimatedVal: 0,
       contractVal: 0,
+      actualVol: 0,
       acceptedVol: 0,
-      certifiedVol: 0,
       requestedAmt: 0,
       paidAmt: 0,
       remaining: 0,
@@ -6600,14 +6613,13 @@ export class ContractsManager {
     mainA.forEach((c) => {
       const st = this.calculateTotals(c);
       summaryA.contractVal += st.totalSigned;
-      summaryA.estimatedVal += (c.estimated_val || st.totalSigned);
     });
     const familyAIds = new Set();
     contractsA.forEach((c) => familyAIds.add(c.id));
     realPayments.forEach((p) => {
       if (familyAIds.has(p.contract_id)) {
+        summaryA.actualVol += this.getPaymentVnd(p, 'actual_volume');
         summaryA.acceptedVol += this.getPaymentVnd(p, 'accepted_vol');
-        summaryA.certifiedVol += this.getPaymentVnd(p, 'certified_vol', 'accepted_vol');
         summaryA.requestedAmt += this.getPaymentVnd(p, 'request_amount');
         summaryA.paidAmt += this.getPaymentVnd(p, 'paid_amount');
       }
@@ -6618,10 +6630,9 @@ export class ContractsManager {
     const contractsB = this.contracts.filter((c) => c.group === 'B');
     const mainB = contractsB.filter((c) => !c.parent_id);
     let summaryB = {
-      estimatedVal: 0,
       contractVal: 0,
+      actualVol: 0,
       acceptedVol: 0,
-      certifiedVol: 0,
       requestedAmt: 0,
       paidAmt: 0,
       remaining: 0,
@@ -6629,16 +6640,14 @@ export class ContractsManager {
     mainB.forEach((c) => {
       const st = this.calculateTotals(c);
       summaryB.contractVal += st.totalSigned;
-      summaryB.estimatedVal += (c.estimated_val || st.totalSigned);
     });
     const familyBIds = new Set();
     contractsB.forEach((c) => familyBIds.add(c.id));
     realPayments.forEach((p) => {
       if (familyBIds.has(p.contract_id)) {
         const isCpbPay = /^B-CPB/i.test(p.contract_id);
-        const pAccepted = this.getPaymentVnd(p, 'accepted_vol', isCpbPay ? 'paid_amount' : null);
-        summaryB.acceptedVol += pAccepted;
-        summaryB.certifiedVol += this.getPaymentVnd(p, 'certified_vol') || pAccepted;
+        summaryB.actualVol += this.getPaymentVnd(p, 'actual_volume', isCpbPay ? 'paid_amount' : null);
+        summaryB.acceptedVol += this.getPaymentVnd(p, 'accepted_vol', isCpbPay ? 'paid_amount' : null);
         summaryB.requestedAmt += this.getPaymentVnd(p, 'request_amount');
         summaryB.paidAmt += this.getPaymentVnd(p, 'paid_amount');
       }
@@ -6660,22 +6669,22 @@ export class ContractsManager {
         <table class="disburse-summary-table">
           <thead>
             <tr>
-              <th style="text-align: left; width: 120px;">Phân nhóm</th>
-              <th style="text-align: right;">Dự toán</th>
-              <th style="text-align: right;">Giá trị hợp đồng</th>
-              <th style="text-align: right;">Khối lượng nghiệm thu</th>
-              <th style="text-align: right;">Đề nghị thanh toán</th>
-              <th style="text-align: right;">Đã thanh toán</th>
-              <th style="text-align: right;">Còn lại</th>
+              <th style="width: 110px;">Phân nhóm</th>
+              <th>Giá trị hợp đồng</th>
+              <th>Khối lượng hoàn thành</th>
+              <th>Khối lượng chấp nhận TT</th>
+              <th>Đề nghị thanh toán</th>
+              <th>Đã thanh toán</th>
+              <th>Còn lại</th>
             </tr>
           </thead>
           <tbody>
             <tr style="background: #f8fafc; font-weight: 600;">
-              <td>
+              <td style="text-align: center;">
                 <span class="badge badge-primary" style="font-size: 0.76rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 5px;"><i class="fa-solid fa-landmark"></i> Nhóm A</span>
               </td>
-              <td style="text-align: right;">${this.formatCurrency(summaryA.estimatedVal)}</td>
               <td style="text-align: right; font-weight: 700; color: var(--primary);">${this.formatCurrency(summaryA.contractVal)}</td>
+              <td style="text-align: right;">${this.formatCurrency(summaryA.actualVol)}</td>
               <td style="text-align: right;">${this.formatCurrency(summaryA.acceptedVol)}</td>
               <td style="text-align: right;">${this.formatCurrency(summaryA.requestedAmt)}</td>
               <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatCurrency(summaryA.paidAmt)}</td>
@@ -6683,11 +6692,11 @@ export class ContractsManager {
             </tr>
 
             <tr style="background: #ffffff; font-weight: 600;">
-              <td>
+              <td style="text-align: center;">
                 <span class="badge badge-warning" style="font-size: 0.76rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 5px;"><i class="fa-solid fa-handshake"></i> Nhóm B</span>
               </td>
-              <td style="text-align: right;">${this.formatCurrency(summaryB.estimatedVal)}</td>
               <td style="text-align: right; font-weight: 700; color: #4f46e5;">${this.formatCurrency(summaryB.contractVal)}</td>
+              <td style="text-align: right;">${this.formatCurrency(summaryB.actualVol)}</td>
               <td style="text-align: right;">${this.formatCurrency(summaryB.acceptedVol)}</td>
               <td style="text-align: right;">${this.formatCurrency(summaryB.requestedAmt)}</td>
               <td style="text-align: right; font-weight: 700; color: #0891b2;">${this.formatCurrency(summaryB.paidAmt)}</td>
@@ -6812,10 +6821,12 @@ export class ContractsManager {
         const familyIds = this.getAllDescendantIds(c.id);
         const cPayments = realPayments.filter((p) => isMain ? familyIds.includes(p.contract_id) : p.contract_id === c.id);
         
+        let cActual = 0;
         let cAccepted = 0;
         let cRequested = 0;
         let cPaid = 0;
         cPayments.forEach((p) => {
+          cActual += this.getPaymentVnd(p, 'actual_volume', isCpb ? 'paid_amount' : null);
           cAccepted += this.getPaymentVnd(p, 'accepted_vol', isCpb ? 'paid_amount' : null);
           cRequested += this.getPaymentVnd(p, 'request_amount');
           cPaid += this.getPaymentVnd(p, 'paid_amount');
@@ -6831,31 +6842,34 @@ export class ContractsManager {
 
         contractRowsHtml += `
           <tr class="disburse-contract-row ${isSelected ? 'selected-contract-row' : ''}" data-disburse-cid="${c.id}" title="${(c.scope_of_work || 'Hợp đồng thực hiện dự án')} | ${partnerName}">
-            <td style="white-space: nowrap; font-weight: 700; padding: 6px 10px;">
+            <td style="white-space: nowrap; font-weight: 700; padding: 6px 8px;">
               ${isCpb 
                 ? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.72rem; padding: 2px 6px;"><i class="fa-solid fa-receipt"></i> CPB</span>` 
                 : `<span style="font-family: monospace; color: var(--primary); font-size: 0.8rem;">${c.display_no || c.id}</span>`}
             </td>
-            <td style="font-weight: 700; color: #1e293b; padding: 6px 10px; white-space: nowrap;">
+            <td style="font-weight: 700; color: #1e293b; padding: 6px 8px; white-space: nowrap;">
               ${c.contract_no || c.id}
             </td>
-            <td style="text-align: right; font-weight: 700; color: #1e293b; padding: 6px 10px; white-space: nowrap;">
+            <td style="text-align: right; font-weight: 700; color: #1e293b; padding: 6px 8px; white-space: nowrap;">
               ${this.formatCurrency(cVal)}
               ${exRate !== 1 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(c.contract_val)} nguyên tệ</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+              ${this.formatCurrency(cActual)}
+            </td>
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
               ${this.formatCurrency(cAccepted)}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
               ${this.formatCurrency(cRequested)}
             </td>
-            <td style="text-align: right; font-weight: 700; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'}; padding: 6px 10px; white-space: nowrap;">
+            <td style="text-align: right; font-weight: 700; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'}; padding: 6px 8px; white-space: nowrap;">
               ${this.formatCurrency(cPaid)}
             </td>
-            <td style="text-align: right; color: ${cRemaining > 0 ? 'var(--danger)' : '#64748b'}; padding: 6px 10px; white-space: nowrap;">
+            <td style="text-align: right; color: ${cRemaining > 0 ? 'var(--danger)' : '#64748b'}; padding: 6px 8px; white-space: nowrap;">
               ${this.formatCurrency(cRemaining)}
             </td>
-            <td style="text-align: center; padding: 6px 10px; white-space: nowrap;">
+            <td style="text-align: center; padding: 6px 8px; white-space: nowrap;">
               <span class="badge ${Number(cRate) >= 100 ? 'badge-success' : 'badge-primary'}" style="font-size: 0.72rem; padding: 2px 6px;">
                 ${cRate}%
               </span>
@@ -6877,14 +6891,15 @@ export class ContractsManager {
           <table class="disburse-compact-table disburse-summary-table" style="width: 100%;">
             <thead>
               <tr>
-                <th style="width: 75px; text-align: left;">Mã</th>
-                <th style="text-align: left; min-width: 160px;">Số hiệu HĐ / Phụ lục</th>
-                <th style="text-align: right; width: 140px;">Giá trị hợp đồng</th>
-                <th style="text-align: right; width: 140px;">Khối lượng nghiệm thu</th>
-                <th style="text-align: right; width: 140px;">Đề nghị thanh toán</th>
-                <th style="text-align: right; width: 140px;">Đã thanh toán</th>
-                <th style="text-align: right; width: 130px;">Còn lại</th>
-                <th style="width: 75px; text-align: center;">Tỷ lệ (%)</th>
+                <th style="width: 68px;">Mã</th>
+                <th style="min-width: 145px;">Số hiệu HĐ / Phụ lục</th>
+                <th style="width: 125px;">Giá trị HĐ</th>
+                <th style="width: 125px;">KL hoàn thành</th>
+                <th style="width: 125px;">KL chấp nhận TT</th>
+                <th style="width: 125px;">Đề nghị TT</th>
+                <th style="width: 125px;">Đã thanh toán</th>
+                <th style="width: 115px;">Còn lại</th>
+                <th style="width: 68px;">Tỷ lệ (%)</th>
               </tr>
             </thead>
             <tbody>
@@ -6933,10 +6948,12 @@ export class ContractsManager {
     });
 
     // Tính tổng kết Total của hợp đồng này (đã quy đổi VNĐ theo tỷ giá thời điểm thanh toán)
+    let dnTotalActual = 0;
     let dnTotalAccepted = 0;
     let dnTotalRequested = 0;
     let dnTotalPaid = 0;
     contractPayments.forEach((p) => {
+      dnTotalActual += this.getPaymentVnd(p, 'actual_volume', isSelectedCpb ? 'paid_amount' : null);
       dnTotalAccepted += this.getPaymentVnd(p, 'accepted_vol', isSelectedCpb ? 'paid_amount' : null);
       dnTotalRequested += this.getPaymentVnd(p, 'request_amount');
       dnTotalPaid += this.getPaymentVnd(p, 'paid_amount');
@@ -6947,7 +6964,7 @@ export class ContractsManager {
     if (contractPayments.length === 0) {
       detailRowsHtml = `
         <tr>
-          <td colspan="9" style="text-align: center; padding: 32px 16px; color: var(--text-muted);">
+          <td colspan="10" style="text-align: center; padding: 32px 16px; color: var(--text-muted);">
             <i class="fa-solid fa-receipt" style="font-size: 1.8rem; color: #cbd5e1; margin-bottom: 8px; display: block;"></i>
             Hợp đồng này chưa có đợt giải ngân nào. Bấm nút <strong>"+ Thêm Đợt"</strong> ở góc phải để ghi nhận đợt thanh toán đầu tiên.
           </td>
@@ -6956,9 +6973,11 @@ export class ContractsManager {
     } else {
       contractPayments.forEach((p, idx) => {
         const pRate = this.getPaymentRate(p);
+        const pActRaw = Number(p.actual_volume) || (isSelectedCpb ? Number(p.paid_amount) || 0 : 0);
         const pAccRaw = Number(p.accepted_vol) || (isSelectedCpb ? Number(p.paid_amount) || 0 : 0);
         const pReqRaw = Number(p.request_amount) || 0;
         const pPaidRaw = Number(p.paid_amount) || 0;
+        const pActVnd = Math.round(pActRaw * pRate);
         const pAccVnd = Math.round(pAccRaw * pRate);
         const pReqVnd = Math.round(pReqRaw * pRate);
         const pPaidVnd = Math.round(pPaidRaw * pRate);
@@ -6966,39 +6985,43 @@ export class ContractsManager {
 
         detailRowsHtml += `
           <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="font-weight: 700; padding: 6px 10px; white-space: nowrap;">
+            <td style="font-weight: 700; padding: 6px 8px; white-space: nowrap;">
               <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem;">
                 ${this.formatDnNo(p.payment_no || String(idx + 1))}
               </span>
             </td>
-            <td style="padding: 6px 10px; white-space: nowrap; font-size: 0.8rem; color: #475569;">
+            <td style="padding: 6px 8px; white-space: nowrap; font-size: 0.8rem; color: #475569;">
               <i class="fa-regular fa-calendar-days" style="margin-right: 4px;"></i> ${this.formatDate(p.payment_date)}
             </td>
-            <td style="padding: 6px 10px;">
+            <td style="padding: 6px 8px;">
               <div style="font-weight: 600; color: #1e293b; font-size: 0.81rem;">${p.item_name || 'Đợt thanh toán'}</div>
               ${pRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b;">Tỷ giá TT: <strong>${pRate}</strong></div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+              ${this.formatCurrency(pActVnd)}
+              ${pRate !== 1 && pActRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pActRaw)} nt</div>` : ''}
+            </td>
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
               ${this.formatCurrency(pAccVnd)}
               ${pRate !== 1 && pAccRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pAccRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap; font-weight: 600;">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 600;">
               ${this.formatCurrency(pReqVnd)}
               ${pRate !== 1 && pReqRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pReqRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
               ${this.formatCurrency(pPaidVnd)}
               ${pRate !== 1 && pPaidRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(pPaidRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 10px; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
               ${this.formatCurrency(pRemVnd)}
             </td>
-            <td style="padding: 6px 10px; font-size: 0.78rem; color: #64748b;">
+            <td style="padding: 6px 8px; font-size: 0.78rem; color: #64748b;">
               ${p.invoice_ref ? `<span style="background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-family: monospace;">${p.invoice_ref}</span>` : ''}
               ${p.note ? `<div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;">${p.note}</div>` : ''}
               ${!p.invoice_ref && !p.note ? '—' : ''}
             </td>
-            <td style="padding: 6px 10px; text-align: center; white-space: nowrap;">
+            <td style="padding: 6px 8px; text-align: center; white-space: nowrap;">
               <div style="display: flex; gap: 4px; justify-content: center;">
                 <button class="button button-outline btn-edit-selected-dn" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.72rem;" title="Chỉnh sửa đợt thanh toán này">
                   <i class="fa-solid fa-pen-to-square"></i>
@@ -7041,7 +7064,7 @@ export class ContractsManager {
           </div>
         </div>
 
-        <button id="btn-add-dn-for-selected" class="button button-primary button-sm" style="font-weight: 600; padding: 6px 12px; font-size: 0.82rem;" title="Thêm đợt thanh toán cho hợp đồng này">
+        <button id="btn-add-dn-for-selected" class="button button-primary button-sm" title="Thêm đợt thanh toán cho hợp đồng này">
           <i class="fa-solid fa-plus"></i> Thêm Đợt ${this.disburseGroup === 'A' ? 'Thu' : 'Chi'}
         </button>
       </div>
@@ -7050,15 +7073,16 @@ export class ContractsManager {
         <table class="disburse-compact-table disburse-summary-table" style="width: 100%;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 75px; text-align: left;">Đợt TT</th>
-              <th style="width: 95px; text-align: left;">Ngày TT</th>
-              <th style="text-align: left; min-width: 160px;">Nội dung thanh toán</th>
-              <th style="text-align: right; width: 130px;">Khối lượng NT</th>
-              <th style="text-align: right; width: 130px;">Đề nghị TT</th>
-              <th style="text-align: right; width: 130px;">Thực ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
-              <th style="text-align: right; width: 120px;">Còn lại</th>
-              <th style="text-align: left; min-width: 140px;">Chứng từ / Ghi chú</th>
-              <th style="width: 75px; text-align: center;">Thao tác</th>
+              <th style="width: 70px;">Đợt TT</th>
+              <th style="width: 90px;">Ngày TT</th>
+              <th style="min-width: 140px;">Nội dung thanh toán</th>
+              <th style="width: 120px;">KL hoàn thành</th>
+              <th style="width: 120px;">KL chấp nhận TT</th>
+              <th style="width: 120px;">Đề nghị TT</th>
+              <th style="width: 120px;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
+              <th style="width: 110px;">Còn lại</th>
+              <th style="min-width: 120px;">Chứng từ / Ghi chú</th>
+              <th style="width: 70px;">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -7067,13 +7091,14 @@ export class ContractsManager {
           ${contractPayments.length > 0 ? `
             <tfoot>
               <tr style="background: #f8fafc; font-weight: 700;">
-                <td colspan="3" style="padding: 8px 10px; color: #1e293b;">
+                <td colspan="3" style="padding: 8px 8px; color: #1e293b;">
                   TỔNG CỘNG (${contractPayments.length} đợt ${this.disburseGroup === 'A' ? 'thu' : 'chi'})
                 </td>
-                <td style="text-align: right; padding: 8px 10px;">${this.formatCurrency(dnTotalAccepted)}</td>
-                <td style="text-align: right; padding: 8px 10px;">${this.formatCurrency(dnTotalRequested)}</td>
-                <td style="text-align: right; padding: 8px 10px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatCurrency(dnTotalPaid)}</td>
-                <td style="text-align: right; padding: 8px 10px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(dnTotalRemaining)}</td>
+                <td style="text-align: right; padding: 8px 8px;">${this.formatCurrency(dnTotalActual)}</td>
+                <td style="text-align: right; padding: 8px 8px;">${this.formatCurrency(dnTotalAccepted)}</td>
+                <td style="text-align: right; padding: 8px 8px;">${this.formatCurrency(dnTotalRequested)}</td>
+                <td style="text-align: right; padding: 8px 8px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatCurrency(dnTotalPaid)}</td>
+                <td style="text-align: right; padding: 8px 8px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(dnTotalRemaining)}</td>
                 <td colspan="2"></td>
               </tr>
             </tfoot>
