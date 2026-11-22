@@ -2122,11 +2122,15 @@ export class ContractsManager {
     });
 
     // Giá trị hợp đồng chuẩn xác (VNĐ):
-    // 1. Nếu HĐ chính đã có giá trị (baseVal > 0): Tổng = baseVal + các phụ lục ĐƯỢC TÍCH CHỌN CỘNG DỒN.
+    // 1. Nếu HĐ chủ được đánh dấu là tạm tính (is_provisional_val = true): KHÔNG cộng giá trị HĐ chủ, chỉ tổng hợp tổng giá trị các phụ lục con (không bị Cancel).
+    // 2. Nếu HĐ chính đã có giá trị (baseVal > 0): Tổng = baseVal + các phụ lục ĐƯỢC TÍCH CHỌN CỘNG DỒN.
     //    Các phụ lục không tích chọn sẽ KHÔNG cộng dồn, tránh bị nhân đôi / đội khống giá trị HĐ và nhóm giải ngân.
-    // 2. Nếu HĐ khung ban đầu không có giá trị (baseVal === 0): Tổng = appendixSum (tổng các gói/phụ lục con).
+    // 3. Nếu HĐ khung ban đầu không có giá trị (baseVal === 0): Tổng = appendixSum (tổng các gói/phụ lục con).
+    const isProvisional = isMain && (contract.is_provisional_val === true || contract.is_provisional_val === 1 || contract.is_provisional_val === '1');
     let totalSigned = 0;
-    if (baseVal > 0) {
+    if (isProvisional) {
+      totalSigned = appendixSum;
+    } else if (baseVal > 0) {
       totalSigned = baseVal + additiveAppendixSum;
     } else {
       totalSigned = appendixSum;
@@ -2146,6 +2150,7 @@ export class ContractsManager {
       exchangeRate,
       appendixSum,
       additiveAppendixSum,
+      isProvisional,
       totalSigned,
       totalAccepted,
       totalRequested,
@@ -4809,7 +4814,20 @@ export class ContractsManager {
                   </div>
                 </div>
               `
-                  : ''
+                  : `
+                <!-- TÙY CHỌN GIÁ TRỊ HỢP ĐỒNG CHỦ LÀ TẠM TÍNH -->
+                <div style="background: #fffbeb; border: 1px dashed #fcd34d; border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 12px;">
+                  <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; color: #92400e; font-size: 0.84rem; margin: 0;">
+                    <input type="checkbox" name="is_provisional_val" id="chk-provisional-val" value="1" ${editContract?.is_provisional_val === true || editContract?.is_provisional_val === 1 || editContract?.is_provisional_val === '1' ? 'checked' : ''} style="margin-top: 3px; width: 15px; height: 15px; cursor: pointer; accent-color: #d97706;">
+                    <div>
+                      <strong>Giá trị hợp đồng chủ là tạm tính</strong>
+                      <div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">
+                        Khi tích chọn, giá trị hợp đồng chủ sẽ <strong>không tính</strong> vào bảng tổng hợp; hệ thống sẽ tự động lấy <strong>tổng giá trị các phụ lục con</strong> của hợp đồng này để cộng vào tổng hợp.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                  `
               }
             </div>
 
@@ -5316,6 +5334,7 @@ export class ContractsManager {
         contract_val: this.parseNumberFromDots(formData.get('contract_val')),
         exchange_rate: parseFloat(formData.get('exchange_rate')) || 1.0,
         is_additive: isAppendix ? (formData.get('is_additive') === '1') : true,
+        is_provisional_val: !isAppendix ? (formData.get('is_provisional_val') === '1') : false,
         category: formData.get('category') || 'Construction',
         payee: (formData.get('payee') || compB || '').trim(),
         bank_account: (formData.get('bank_account') || '').trim(),
