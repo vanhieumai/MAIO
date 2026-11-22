@@ -243,13 +243,18 @@ class App {
       });
     });
 
-    // Mobile Navigation Drawer (Mở / Đóng Menu trên màn hình dọc)
+    // Left Side Menu Drawer (Ẩn / Hiện Menu phân hệ & tài khoản bên trái)
     const mobileDrawer = document.getElementById('mobile-menu-drawer');
     const openMenuBtn = document.getElementById('btn-mobile-menu');
     const closeMenuBtn = document.getElementById('btn-close-mobile-menu');
 
-    openMenuBtn?.addEventListener('click', () => {
-      mobileDrawer?.classList.remove('hidden');
+    const toggleSideMenu = () => {
+      mobileDrawer?.classList.toggle('hidden');
+    };
+
+    openMenuBtn?.addEventListener('click', toggleSideMenu);
+    document.querySelectorAll('.btn-side-menu-toggle').forEach((btn) => {
+      btn.addEventListener('click', toggleSideMenu);
     });
 
     closeMenuBtn?.addEventListener('click', () => {
@@ -258,6 +263,12 @@ class App {
 
     mobileDrawer?.addEventListener('click', (e) => {
       if (e.target === mobileDrawer) {
+        mobileDrawer.classList.add('hidden');
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && mobileDrawer && !mobileDrawer.classList.contains('hidden')) {
         mobileDrawer.classList.add('hidden');
       }
     });

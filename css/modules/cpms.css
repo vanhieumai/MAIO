@@ -1098,7 +1098,7 @@ textarea.form-control:focus {
   margin-bottom: 12px;
   box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
   position: sticky;
-  top: 54px;
+  top: 0;
   z-index: 80;
   overflow-x: auto;
   white-space: nowrap;
@@ -1484,7 +1484,7 @@ textarea.form-control:focus {
    ========================================================================== */
 .cpms-sticky-controls {
   position: sticky;
-  top: 102px; /* Khít sát cạnh dưới .cpms-subnav-tabs (54px header + 48px subnav) */
+  top: 48px; /* Khít sát cạnh dưới .cpms-subnav-tabs (48px subnav dính top: 0) */
   z-index: 65;
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(8px);

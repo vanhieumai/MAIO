@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/main.css?v=4.1">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=4.1">
+  <link rel="stylesheet" href="css/main.css?v=4.2">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=4.2">
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -64,51 +64,7 @@
   </div>
 
   <div class="app-shell">
-    <!-- Site Header -->
-    <header class="site-header">
-      <a class="brand" href="#" id="brand-link">
-        <span class="brand-mark"><i class="fa-solid fa-cubes"></i></span>
-        <span class="brand-name">M<span>AIO</span></span>
-      </a>
-
-      <!-- Nút mở Menu Mobile (hiện trên màn hình hẹp/dọc) -->
-      <button id="btn-mobile-menu" class="btn-mobile-menu" aria-label="Mở danh mục phân hệ" title="Danh mục phân hệ">
-        <i class="fa-solid fa-bars"></i>
-        <span>Menu</span>
-      </button>
-
-      <!-- Navigation Modules: Quản lý dự án, Quản lý văn phòng, Quản lý chi tiêu, Hồ sơ cá nhân, Cài đặt -->
-      <nav class="header-nav" aria-label="Điều hướng phân hệ">
-        <button class="nav-pill active" data-view="cpms"><i class="fa-solid fa-file-contract"></i> Quản lý dự án</button>
-        <button class="nav-pill" data-view="office"><i class="fa-solid fa-laptop-file"></i> Quản lý văn phòng</button>
-        <button class="nav-pill" data-view="finance"><i class="fa-solid fa-wallet"></i> Quản lý chi tiêu</button>
-        <button class="nav-pill" data-view="profile"><i class="fa-solid fa-user-circle"></i> Hồ sơ cá nhân</button>
-        <button class="nav-pill" data-view="settings"><i class="fa-solid fa-gear"></i> Cài đặt</button>
-      </nav>
-
-      <!-- Account & Actions: Đăng nhập (Thoát) gọn gàng -->
-      <div class="header-actions">
-        <!-- Nút Đăng nhập Google Drive khi ở cổng Auth Gate -->
-        <button id="btn-header-login" class="button button-google button-sm hidden" title="Đăng nhập Google Drive">
-          <i class="fa-brands fa-google" style="color: #4285F4;"></i>
-          <span id="btn-header-login-label">Đăng nhập</span>
-        </button>
-
-        <!-- Trạng thái phiên làm việc (Local hoặc Email Drive) và nút Thoát duy nhất -->
-        <div id="header-user-status" class="header-auth-badge">
-          <span class="auth-status-tag">
-            <i id="header-user-avatar-icon" class="fa-solid fa-laptop-file"></i>
-            <span id="header-user-name">Local</span>
-          </span>
-          <button id="btn-header-logout" class="button button-outline button-sm btn-logout" title="Thoát phiên làm việc">
-            <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            <span>Thoát</span>
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Mobile Drawer Menu: Danh mục phân hệ đầy đủ khi ở màn hình dọc -->
+    <!-- Left Sidebar Drawer Menu: Ẩn/Hiện danh mục phân hệ & thông tin tài khoản bên trái -->
     <div id="mobile-menu-drawer" class="mobile-drawer-overlay hidden">
       <div class="mobile-drawer-content">
         <div class="mobile-drawer-header">
@@ -164,8 +120,12 @@
     <main class="main-content">
       <!-- 1. PHÂN HỆ QUẢN LÝ DỰ ÁN (CORE) -->
       <div id="view-cpms" class="view-panel">
-        <!-- 3 Sub-tabs Quản lý Dự án đưa lên trên cùng, ngay trên tên và địa điểm dự án -->
+        <!-- 3 Sub-tabs Quản lý Dự án + Nút Ẩn/Hiện Menu bên trái -->
         <div id="cpms-subnav-bar" class="cpms-subnav-tabs">
+          <button type="button" id="btn-toggle-side-menu" class="btn-side-menu-toggle" aria-label="Ẩn/hiện menu phân hệ" title="Ẩn / Hiện menu phân hệ & tài khoản">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <span class="subnav-divider" aria-hidden="true"></span>
           <button class="cpms-subtab-btn active" data-cpms-tab="overview">
             <i class="fa-solid fa-chart-pie"></i> Tổng quan
           </button>
@@ -518,7 +478,10 @@
 
       <!-- 3. PHÂN HỆ QUẢN LÝ VĂN PHÒNG -->
       <div id="view-office" class="view-panel hidden">
-        <div class="page-title-row">
+        <div class="page-title-row" style="justify-content: flex-start; gap: 12px;">
+          <button type="button" class="btn-side-menu-toggle" aria-label="Ẩn/hiện menu" title="Ẩn / Hiện menu phân hệ & tài khoản">
+            <i class="fa-solid fa-bars"></i>
+          </button>
           <div>
             <h1 class="page-title">Quản lý Văn phòng</h1>
             <p class="page-subtitle">Quản lý tài sản thiết bị, kho tài liệu mẫu và văn phòng phẩm</p>
@@ -542,7 +505,10 @@
 
       <!-- 4. PHÂN HỆ QUẢN LÝ CHI TIÊU & QUỸ -->
       <div id="view-finance" class="view-panel hidden">
-        <div class="page-title-row">
+        <div class="page-title-row" style="justify-content: flex-start; gap: 12px;">
+          <button type="button" class="btn-side-menu-toggle" aria-label="Ẩn/hiện menu" title="Ẩn / Hiện menu phân hệ & tài khoản">
+            <i class="fa-solid fa-bars"></i>
+          </button>
           <div>
             <h1 class="page-title">Quản lý Chi tiêu & Sổ quỹ</h1>
             <p class="page-subtitle">Minh bạch dòng tiền, tách bạch rõ ràng giữa Ví cá nhân và Quỹ chung</p>
@@ -565,7 +531,10 @@
 
       <!-- 5. HỒ SƠ CÁ NHÂN -->
       <div id="view-profile" class="view-panel hidden">
-        <div class="page-title-row">
+        <div class="page-title-row" style="justify-content: flex-start; gap: 12px;">
+          <button type="button" class="btn-side-menu-toggle" aria-label="Ẩn/hiện menu" title="Ẩn / Hiện menu phân hệ & tài khoản">
+            <i class="fa-solid fa-bars"></i>
+          </button>
           <div>
             <h1 class="page-title">Hồ sơ cá nhân & Tài khoản</h1>
             <p class="page-subtitle">Thông tin người dùng, trạng thái phiên làm việc và quản trị dữ liệu</p>
@@ -631,7 +600,10 @@
 
       <!-- 6. CÀI ĐẶT HỆ THỐNG & GOOGLE DRIVE -->
       <div id="view-settings" class="view-panel hidden">
-        <div class="page-title-row">
+        <div class="page-title-row" style="justify-content: flex-start; gap: 12px;">
+          <button type="button" class="btn-side-menu-toggle" aria-label="Ẩn/hiện menu" title="Ẩn / Hiện menu phân hệ & tài khoản">
+            <i class="fa-solid fa-bars"></i>
+          </button>
           <div>
             <h1 class="page-title">Cài đặt Hệ thống & Đồng bộ</h1>
             <p class="page-subtitle">Thiết lập kết nối Google Drive và chọn thư mục làm việc trên máy tính</p>
@@ -682,6 +654,6 @@
   <script src="gdrive-config.js"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=5.1"></script>
+  <script type="module" src="js/app.js?v=5.2"></script>
 </body>
 </html>
