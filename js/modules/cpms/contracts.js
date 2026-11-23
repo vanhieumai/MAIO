@@ -6883,10 +6883,17 @@ export class ContractsManager {
         const isSelected = c.id === this.selectedDisburseContractId;
         const isCpb = c.is_cpb || c.contract_type === 'CPB' || (c.id && c.id.startsWith('B-CPB-'));
         
-        // Tính tổng hợp tài chính của riêng mục này
-        const isMain = !c.parent_id;
+        // Tính tổng hợp tài chính của mục này (bao gồm cả các gói con / phụ lục con trực thuộc, loại trừ gói con Cancel)
+        // Lưu ý: chỉ dùng để hiển thị trên dòng này, KHÔNG cộng lặp vào bảng Tổng hợp Tài chính phía trên
         const familyIds = this.getAllDescendantIds(c.id);
-        const cPayments = realPayments.filter((p) => isMain ? familyIds.includes(p.contract_id) : p.contract_id === c.id);
+        const isSelfOrParentCanceled = this.isContractOrAncestorCanceled(c);
+        const targetFamilyIds = isSelfOrParentCanceled
+          ? familyIds
+          : familyIds.filter((fid) => {
+              const fc = this.contracts.find((x) => x.id === fid);
+              return !fc || !this.isContractOrAncestorCanceled(fc);
+            });
+        const cPayments = realPayments.filter((p) => targetFamilyIds.includes(p.contract_id));
         
         let cActual = 0;
         let cAccepted = 0;
@@ -7009,13 +7016,17 @@ export class ContractsManager {
     }
 
     const isSelectedCpb = selectedContract.is_cpb || selectedContract.contract_type === 'CPB' || (selectedContract.id && selectedContract.id.startsWith('B-CPB-'));
-    const isMainSelected = !selectedContract.parent_id;
     const selectedFamilyIds = this.getAllDescendantIds(selectedContract.id);
+    const isSelectedCanceled = this.isContractOrAncestorCanceled(selectedContract);
+    const selectedTargetIds = isSelectedCanceled
+      ? selectedFamilyIds
+      : selectedFamilyIds.filter((fid) => {
+          const fc = this.contracts.find((x) => x.id === fid);
+          return !fc || !this.isContractOrAncestorCanceled(fc);
+        });
     
-    // Lấy các đợt thanh toán của hợp đồng đang chọn
-    const contractPayments = realPayments.filter((p) => 
-      isMainSelected ? selectedFamilyIds.includes(p.contract_id) : p.contract_id === selectedContract.id
-    );
+    // Lấy các đợt thanh toán của hợp đồng / phụ lục đang chọn (bao gồm cả các gói con trực thuộc)
+    const contractPayments = realPayments.filter((p) => selectedTargetIds.includes(p.contract_id));
 
     // Sắp xếp các đợt giải ngân theo ngày thanh toán hoặc item_index
     contractPayments.sort((a, b) => {
