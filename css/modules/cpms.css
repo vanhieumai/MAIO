@@ -612,6 +612,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
+  cursor: pointer;
 }
 
 .modal-overlay.hidden {
@@ -628,6 +629,7 @@
   flex-direction: column;
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  cursor: default;
 }
 
 .modal-header {
@@ -1748,9 +1750,14 @@ textarea.form-control:focus {
   }
 }
 
-/* Tối ưu chiều rộng Bảng theo dõi thu chi (hạn chế scrollbar ngang) */
+/* Tối ưu chiều rộng Bảng theo dõi thu chi (hạn chế scrollbar ngang & căn giữa header) */
 .disburse-detail-table {
   width: 100% !important;
+}
+
+.disburse-detail-table th {
+  text-align: center !important;
+  vertical-align: middle !important;
 }
 
 .disburse-detail-table th,
@@ -1758,9 +1765,24 @@ textarea.form-control:focus {
   box-sizing: border-box;
 }
 
-.disburse-detail-table th:last-child,
-.disburse-detail-table td:last-child {
-  padding: 4px 2px !important;
+.disburse-dn-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.disburse-dn-row:hover {
+  background-color: #f1f5f9 !important;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ==========================================================================

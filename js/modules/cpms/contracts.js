@@ -2613,21 +2613,25 @@ export class ContractsManager {
 
     // Bắt sự kiện Xóa Đợt chi của CPB
     container.querySelectorAll('.btn-delete-cpb-payment').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const payId = btn.getAttribute('data-pay-id');
         const payment = this.payments.find((p) => p.id === payId);
         if (!payment) return;
 
-        const confirmed = confirm(
-          `Bạn có chắc chắn muốn xóa đợt chi "${payment.item_name || payment.payment_no}" (${this.formatCurrency(payment.paid_amount || payment.request_amount)}) không?`
-        );
-        if (!confirmed) return;
-
-        await db.delete('payments', payId);
-        await this.loadData();
-        this.render();
-        await this.syncToLocalFile();
+        this.showConfirmDialog({
+          title: 'Xóa đợt chi?',
+          message: `Bạn có chắc chắn muốn xóa đợt chi <strong>"${payment.item_name || payment.payment_no}"</strong> (${this.formatCurrency(payment.paid_amount || payment.request_amount)}) không?`,
+          confirmText: 'Xóa vĩnh viễn',
+          confirmType: 'danger',
+          onConfirm: async () => {
+            await db.delete('payments', payId);
+            await this.loadData();
+            this.render();
+            await this.syncToLocalFile();
+            this.showToast('Đã xóa đợt chi thành công!', 'success');
+          },
+        });
       });
     });
 
@@ -3299,14 +3303,23 @@ export class ContractsManager {
 
     // Xóa thanh toán
     modal.querySelectorAll('.btn-delete-payment').forEach((btn) => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         const payId = btn.getAttribute('data-pay-id');
-        if (confirm(`Bạn có chắc muốn xóa đợt thanh toán này không?`)) {
-          await db.delete('payments', payId);
-          await this.loadData();
-          await this.syncToLocalFile();
-          this.openContractDetail(contract.id);
-        }
+        const payment = this.payments.find((p) => p.id === payId);
+        const label = payment ? `"${payment.item_name || payment.payment_no}"` : 'này';
+        this.showConfirmDialog({
+          title: 'Xác nhận xóa đợt thanh toán?',
+          message: `Bạn có chắc muốn xóa đợt thanh toán ${label} không?`,
+          confirmText: 'Xóa vĩnh viễn',
+          confirmType: 'danger',
+          onConfirm: async () => {
+            await db.delete('payments', payId);
+            await this.loadData();
+            await this.syncToLocalFile();
+            this.openContractDetail(contract.id);
+            this.showToast('Đã xóa đợt thanh toán thành công!', 'success');
+          },
+        });
       });
     });
 
@@ -4166,8 +4179,7 @@ export class ContractsManager {
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
-              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary" style="background: #d97706; border-color: #b45309;">
+              <button type="submit" class="button button-primary" style="background: #d97706; border-color: #b45309; font-weight: 600; padding: 6px 16px;">
                 <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Lưu thay đổi' : 'Tạo khoản Chi phí Ban'}
               </button>
             </div>
@@ -4181,6 +4193,9 @@ export class ContractsManager {
 
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
+
+    // Bấm ra ngoài vùng modal-container thì đóng
+    this.bindModalOutsideClick(modal, closeSubModal);
 
     modal.querySelector('#form-cpb').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -4249,7 +4264,7 @@ export class ContractsManager {
       closeSubModal();
       this.render();
       await this.syncToLocalFile();
-      alert(`Đã lưu thành công khoản Chi phí Ban "${scopeWork}" (${cpbId})!`);
+      this.showToast(`Đã lưu thành công khoản Chi phí Ban "${scopeWork}" (${cpbId})!`, 'success');
     });
   }
 
@@ -4263,35 +4278,45 @@ export class ContractsManager {
     const realPayments = this.getRealPayments(cpbId);
     const totalPaid = realPayments.reduce((s, p) => s + (p.paid_amount || p.request_amount || 0), 0);
 
-    const confirmMsg = realPayments.length > 0
-      ? `⚠️ CẢNH BÁO XÓA CHI PHÍ BAN!\n\nKhoản "${cpb.scope_of_work || cpb.id}" đang có ${realPayments.length} đợt chi với tổng số tiền ${this.formatCurrency(totalPaid)}.\n\nNếu xóa, toàn bộ ${realPayments.length} đợt chi này sẽ bị xóa vĩnh viễn khỏi sổ theo dõi!\n\nBạn có chắc chắn muốn tiếp tục không?`
-      : `Bạn có chắc chắn muốn xóa khoản Chi phí Ban "${cpb.scope_of_work || cpb.id}" (${cpbId}) không?`;
+    const title = 'Xác nhận xóa Chi phí Ban?';
+    const message = `Bạn có chắc chắn muốn xóa khoản Chi phí Ban <strong>"${cpb.scope_of_work || cpb.id}"</strong> (${cpbId}) không?`;
+    const subMessage = realPayments.length > 0
+      ? `⚠️ Khoản này đang có ${realPayments.length} đợt chi (${this.formatCurrency(totalPaid)}). Khi xóa, toàn bộ ${realPayments.length} đợt chi này sẽ bị xóa khỏi hệ thống!`
+      : '';
 
-    if (!confirm(confirmMsg)) return;
+    this.showConfirmDialog({
+      title,
+      message,
+      subMessage,
+      confirmText: 'Xóa Chi phí Ban',
+      cancelText: 'Hủy bỏ',
+      confirmType: 'danger',
+      onConfirm: async () => {
+        // Xóa hợp đồng CPB
+        await db.delete('contracts', cpbId);
 
-    // Xóa hợp đồng CPB
-    await db.delete('contracts', cpbId);
+        // Xóa Header và toàn bộ đợt thanh toán con của CPB này
+        const allPayments = await db.getAll('payments');
+        for (const p of allPayments) {
+          if (p.contract_id === cpbId || p.id === `HDR-${cpbId}`) {
+            await db.delete('payments', p.id);
+          }
+        }
 
-    // Xóa Header và toàn bộ đợt thanh toán con của CPB này
-    const allPayments = await db.getAll('payments');
-    for (const p of allPayments) {
-      if (p.contract_id === cpbId || p.id === `HDR-${cpbId}`) {
-        await db.delete('payments', p.id);
-      }
-    }
+        // Xóa các tài liệu liên quan nếu có
+        const allDocs = await db.getAll('documents');
+        for (const d of allDocs) {
+          if (d.contract_id === cpbId) {
+            await db.delete('documents', d.id);
+          }
+        }
 
-    // Xóa các tài liệu liên quan nếu có
-    const allDocs = await db.getAll('documents');
-    for (const d of allDocs) {
-      if (d.contract_id === cpbId) {
-        await db.delete('documents', d.id);
-      }
-    }
-
-    await this.loadData();
-    this.render();
-    await this.syncToLocalFile();
-    alert(`Đã xóa thành công khoản Chi phí Ban "${cpb.scope_of_work || cpbId}"!`);
+        await this.loadData();
+        this.render();
+        await this.syncToLocalFile();
+        this.showToast(`Đã xóa thành công khoản Chi phí Ban "${cpb.scope_of_work || cpbId}"!`, 'success');
+      },
+    });
   }
 
   // ==========================================
@@ -4909,8 +4934,7 @@ export class ContractsManager {
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color);">
-              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary">
+              <button type="submit" class="button button-primary" style="font-weight: 600; padding: 6px 16px;">
                 <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Lưu thay đổi Hợp đồng' : (isAddingAppendix ? 'Lưu Phụ lục' : 'Lưu Hợp đồng mới')}
               </button>
             </div>
@@ -4924,6 +4948,9 @@ export class ContractsManager {
 
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
+
+    // Bấm ra ngoài vùng modal-container thì đóng
+    this.bindModalOutsideClick(modal, closeSubModal);
 
     // Khởi tạo Custom Autocomplete Dropdown ngay bên dưới ô nhập
     const setupCustomAutocomplete = (inputEl, items, onSelect = null) => {
@@ -5435,7 +5462,7 @@ export class ContractsManager {
       }
       closeSubModal();
       await this.syncToLocalFile();
-      alert('Đã lưu dữ liệu Hợp đồng thành công!');
+      this.showToast('Đã lưu dữ liệu Hợp đồng thành công!', 'success');
       this.openContractDetail(updatedData.id);
     });
   }
@@ -6371,8 +6398,7 @@ export class ContractsManager {
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
-              <button type="button" class="button button-outline button-sm btn-close-submodal">Hủy</button>
-              <button type="submit" id="btn-submit-payment" class="button button-primary button-sm" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
+              <button type="submit" id="btn-submit-payment" class="button button-primary button-sm" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}; font-weight: 600; padding: 6px 16px;">
                 ${isCpb ? '<i class="fa-solid fa-receipt"></i> Ghi sổ Chi phí' : '<i class="fa-solid fa-floppy-disk"></i> Ghi sổ Thanh toán'}
               </button>
             </div>
@@ -6386,6 +6412,9 @@ export class ContractsManager {
 
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
+
+    // Bấm ra ngoài vùng modal-container thì đóng
+    this.bindModalOutsideClick(modal, closeSubModal);
 
     // Cập nhật realtime preview quy đổi VNĐ
     const rateInput = modal.querySelector('#pay-exchange-rate');
@@ -6485,7 +6514,7 @@ export class ContractsManager {
       this.render();
       this.renderDisbursementsTab();
       await this.syncToLocalFile();
-      alert(isActualCpb ? 'Đã ghi sổ thành công đợt Chi phí Ban!' : 'Đã ghi sổ thành công đợt Giải ngân!');
+      this.showToast(isActualCpb ? 'Đã ghi sổ thành công đợt Chi phí Ban!' : 'Đã ghi sổ thành công đợt Giải ngân!', 'success');
     });
   }
 
@@ -6568,9 +6597,11 @@ export class ContractsManager {
               <textarea class="form-control" name="note" rows="2" placeholder="Ghi chú người nhận tiền, số UNC...">${payment.note || ''}</textarea>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
-              <button type="button" class="button button-outline button-sm btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary button-sm" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+              <button type="button" class="button button-sm btn-delete-payment-in-modal" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; font-weight: 600; padding: 6px 12px;" title="Xóa đợt thanh toán này khỏi hệ thống">
+                <i class="fa-solid fa-trash-can"></i> Xóa đợt này
+              </button>
+              <button type="submit" class="button button-primary button-sm" style="${isCpb ? 'background: #d97706; border-color: #b45309;' : ''}; font-weight: 600; padding: 6px 16px;">
                 <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi
               </button>
             </div>
@@ -6584,6 +6615,32 @@ export class ContractsManager {
 
     const closeSubModal = () => modal.remove();
     modal.querySelectorAll('.btn-close-submodal').forEach((b) => b.addEventListener('click', closeSubModal));
+
+    // Bấm ra ngoài vùng modal-container thì đóng
+    this.bindModalOutsideClick(modal, closeSubModal);
+
+    // Nút xóa đợt thanh toán ngay trong modal chỉnh sửa
+    modal.querySelector('.btn-delete-payment-in-modal')?.addEventListener('click', () => {
+      const dnLabel = this.formatDnNo(payment.payment_no || '');
+      const amtLabel = this.formatCurrency(payment.paid_amount || payment.request_amount);
+      this.showConfirmDialog({
+        title: 'Xác nhận xóa đợt thanh toán?',
+        message: `Bạn có chắc chắn muốn xóa đợt thanh toán <strong>"${payment.item_name || dnLabel}"</strong> (${amtLabel}) không?`,
+        subMessage: 'Sau khi xóa, dữ liệu sẽ được loại bỏ khỏi sổ theo dõi và tự động đồng bộ ngay lập tức.',
+        confirmText: 'Xóa vĩnh viễn',
+        cancelText: 'Hủy bỏ',
+        confirmType: 'danger',
+        onConfirm: async () => {
+          await db.delete('payments', payment.id);
+          await this.loadData();
+          closeSubModal();
+          this.render();
+          this.renderDisbursementsTab();
+          await this.syncToLocalFile();
+          this.showToast(`Đã xóa thành công đợt thanh toán ${dnLabel}!`, 'success');
+        },
+      });
+    });
 
     const editRateInput = modal.querySelector('#edit-pay-exchange-rate');
     const editPaidInput = modal.querySelector('#edit-pay-paid');
@@ -6631,7 +6688,7 @@ export class ContractsManager {
       this.render();
       this.renderDisbursementsTab();
       await this.syncToLocalFile();
-      alert(`Đã cập nhật thành công đợt Giải ngân ${this.formatDnNo(payment.payment_no)}!`);
+      this.showToast(`Đã cập nhật thành công đợt Giải ngân ${this.formatDnNo(payment.payment_no)}!`, 'success');
     });
   }
 
@@ -6693,6 +6750,94 @@ export class ContractsManager {
       msg.textContent = 'Đã xuất file báo cáo thành công!';
       setTimeout(() => (msg.textContent = ''), 3000);
     }
+  }
+
+  // ==========================================
+  // HỆ THỐNG DIALOG & THÔNG BÁO TÙY CHỈNH (CUSTOM CONFIRM & TOAST)
+  // ==========================================
+  bindModalOutsideClick(modal, closeFn) {
+    if (!modal || typeof closeFn !== 'function') return;
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeFn();
+      }
+    });
+  }
+
+  showConfirmDialog({
+    title = 'Xác nhận hành động',
+    message = 'Bạn có chắc chắn muốn thực hiện hành động này không?',
+    subMessage = '',
+    confirmText = 'Xác nhận',
+    cancelText = 'Hủy bỏ',
+    confirmType = 'danger',
+    onConfirm = null,
+  }) {
+    const isDanger = confirmType === 'danger';
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay custom-confirm-overlay';
+    modal.style.zIndex = '999999';
+    modal.innerHTML = `
+      <div class="modal-container custom-confirm-container" style="max-width: 440px; border-radius: 14px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.1); overflow: hidden; background: #ffffff;">
+        <div style="padding: 24px 24px 18px; text-align: center;">
+          <div style="width: 52px; height: 52px; border-radius: 50%; background: ${isDanger ? '#fee2e2' : '#e0f2fe'}; color: ${isDanger ? '#dc2626' : '#0284c7'}; display: inline-flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 14px;">
+            <i class="fa-solid ${isDanger ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i>
+          </div>
+          <h4 style="margin: 0 0 8px; font-size: 1.1rem; font-weight: 800; color: #1e293b;">${title}</h4>
+          <p style="margin: 0; font-size: 0.88rem; color: #475569; line-height: 1.5;">${message}</p>
+          ${subMessage ? `<div style="margin-top: 10px; font-size: 0.78rem; color: #94a3b8; line-height: 1.4;">${subMessage}</div>` : ''}
+        </div>
+        <div style="padding: 14px 24px; background: #f8fafc; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="button button-outline button-sm btn-confirm-cancel" style="padding: 6px 14px;">${cancelText}</button>
+          <button type="button" class="button button-sm btn-confirm-ok" style="${isDanger ? 'background: #dc2626; color: #fff; border-color: #b91c1c;' : 'background: var(--primary); color: #fff;'}; font-weight: 600; padding: 6px 16px;">
+            ${confirmText}
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => modal.remove();
+
+    // Click ra ngoài modal-container thì đóng
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    modal.querySelector('.btn-confirm-cancel')?.addEventListener('click', closeModal);
+
+    modal.querySelector('.btn-confirm-ok')?.addEventListener('click', async () => {
+      closeModal();
+      if (typeof onConfirm === 'function') {
+        await onConfirm();
+      }
+    });
+  }
+
+  showToast(message, type = 'info') {
+    let container = document.getElementById('maio-toast-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'maio-toast-container';
+      container.style.cssText = 'position: fixed; bottom: 24px; right: 24px; z-index: 999999; display: flex; flex-direction: column; gap: 8px; pointer-events: none;';
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `maio-toast maio-toast-${type}`;
+    const bg = type === 'success' ? '#059669' : (type === 'danger' ? '#dc2626' : '#2563eb');
+    const icon = type === 'success' ? 'fa-circle-check' : (type === 'danger' ? 'fa-circle-exclamation' : 'fa-circle-info');
+    toast.style.cssText = `background: ${bg}; color: #ffffff; padding: 10px 16px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 8px; pointer-events: auto; animation: toastSlideIn 0.2s ease-out;`;
+    toast.innerHTML = `<i class="fa-solid ${icon}"></i> <span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(8px)';
+      toast.style.transition = 'all 0.25s ease';
+      setTimeout(() => toast.remove(), 260);
+    }, 3000);
   }
 
   // Lọc các đợt thanh toán thực tế của Tab Giải ngân theo các bộ lọc đang kích hoạt
@@ -6836,49 +6981,39 @@ export class ContractsManager {
           .replace(/>/g, '&gt;');
 
         detailRowsHtml += `
-          <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-dn-note="${safeTooltipAttr}" title="${hasNoteInfo ? safeTooltipAttr : safeItemName}" style="border-bottom: 1px solid #f1f5f9;">
-            <td style="font-weight: 700; padding: 6px 3px !important; white-space: nowrap; text-align: center;">
-              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 4px; border-radius: 4px; font-size: 0.74rem;">
+          <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-pay-id="${p.id}" data-dn-note="${safeTooltipAttr}" title="Bấm để xem & chỉnh sửa đợt thanh toán này${hasNoteInfo ? '\n' + safeTooltipAttr : ''}" style="border-bottom: 1px solid #f1f5f9; cursor: pointer;">
+            <td style="font-weight: 700; padding: 6px 4px !important; white-space: nowrap; text-align: center;">
+              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 5px; border-radius: 4px; font-size: 0.74rem;">
                 ${this.formatDnNo(p.payment_no || String(idx + 1))}
               </span>
             </td>
-            <td style="padding: 6px 3px !important; white-space: nowrap; font-size: 0.78rem; color: #475569; text-align: center;">
+            <td style="padding: 6px 4px !important; white-space: nowrap; font-size: 0.78rem; color: #475569; text-align: center;">
               ${this.formatDate(p.payment_date)}
             </td>
-            <td style="padding: 6px 6px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <td style="padding: 6px 8px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               <div style="font-weight: 600; color: #1e293b; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${p.item_name || 'Đợt thanh toán'}${hasNoteInfo ? ' <i class="fa-regular fa-comment-dots" style="color: #6366f1; margin-left: 4px; font-size: 0.75rem;" title="Rê chuột để xem chứng từ / ghi chú"></i>' : ''}
               </div>
               ${pRate !== 1 ? `<div style="font-size: 0.68rem; color: #64748b;">TG: <strong>${pRate}</strong></div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 6px !important; white-space: nowrap;">
               ${this.formatMoneyPlain(pActVnd)}
               ${pRate !== 1 && pActRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pActRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 6px !important; white-space: nowrap;">
               ${this.formatMoneyPlain(pAccVnd)}
               ${pRate !== 1 && pAccRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pAccRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap; font-weight: 600;">
+            <td style="text-align: right; padding: 6px 6px !important; white-space: nowrap; font-weight: 600;">
               ${this.formatMoneyPlain(pReqVnd)}
               ${pRate !== 1 && pReqRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pReqRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
+            <td style="text-align: right; padding: 6px 6px !important; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
               ${this.formatMoneyPlain(pPaidVnd)}
               ${pRate !== 1 && pPaidRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(pPaidRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+            <td style="text-align: right; padding: 6px 6px !important; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
               ${this.formatMoneyPlain(pRemVnd)}
-            </td>
-            <td style="padding: 6px 2px !important; text-align: center; white-space: nowrap;">
-              <div style="display: flex; gap: 3px; justify-content: center;">
-                <button class="button button-outline btn-edit-selected-dn" data-pay-id="${p.id}" style="padding: 2px 4px; font-size: 0.7rem;" title="Chỉnh sửa đợt thanh toán này">
-                  <i class="fa-solid fa-pen-to-square"></i>
-                </button>
-                <button class="button button-outline btn-delete-selected-dn" data-pay-id="${p.id}" style="padding: 2px 4px; font-size: 0.7rem; color: var(--danger); border-color: #fca5a5;" title="Xóa đợt thanh toán này">
-                  <i class="fa-solid fa-trash-can"></i>
-                </button>
-              </div>
             </td>
           </tr>
         `;
@@ -6917,15 +7052,14 @@ export class ContractsManager {
         <table class="disburse-compact-table disburse-summary-table disburse-detail-table" style="width: 100%;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 58px; padding: 8px 3px !important; text-align: center !important;">Đợt TT</th>
-              <th style="width: 78px; padding: 8px 3px !important; text-align: center !important;">Ngày TT</th>
-              <th style="min-width: 140px; padding: 8px 6px !important; text-align: left !important;">Nội dung thanh toán</th>
-              <th style="width: 114px; padding: 8px 5px !important; text-align: right !important;">KL hoàn thành</th>
-              <th style="width: 114px; padding: 8px 5px !important; text-align: right !important;">KL chấp nhận TT</th>
-              <th style="width: 116px; padding: 8px 5px !important; text-align: right !important;">Đề nghị TT</th>
-              <th style="width: 116px; padding: 8px 5px !important; text-align: right !important;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
-              <th style="width: 108px; padding: 8px 5px !important; text-align: right !important;">Còn lại</th>
-              <th style="width: 52px; padding: 8px 2px !important; text-align: center !important;">Thao tác</th>
+              <th style="width: 60px; padding: 8px 4px !important; text-align: center !important;">Đợt TT</th>
+              <th style="width: 82px; padding: 8px 4px !important; text-align: center !important;">Ngày TT</th>
+              <th style="min-width: 140px; padding: 8px 6px !important; text-align: center !important;">Nội dung thanh toán</th>
+              <th style="width: 120px; padding: 8px 6px !important; text-align: center !important;">KL hoàn thành</th>
+              <th style="width: 120px; padding: 8px 6px !important; text-align: center !important;">KL chấp nhận TT</th>
+              <th style="width: 122px; padding: 8px 6px !important; text-align: center !important;">Đề nghị TT</th>
+              <th style="width: 122px; padding: 8px 6px !important; text-align: center !important;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
+              <th style="width: 114px; padding: 8px 6px !important; text-align: center !important;">Còn lại</th>
             </tr>
           </thead>
           <tbody>
@@ -6934,15 +7068,14 @@ export class ContractsManager {
           ${contractPayments.length > 0 ? `
             <tfoot>
               <tr style="background: #f8fafc; font-weight: 700;">
-                <td colspan="3" style="padding: 8px 6px; color: #1e293b;">
+                <td colspan="3" style="padding: 8px 8px; color: #1e293b; text-align: left;">
                   TỔNG CỘNG (${contractPayments.length} đợt ${this.disburseGroup === 'A' ? 'thu' : 'chi'})
                 </td>
-                <td style="text-align: right; padding: 8px 5px;">${this.formatMoneyPlain(dnTotalActual)}</td>
-                <td style="text-align: right; padding: 8px 5px;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
-                <td style="text-align: right; padding: 8px 5px;">${this.formatMoneyPlain(dnTotalRequested)}</td>
-                <td style="text-align: right; padding: 8px 5px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
-                <td style="text-align: right; padding: 8px 5px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
-                <td></td>
+                <td style="text-align: right; padding: 8px 6px;">${this.formatMoneyPlain(dnTotalActual)}</td>
+                <td style="text-align: right; padding: 8px 6px;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
+                <td style="text-align: right; padding: 8px 6px;">${this.formatMoneyPlain(dnTotalRequested)}</td>
+                <td style="text-align: right; padding: 8px 6px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
+                <td style="text-align: right; padding: 8px 6px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
               </tr>
             </tfoot>
           ` : ''}
@@ -6981,30 +7114,15 @@ export class ContractsManager {
       });
     });
 
-    // Nút sửa đợt thanh toán
-    detailContainer.querySelectorAll('.btn-edit-selected-dn').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const payId = btn.getAttribute('data-pay-id');
+    // Bấm vào bất kỳ dòng đợt thanh toán nào để mở modal chỉnh sửa (kèm tùy chọn xóa)
+    detailContainer.querySelectorAll('.disburse-dn-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const payId = row.getAttribute('data-pay-id');
         const pay = this.payments.find((p) => p.id === payId);
         if (pay) {
           const c = this.contracts.find((item) => item.id === pay.contract_id) || selectedContract;
           this.openEditPaymentModal(pay, c);
         }
-      });
-    });
-
-    // Nút xóa đợt thanh toán
-    detailContainer.querySelectorAll('.btn-delete-selected-dn').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const payId = btn.getAttribute('data-pay-id');
-        const pay = this.payments.find((p) => p.id === payId);
-        if (!pay) return;
-        const confirmed = confirm(`Bạn có chắc chắn muốn xóa đợt thanh toán "${pay.item_name || pay.payment_no}" (${this.formatCurrency(pay.paid_amount || pay.request_amount)}) không?`);
-        if (!confirmed) return;
-        await db.delete('payments', payId);
-        await this.loadData();
-        await this.syncToLocalFile();
-        this.renderDisbursementsTab();
       });
     });
   }
