@@ -1374,7 +1374,7 @@ textarea.form-control:focus {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   overflow: hidden;
 }
 
@@ -1400,18 +1400,18 @@ textarea.form-control:focus {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .disburse-detail-header {
-  padding: 14px 18px;
+  padding: 6px 12px;
   background: linear-gradient(to right, #f8fafc, #eff6ff);
   border-bottom: 1px solid #bfdbfe;
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* ========================================================
@@ -1818,15 +1818,36 @@ textarea.form-control:focus {
   max-height: 520px; /* Hiển thị ~15 dòng */
 }
 
+.disburse-scroll-contract-list {
+  max-height: 185px; /* Giữ bảng DS hợp đồng thanh mảnh ~6 dòng */
+}
+
 .disburse-scroll-10 {
   max-height: 380px; /* Hiển thị ~10 dòng + thead + tfoot */
+}
+
+.disburse-scroll-detail-5 {
+  height: 206px; /* Chiều cao cố định chính xác đúng 5 dòng: thead (28px) + 5 dòng (145px) + tfoot (33px) */
+  max-height: 206px;
+}
+
+.disburse-empty-row {
+  height: 29px !important;
+  background-color: #fafbfc;
+}
+
+.disburse-empty-row td {
+  padding: 3px 6px !important;
+  color: #cbd5e1;
+  border-bottom: 1px solid #f1f5f9 !important;
+  vertical-align: middle;
 }
 
 .disburse-compact-table {
   width: 100%;
   border-collapse: separate !important;
   border-spacing: 0 !important;
-  font-size: 0.81rem;
+  font-size: 0.77rem;
 }
 
 .disburse-compact-table thead th {
@@ -1836,18 +1857,19 @@ textarea.form-control:focus {
   background: #f1f5f9 !important;
   color: #334155;
   font-weight: 700;
-  padding: 8px 10px !important;
+  padding: 4px 6px !important;
   border-bottom: 2px solid #cbd5e1 !important;
   white-space: nowrap;
+  font-size: 0.76rem !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .disburse-compact-table tbody td {
-  padding: 6px 10px !important;
+  padding: 3px 6px !important;
   border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
-  font-size: 0.81rem;
-  line-height: 1.35;
+  font-size: 0.77rem !important;
+  line-height: 1.25 !important;
 }
 
 .disburse-compact-table tfoot td {
@@ -1857,7 +1879,8 @@ textarea.form-control:focus {
   background: #f8fafc !important;
   border-top: 2px solid #cbd5e1 !important;
   box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.04);
-  padding: 8px 10px !important;
+  padding: 4px 6px !important;
+  font-size: 0.78rem !important;
 }
 
 /* ==========================================================================
