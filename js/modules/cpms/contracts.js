@@ -6837,45 +6837,45 @@ export class ContractsManager {
 
         detailRowsHtml += `
           <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-dn-note="${safeTooltipAttr}" title="${hasNoteInfo ? safeTooltipAttr : safeItemName}" style="border-bottom: 1px solid #f1f5f9;">
-            <td style="font-weight: 700; padding: 6px 4px; white-space: nowrap; text-align: center;">
-              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 5px; border-radius: 4px; font-size: 0.75rem;">
+            <td style="font-weight: 700; padding: 6px 3px !important; white-space: nowrap; text-align: center;">
+              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 4px; border-radius: 4px; font-size: 0.74rem;">
                 ${this.formatDnNo(p.payment_no || String(idx + 1))}
               </span>
             </td>
-            <td style="padding: 6px 4px; white-space: nowrap; font-size: 0.79rem; color: #475569; text-align: center;">
+            <td style="padding: 6px 3px !important; white-space: nowrap; font-size: 0.78rem; color: #475569; text-align: center;">
               ${this.formatDate(p.payment_date)}
             </td>
-            <td style="padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <td style="padding: 6px 6px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
               <div style="font-weight: 600; color: #1e293b; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${p.item_name || 'Đợt thanh toán'}${hasNoteInfo ? ' <i class="fa-regular fa-comment-dots" style="color: #6366f1; margin-left: 4px; font-size: 0.75rem;" title="Rê chuột để xem chứng từ / ghi chú"></i>' : ''}
               </div>
               ${pRate !== 1 ? `<div style="font-size: 0.68rem; color: #64748b;">TG: <strong>${pRate}</strong></div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap;">
               ${this.formatMoneyPlain(pActVnd)}
               ${pRate !== 1 && pActRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pActRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap;">
               ${this.formatMoneyPlain(pAccVnd)}
               ${pRate !== 1 && pAccRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pAccRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 600;">
+            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap; font-weight: 600;">
               ${this.formatMoneyPlain(pReqVnd)}
               ${pRate !== 1 && pReqRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pReqRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
+            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
               ${this.formatMoneyPlain(pPaidVnd)}
               ${pRate !== 1 && pPaidRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(pPaidRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+            <td style="text-align: right; padding: 6px 5px !important; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
               ${this.formatMoneyPlain(pRemVnd)}
             </td>
-            <td style="padding: 6px 4px; text-align: center; white-space: nowrap;">
+            <td style="padding: 6px 2px !important; text-align: center; white-space: nowrap;">
               <div style="display: flex; gap: 3px; justify-content: center;">
-                <button class="button button-outline btn-edit-selected-dn" data-pay-id="${p.id}" style="padding: 2px 5px; font-size: 0.72rem;" title="Chỉnh sửa đợt thanh toán này">
+                <button class="button button-outline btn-edit-selected-dn" data-pay-id="${p.id}" style="padding: 2px 4px; font-size: 0.7rem;" title="Chỉnh sửa đợt thanh toán này">
                   <i class="fa-solid fa-pen-to-square"></i>
                 </button>
-                <button class="button button-outline btn-delete-selected-dn" data-pay-id="${p.id}" style="padding: 2px 5px; font-size: 0.72rem; color: var(--danger); border-color: #fca5a5;" title="Xóa đợt thanh toán này">
+                <button class="button button-outline btn-delete-selected-dn" data-pay-id="${p.id}" style="padding: 2px 4px; font-size: 0.7rem; color: var(--danger); border-color: #fca5a5;" title="Xóa đợt thanh toán này">
                   <i class="fa-solid fa-trash-can"></i>
                 </button>
               </div>
@@ -6914,18 +6914,18 @@ export class ContractsManager {
       </div>
 
       <div class="disburse-scroll-container disburse-scroll-10">
-        <table class="disburse-compact-table disburse-summary-table" style="width: 100%; table-layout: fixed;">
+        <table class="disburse-compact-table disburse-summary-table disburse-detail-table" style="width: 100%;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 66px;">Đợt TT</th>
-              <th style="width: 84px;">Ngày TT</th>
-              <th>Nội dung thanh toán</th>
-              <th style="width: 142px;">KL hoàn thành</th>
-              <th style="width: 142px;">KL chấp nhận TT</th>
-              <th style="width: 142px;">Đề nghị TT</th>
-              <th style="width: 142px;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
-              <th style="width: 136px;">Còn lại</th>
-              <th style="width: 62px;">Thao tác</th>
+              <th style="width: 58px; padding: 8px 3px !important; text-align: center !important;">Đợt TT</th>
+              <th style="width: 78px; padding: 8px 3px !important; text-align: center !important;">Ngày TT</th>
+              <th style="min-width: 140px; padding: 8px 6px !important; text-align: left !important;">Nội dung thanh toán</th>
+              <th style="width: 114px; padding: 8px 5px !important; text-align: right !important;">KL hoàn thành</th>
+              <th style="width: 114px; padding: 8px 5px !important; text-align: right !important;">KL chấp nhận TT</th>
+              <th style="width: 116px; padding: 8px 5px !important; text-align: right !important;">Đề nghị TT</th>
+              <th style="width: 116px; padding: 8px 5px !important; text-align: right !important;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
+              <th style="width: 108px; padding: 8px 5px !important; text-align: right !important;">Còn lại</th>
+              <th style="width: 52px; padding: 8px 2px !important; text-align: center !important;">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -6934,14 +6934,14 @@ export class ContractsManager {
           ${contractPayments.length > 0 ? `
             <tfoot>
               <tr style="background: #f8fafc; font-weight: 700;">
-                <td colspan="3" style="padding: 8px 8px; color: #1e293b;">
+                <td colspan="3" style="padding: 8px 6px; color: #1e293b;">
                   TỔNG CỘNG (${contractPayments.length} đợt ${this.disburseGroup === 'A' ? 'thu' : 'chi'})
                 </td>
-                <td style="text-align: right; padding: 8px 8px;">${this.formatMoneyPlain(dnTotalActual)}</td>
-                <td style="text-align: right; padding: 8px 8px;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
-                <td style="text-align: right; padding: 8px 8px;">${this.formatMoneyPlain(dnTotalRequested)}</td>
-                <td style="text-align: right; padding: 8px 8px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
-                <td style="text-align: right; padding: 8px 8px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
+                <td style="text-align: right; padding: 8px 5px;">${this.formatMoneyPlain(dnTotalActual)}</td>
+                <td style="text-align: right; padding: 8px 5px;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
+                <td style="text-align: right; padding: 8px 5px;">${this.formatMoneyPlain(dnTotalRequested)}</td>
+                <td style="text-align: right; padding: 8px 5px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
+                <td style="text-align: right; padding: 8px 5px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
                 <td></td>
               </tr>
             </tfoot>

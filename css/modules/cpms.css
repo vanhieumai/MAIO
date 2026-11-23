@@ -1520,7 +1520,7 @@ textarea.form-control:focus {
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   width: 100%;
 }
 
@@ -1687,6 +1687,80 @@ textarea.form-control:focus {
   font-weight: 600;
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+/* Responsive cho thanh Bộ lọc khi màn hình hẹp hoặc dọc */
+@media (max-width: 1024px) {
+  .cpms-sticky-filter-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .search-input-wrap {
+    flex: 1 1 200px;
+    min-width: 140px;
+  }
+  .disburse-filters-right-group {
+    margin-left: 0;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+}
+
+@media (max-width: 640px) {
+  .search-input-wrap {
+    width: calc(100% - 66px);
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .disburse-dn-checkbox {
+    flex: 0 0 auto;
+  }
+  .disburse-filters-right-group {
+    width: 100%;
+    gap: 6px;
+  }
+  .cpms-sticky-filter-row select#disburse-filter-year.disburse-filter-select,
+  .cpms-sticky-filter-row select#disburse-filter-month.disburse-filter-select {
+    flex: 1 1 calc(50% - 3px);
+    width: auto !important;
+    min-width: 0 !important;
+  }
+  .disburse-date-range-wrap {
+    width: 100%;
+    display: flex;
+    align-items: center;
+  }
+  .disburse-date-range-wrap input.disburse-filter-date {
+    flex: 1 1 0;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  .cpms-sticky-filter-row select#disburse-category-filter.disburse-filter-select {
+    flex: 1 1 calc(100% - 85px);
+    width: auto !important;
+    max-width: none !important;
+  }
+  .btn-reset-filters {
+    flex: 0 0 auto;
+  }
+}
+
+/* Tối ưu chiều rộng Bảng theo dõi thu chi (hạn chế scrollbar ngang) */
+.disburse-detail-table {
+  width: 100% !important;
+}
+
+.disburse-detail-table th,
+.disburse-detail-table td {
+  box-sizing: border-box;
+}
+
+.disburse-detail-table th:last-child,
+.disburse-detail-table td:last-child {
+  padding: 4px 2px !important;
 }
 
 /* ==========================================================================
