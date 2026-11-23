@@ -1100,7 +1100,7 @@ textarea.form-control:focus {
   margin-bottom: 12px;
   box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.05);
   position: sticky;
-  top: 0;
+  top: 54px; /* Dưới site-header (54px) khi cuộn trang */
   z-index: 80;
   overflow-x: auto;
   white-space: nowrap;
@@ -1496,7 +1496,7 @@ textarea.form-control:focus {
    ========================================================================== */
 .cpms-sticky-controls {
   position: sticky;
-  top: 48px; /* Khít sát cạnh dưới .cpms-subnav-tabs (48px subnav dính top: 0) */
+  top: 102px; /* Dưới site-header (54px) + .cpms-subnav-tabs (48px) */
   z-index: 65;
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(8px);
@@ -1504,7 +1504,7 @@ textarea.form-control:focus {
   border-radius: var(--radius-md);
   padding: 4px 12px 9px 12px;
   box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.06);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .cpms-sticky-tabs-row {
@@ -1814,12 +1814,18 @@ textarea.form-control:focus {
   background: #94a3b8;
 }
 
+#cpms-tab-disbursements {
+  padding-bottom: 280px; /* Đảm bảo scrollbar luôn cuộn được xuống để ẩn hoàn toàn bảng tổng hợp tài chính */
+}
+
 .disburse-scroll-15 {
   max-height: 520px; /* Hiển thị ~15 dòng */
 }
 
 .disburse-scroll-contract-list {
-  max-height: 185px; /* Giữ bảng DS hợp đồng thanh mảnh ~6 dòng */
+  height: clamp(300px, calc(100vh - 430px), 440px);
+  max-height: clamp(300px, calc(100vh - 430px), 440px);
+  min-height: 280px;
 }
 
 .disburse-scroll-10 {
