@@ -1683,6 +1683,28 @@ textarea.form-control:focus {
   max-width: 220px !important;
 }
 
+.btn-disburse-calendar {
+  height: 34px !important;
+  padding: 0 10px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem !important;
+  font-weight: 600;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #1e293b !important;
+  transition: all 0.15s ease;
+}
+
+.btn-disburse-calendar:hover {
+  background: #eff6ff !important;
+  border-color: #93c5fd !important;
+  color: #1d4ed8 !important;
+}
+
 .btn-reset-filters {
   height: 34px !important;
   padding: 0 10px !important;
@@ -1748,6 +1770,9 @@ textarea.form-control:focus {
     flex: 1 1 calc(100% - 85px);
     width: auto !important;
     max-width: none !important;
+  }
+  .btn-disburse-calendar {
+    flex: 0 0 auto;
   }
   .btn-reset-filters {
     flex: 0 0 auto;
@@ -2050,6 +2075,170 @@ textarea.form-control:focus {
 .disburse-contract-row.row-status-completed.selected-contract-row:hover,
 .disburse-contract-row.row-status-cancel.selected-contract-row:hover {
   background-color: #bfdbfe !important;
+}
+
+/* ==========================================================================
+   MODAL LỊCH THÁNG (MONTH CALENDAR POPUP & MONTH PICKER)
+   ========================================================================== */
+.month-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 6px 10px;
+  background: #f8fafc;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.month-calendar-year-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.month-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.month-cell {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 10px 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 64px;
+}
+
+.month-cell:hover {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.12);
+}
+
+.month-cell.active-month {
+  border-color: #2563eb !important;
+  background: #dbeafe !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25) !important;
+}
+
+.month-cell.has-payments {
+  border-color: #93c5fd;
+  background: #f0f7ff;
+}
+
+.month-cell .month-title {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+
+.month-cell.active-month .month-title {
+  color: #1d4ed8;
+}
+
+.month-cell .month-stat-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0369a1;
+}
+
+.month-cell .month-stat-amount {
+  font-size: 0.68rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+/* ==========================================================================
+   POPUP TỔNG THỂ BẢNG THU CHI (CLICK ĐÚP VÀO HỢP ĐỒNG)
+   ========================================================================== */
+.overview-modal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+  background: #f8fafc;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.overview-summary-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.overview-summary-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.overview-summary-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.overview-detail-table-wrap {
+  max-height: 440px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  scrollbar-width: thin;
+}
+
+.overview-detail-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.78rem;
+}
+
+.overview-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-bottom: 2px solid #cbd5e1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.overview-detail-table tbody td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.overview-detail-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.overview-detail-table tfoot td {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: #f8fafc;
+  border-top: 2px solid #cbd5e1;
+  font-weight: 700;
+  padding: 6px 8px;
 }
 
 

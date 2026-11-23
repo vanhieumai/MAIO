@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="css/main.css?v=5.0">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=5.6">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=5.8">
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -485,6 +485,9 @@
                   <span class="date-sep">–</span>
                   <input type="date" id="disburse-filter-date-to" class="form-control disburse-filter-date" title="Đến ngày thanh toán" aria-label="Đến ngày">
                 </div>
+                <button type="button" id="btn-disburse-month-calendar" class="button button-outline button-sm btn-disburse-calendar" title="Hiển thị lịch các tháng thanh toán trong năm">
+                  <i class="fa-solid fa-calendar-days" style="color: #2563eb;"></i> Lịch tháng
+                </button>
                 <select id="disburse-category-filter" class="form-control disburse-filter-select" title="Lọc theo loại hợp đồng">
                   <option value="ALL">📁 Tất cả loại HĐ</option>
                 </select>
@@ -685,6 +688,6 @@
   <script src="gdrive-config.js"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=6.7"></script>
+  <script type="module" src="js/app.js?v=6.8"></script>
 </body>
 </html>

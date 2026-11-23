@@ -6983,6 +6983,8 @@ export class ContractsManager {
         const pReqVnd = Math.round(pReqRaw * pRate);
         const pPaidVnd = Math.round(pPaidRaw * pRate);
         const pRemVnd = pReqVnd - pPaidVnd;
+        const rawNo = String(p.payment_no || (idx + 1)).trim();
+        const cleanNo = rawNo.replace(/^ĐN[-_\s]*/i, '').replace(/^DN[-_\s]*/i, '') || String(idx + 1);
 
         const tooltipParts = [];
         if (p.invoice_ref && String(p.invoice_ref).trim()) {
@@ -7007,8 +7009,8 @@ export class ContractsManager {
         detailRowsHtml += `
           <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-pay-id="${p.id}" data-dn-note="${safeTooltipAttr}" title="Bấm để xem & chỉnh sửa đợt thanh toán này${hasNoteInfo ? '\n' + safeTooltipAttr : ''}">
             <td style="font-weight: 700; white-space: nowrap; text-align: center;">
-              <span style="background: #e0f2fe; color: #0369a1; padding: 1.5px 4px; border-radius: 4px; font-size: 0.72rem;">
-                ${this.formatDnNo(p.payment_no || String(idx + 1))}
+              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem;">
+                ${cleanNo}
               </span>
             </td>
             <td style="white-space: nowrap; font-size: 0.76rem; color: #475569; text-align: center;">
@@ -7087,8 +7089,8 @@ export class ContractsManager {
         <table class="disburse-compact-table disburse-summary-table disburse-detail-table" style="width: 100%;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 58px; padding: 4px 4px !important; text-align: center !important;">Đợt TT</th>
-              <th style="width: 78px; padding: 4px 4px !important; text-align: center !important;">Ngày TT</th>
+              <th style="width: 76px; padding: 4px 4px !important; text-align: center !important;">Đợt TT</th>
+              <th style="width: 96px; padding: 4px 4px !important; text-align: center !important;">Ngày TT</th>
               <th style="min-width: 140px; padding: 4px 6px !important; text-align: center !important;">Nội dung thanh toán</th>
               <th style="width: 120px; padding: 4px 6px !important; text-align: center !important;">KL hoàn thành</th>
               <th style="width: 120px; padding: 4px 6px !important; text-align: center !important;">KL chấp nhận TT</th>
@@ -7392,32 +7394,28 @@ export class ContractsManager {
     // Lọc theo Loại hợp đồng, Từ khóa, Checkbox ĐN và Ngày/Tháng/Năm
     const filteredContracts = curGroupContracts.filter((c) => matchesContractFilters(c));
 
-    // Sắp xếp danh sách theo cột Mã từ nhỏ đến lớn (Natural Hierarchical Sort: B-1 < B-2 < B-11 < B-11.1 < B-11.2 ...; CPB xếp cuối)
+    // Sắp xếp danh sách theo thời gian ký hợp đồng từ sớm nhất đến muộn nhất (CPB xếp cuối)
     filteredContracts.sort((a, b) => {
       const isCpbA = Boolean(a.is_cpb || a.contract_type === 'CPB' || (a.id && String(a.id).startsWith('B-CPB-')));
       const isCpbB = Boolean(b.is_cpb || b.contract_type === 'CPB' || (b.id && String(b.id).startsWith('B-CPB-')));
       if (isCpbA !== isCpbB) return isCpbA ? 1 : -1;
 
+      const dateA = this.parsePaymentDateObj(a.signing_date || a.created_at);
+      const dateB = this.parsePaymentDateObj(b.signing_date || b.created_at);
+      const timeA = dateA ? dateA.getTime() : 0;
+      const timeB = dateB ? dateB.getTime() : 0;
+
+      if (timeA && timeB) {
+        if (timeA !== timeB) return timeA - timeB;
+      } else if (timeA && !timeB) {
+        return -1;
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+
       const codeA = String(a.display_no || a.id || '').trim();
       const codeB = String(b.display_no || b.id || '').trim();
-      const partsA = codeA.split(/[-.]/);
-      const partsB = codeB.split(/[-.]/);
-      const minLen = Math.min(partsA.length, partsB.length);
-
-      for (let i = 0; i < minLen; i++) {
-        const pA = partsA[i];
-        const pB = partsB[i];
-        const isNumA = /^\d+$/.test(pA);
-        const isNumB = /^\d+$/.test(pB);
-        if (isNumA && isNumB) {
-          const diff = Number(pA) - Number(pB);
-          if (diff !== 0) return diff;
-        } else {
-          const cmp = pA.localeCompare(pB, 'vi', { numeric: true, sensitivity: 'base' });
-          if (cmp !== 0) return cmp;
-        }
-      }
-      return partsA.length - partsB.length;
+      return codeA.localeCompare(codeB, 'vi', { numeric: true, sensitivity: 'base' });
     });
 
     // Xác định mục đang chọn (nếu chưa có hoặc không nằm trong nhóm thì chọn mục đầu tiên)
@@ -7440,7 +7438,7 @@ export class ContractsManager {
       `;
     } else {
       let contractRowsHtml = '';
-      filteredContracts.forEach((c) => {
+      filteredContracts.forEach((c, idx) => {
         const isSelected = c.id === this.selectedDisburseContractId;
         const isCpb = c.is_cpb || c.contract_type === 'CPB' || (c.id && c.id.startsWith('B-CPB-'));
         
@@ -7486,11 +7484,11 @@ export class ContractsManager {
           : '';
 
         contractRowsHtml += `
-          <tr class="disburse-contract-row ${isSelected ? 'selected-contract-row' : ''}${rowStatusClass}" data-disburse-cid="${c.id}" title="${(c.scope_of_work || 'Hợp đồng thực hiện dự án')} | ${partnerName} (${c.status || 'Active'})">
-            <td style="white-space: nowrap; font-weight: 700; padding: 3px 6px;">
+          <tr class="disburse-contract-row ${isSelected ? 'selected-contract-row' : ''}${rowStatusClass}" data-disburse-cid="${c.id}" title="${c.display_no ? `[${c.display_no}] ` : ''}${(c.scope_of_work || 'Hợp đồng thực hiện dự án')} | ${partnerName} (${c.status || 'Active'}) — Nhấp đúp để mở popup tổng thể bảng thu chi">
+            <td style="white-space: nowrap; font-weight: 700; padding: 3px 6px; text-align: center; color: #475569; font-size: 0.77rem;">
               ${isCpb 
-                ? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.68rem; padding: 1.5px 5px;"><i class="fa-solid fa-receipt"></i> CPB</span>` 
-                : `<span style="font-family: monospace; color: ${isCanceledRow ? '#94a3b8' : 'var(--primary)'}; font-size: 0.76rem;">${c.display_no || c.id}</span>`}
+                ? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.68rem; padding: 1.5px 4px;"><i class="fa-solid fa-receipt"></i> CPB</span>` 
+                : `${idx + 1}`}
             </td>
             <td style="font-weight: 700; color: #1e293b; padding: 3px 6px; white-space: nowrap; font-size: 0.77rem;">
               <span>${c.contract_no || c.id}</span>${statusMiniBadge}
@@ -7536,7 +7534,7 @@ export class ContractsManager {
           <table class="disburse-compact-table disburse-contract-list-table" style="width: 100%; border-collapse: separate !important; border-spacing: 0 !important;">
             <thead>
               <tr>
-                <th style="width: 68px; padding: 4px 6px !important; text-align: center !important;">Mã</th>
+                <th style="width: 50px; padding: 4px 6px !important; text-align: center !important;">STT</th>
                 <th style="min-width: 140px; padding: 4px 6px !important; text-align: left !important;">Số hiệu HĐ / Phụ lục</th>
                 <th style="width: 136px; padding: 4px 6px !important; text-align: right !important;">Giá trị HĐ</th>
                 <th style="width: 136px; padding: 4px 6px !important; text-align: right !important;">KL hoàn thành</th>
@@ -7569,6 +7567,15 @@ export class ContractsManager {
 
           // Chỉ nạp lại bảng theo dõi thu chi bên dưới
           this.renderDisburseDetailTable(cid);
+        });
+
+        // Click đúp (dblclick) vào hợp đồng để mở popup tổng thể bảng thu chi
+        row.addEventListener('dblclick', () => {
+          const cid = row.getAttribute('data-disburse-cid');
+          const c = this.contracts.find((item) => item.id === cid);
+          if (c) {
+            this.openContractDisbursementsOverviewModal(c);
+          }
         });
       });
     }
@@ -7699,6 +7706,11 @@ export class ContractsManager {
         this.renderDisbursementsTab();
       });
 
+      // Nút Lịch tháng giải ngân
+      document.getElementById('btn-disburse-month-calendar')?.addEventListener('click', () => {
+        this.openDisburseMonthCalendarModal();
+      });
+
       // Xuất Excel giải ngân
       document.getElementById('btn-export-disbursements-excel')?.addEventListener('click', () => {
         this.exportAllDisbursementsToExcel();
@@ -7737,6 +7749,516 @@ export class ContractsManager {
     const link = document.createElement('a');
     link.href = url;
     link.download = `So_Giai_Ngan_${prjName}_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  openDisburseMonthCalendarModal() {
+    let activeYear = parseInt(this.disburseFilterYear, 10) || new Date().getFullYear();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.zIndex = '10005';
+
+    const renderCalendarContent = () => {
+      const curGroupContracts = this.contracts.filter((c) => {
+        if (this.disburseGroup === 'A') return c.group === 'A' || c.id?.startsWith('A-');
+        return c.group === 'B' || c.id?.startsWith('B-') || c.is_cpb || c.contract_type === 'CPB';
+      });
+      const validCids = new Set(curGroupContracts.map((c) => c.id));
+
+      const monthStats = {};
+      for (let m = 1; m <= 12; m++) {
+        monthStats[m] = { count: 0, amount: 0 };
+      }
+
+      this.payments.forEach((p) => {
+        if (p.is_header) return;
+        if (!validCids.has(p.contract_id)) return;
+        const d = this.parsePaymentDateObj(p.payment_date);
+        if (!d) return;
+        if (d.getFullYear() === activeYear) {
+          const m = d.getMonth() + 1;
+          if (monthStats[m]) {
+            monthStats[m].count += 1;
+            monthStats[m].amount += this.getPaymentVnd(p, 'paid_amount');
+          }
+        }
+      });
+
+      let cellsHtml = '';
+      for (let m = 1; m <= 12; m++) {
+        const stat = monthStats[m];
+        const isCurrentActive = String(this.disburseFilterYear) === String(activeYear) && String(this.disburseFilterMonth) === String(m);
+        const hasData = stat.count > 0;
+
+        cellsHtml += `
+          <div class="month-cell ${isCurrentActive ? 'active-month' : ''} ${hasData ? 'has-payments' : ''}" data-month="${m}">
+            <div class="month-title">Tháng ${m}</div>
+            ${hasData ? `
+              <div class="month-stat-count">${stat.count} đợt TT</div>
+              <div class="month-stat-amount">${this.formatMoneyPlain(stat.amount)}</div>
+            ` : `
+              <div style="font-size: 0.7rem; color: #94a3b8;">Chưa có TT</div>
+            `}
+          </div>
+        `;
+      }
+
+      modal.innerHTML = `
+        <div class="modal-dialog" style="max-width: 480px; width: 92vw;">
+          <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <i class="fa-solid fa-calendar-days" style="color: #2563eb; font-size: 1.1rem;"></i>
+              <h3 class="modal-title" style="font-size: 1.05rem; margin: 0;">Lịch Tháng Giải Ngân</h3>
+            </div>
+            <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+
+          <div class="modal-body" style="padding: 16px;">
+            <!-- Year Navigator -->
+            <div class="month-calendar-header">
+              <button type="button" class="button button-outline button-sm btn-prev-year" style="padding: 3px 8px;">
+                <i class="fa-solid fa-chevron-left"></i>
+              </button>
+              <div style="font-weight: 700; font-size: 1rem; color: #1e293b; display: flex; align-items: center; gap: 6px;">
+                <span>Năm</span>
+                <span class="active-year-label" style="color: #2563eb; font-size: 1.15rem;">${activeYear}</span>
+              </div>
+              <button type="button" class="button button-outline button-sm btn-next-year" style="padding: 3px 8px;">
+                <i class="fa-solid fa-chevron-right"></i>
+              </button>
+            </div>
+
+            <!-- 12 Months Grid -->
+            <div class="month-calendar-grid">
+              ${cellsHtml}
+            </div>
+
+            <!-- Action buttons -->
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 4px;">
+              <button type="button" class="button button-outline button-sm btn-clear-all-month-filter" style="font-size: 0.78rem;">
+                <i class="fa-solid fa-rotate-left"></i> Bỏ lọc thời gian
+              </button>
+              <button type="button" class="button button-primary button-sm btn-select-full-year" style="font-size: 0.78rem;">
+                <i class="fa-solid fa-calendar-check"></i> Chọn cả năm ${activeYear}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Gắn sự kiện
+      modal.querySelector('.btn-close-submodal').addEventListener('click', closeModal);
+      this.bindModalOutsideClick(modal, closeModal);
+
+      modal.querySelector('.btn-prev-year').addEventListener('click', () => {
+        activeYear -= 1;
+        renderCalendarContent();
+      });
+
+      modal.querySelector('.btn-next-year').addEventListener('click', () => {
+        activeYear += 1;
+        renderCalendarContent();
+      });
+
+      modal.querySelectorAll('.month-cell').forEach((cell) => {
+        cell.addEventListener('click', () => {
+          const selectedMonth = cell.getAttribute('data-month');
+          this.disburseFilterYear = String(activeYear);
+          this.disburseFilterMonth = String(selectedMonth);
+          this.disburseFilterDateFrom = '';
+          this.disburseFilterDateTo = '';
+          this.selectedDisburseContractId = null;
+
+          const yEl = document.getElementById('disburse-filter-year');
+          const mEl = document.getElementById('disburse-filter-month');
+          const dfEl = document.getElementById('disburse-filter-date-from');
+          const dtEl = document.getElementById('disburse-filter-date-to');
+          if (yEl) yEl.value = this.disburseFilterYear;
+          if (mEl) mEl.value = this.disburseFilterMonth;
+          if (dfEl) dfEl.value = '';
+          if (dtEl) dtEl.value = '';
+
+          closeModal();
+          this.renderDisbursementsTab();
+        });
+      });
+
+      modal.querySelector('.btn-select-full-year').addEventListener('click', () => {
+        this.disburseFilterYear = String(activeYear);
+        this.disburseFilterMonth = '';
+        this.disburseFilterDateFrom = '';
+        this.disburseFilterDateTo = '';
+        this.selectedDisburseContractId = null;
+
+        const yEl = document.getElementById('disburse-filter-year');
+        const mEl = document.getElementById('disburse-filter-month');
+        const dfEl = document.getElementById('disburse-filter-date-from');
+        const dtEl = document.getElementById('disburse-filter-date-to');
+        if (yEl) yEl.value = this.disburseFilterYear;
+        if (mEl) mEl.value = '';
+        if (dfEl) dfEl.value = '';
+        if (dtEl) dtEl.value = '';
+
+        closeModal();
+        this.renderDisbursementsTab();
+      });
+
+      modal.querySelector('.btn-clear-all-month-filter').addEventListener('click', () => {
+        this.disburseFilterYear = '';
+        this.disburseFilterMonth = '';
+        this.disburseFilterDateFrom = '';
+        this.disburseFilterDateTo = '';
+        this.selectedDisburseContractId = null;
+
+        const yEl = document.getElementById('disburse-filter-year');
+        const mEl = document.getElementById('disburse-filter-month');
+        const dfEl = document.getElementById('disburse-filter-date-from');
+        const dtEl = document.getElementById('disburse-filter-date-to');
+        if (yEl) yEl.value = '';
+        if (mEl) mEl.value = '';
+        if (dfEl) dfEl.value = '';
+        if (dtEl) dtEl.value = '';
+
+        closeModal();
+        this.renderDisbursementsTab();
+      });
+    };
+
+    const closeModal = () => {
+      document.removeEventListener('keydown', handleEsc);
+      modal.remove();
+    };
+
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    renderCalendarContent();
+    document.body.appendChild(modal);
+  }
+
+  openContractDisbursementsOverviewModal(contract) {
+    if (!contract) return;
+    const isCpb = contract.is_cpb || contract.contract_type === 'CPB' || (contract.id && contract.id.startsWith('B-CPB-'));
+    const isGroupA = contract.group === 'A' || contract.id?.startsWith('A-');
+    const partnerRole = isGroupA ? 'Chủ đầu tư (Bên A)' : 'Đối tác / Thầu phụ (Bên B)';
+    const partnerName = isGroupA ? (contract.company_a || 'Chủ đầu tư') : (contract.company_b || 'Ban QLDA / Thầu phụ');
+
+    const familyIds = this.getAllDescendantIds(contract.id);
+    const contractPayments = this.payments.filter((p) => !p.is_header && familyIds.includes(p.contract_id));
+
+    contractPayments.sort((a, b) => {
+      const dateA = this.parsePaymentDateObj(a.payment_date)?.getTime() || 0;
+      const dateB = this.parsePaymentDateObj(b.payment_date)?.getTime() || 0;
+      return dateA - dateB;
+    });
+
+    const cStats = this.calculateTotals(contract);
+    const cRate = Number(contract.exchange_rate) || 1.0;
+    const cValVnd = cStats.totalSigned;
+
+    let totalAct = 0;
+    let totalAcc = 0;
+    let totalReq = 0;
+    let totalPaid = 0;
+    contractPayments.forEach((p) => {
+      totalAct += this.getPaymentVnd(p, 'actual_volume');
+      totalAcc += this.getPaymentVnd(p, 'accepted_vol');
+      totalReq += this.getPaymentVnd(p, 'request_amount');
+      totalPaid += this.getPaymentVnd(p, 'paid_amount');
+    });
+    const totalRemaining = totalReq - totalPaid;
+    const disbursePercent = cValVnd > 0 ? ((totalPaid / cValVnd) * 100).toFixed(1) : '0.0';
+
+    let rowsHtml = '';
+    if (contractPayments.length === 0) {
+      rowsHtml = `
+        <tr>
+          <td colspan="10" style="text-align: center; padding: 30px; color: #94a3b8;">
+            <i class="fa-regular fa-folder-open" style="font-size: 1.8rem; margin-bottom: 8px; display: block;"></i>
+            Hợp đồng này chưa có đợt thanh toán / giải ngân nào.
+          </td>
+        </tr>
+      `;
+    } else {
+      contractPayments.forEach((p, idx) => {
+        const pRate = this.getPaymentRate(p);
+        const pActRaw = Number(p.actual_volume) || 0;
+        const pAccRaw = Number(p.accepted_vol) || 0;
+        const pReqRaw = Number(p.request_amount) || 0;
+        const pPaidRaw = Number(p.paid_amount) || 0;
+        const pActVnd = Math.round(pActRaw * pRate);
+        const pAccVnd = Math.round(pAccRaw * pRate);
+        const pReqVnd = Math.round(pReqRaw * pRate);
+        const pPaidVnd = Math.round(pPaidRaw * pRate);
+        const pRemVnd = pReqVnd - pPaidVnd;
+
+        const rawNo = String(p.payment_no || (idx + 1)).trim();
+        const cleanNo = rawNo.replace(/^ĐN[-_\s]*/i, '').replace(/^DN[-_\s]*/i, '') || String(idx + 1);
+
+        const safeItemName = String(p.item_name || 'Đợt thanh toán')
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+
+        rowsHtml += `
+          <tr class="disburse-dn-row" data-pay-id="${p.id}" style="cursor: pointer;" title="Nhấp để chỉnh sửa đợt thanh toán này">
+            <td style="text-align: center; color: #64748b; font-size: 0.76rem;">${idx + 1}</td>
+            <td style="text-align: center; font-weight: 700;">
+              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem;">
+                ${cleanNo}
+              </span>
+            </td>
+            <td style="text-align: center; font-size: 0.76rem; color: #475569; white-space: nowrap;">
+              ${this.formatDate(p.payment_date)}
+            </td>
+            <td style="font-weight: 600; color: #1e293b;" title="${safeItemName}">
+              ${safeItemName}
+              ${pRate !== 1 ? `<span style="font-size: 0.68rem; color: #64748b; font-weight: normal;">(TG: ${pRate})</span>` : ''}
+              ${p.invoice_ref ? `<div style="font-size: 0.68rem; color: #6366f1; font-weight: normal;"><i class="fa-solid fa-receipt"></i> HĐ: ${p.invoice_ref}</div>` : ''}
+            </td>
+            <td style="text-align: right; white-space: nowrap;">${this.formatMoneyPlain(pActVnd)}</td>
+            <td style="text-align: right; white-space: nowrap;">${this.formatMoneyPlain(pAccVnd)}</td>
+            <td style="text-align: right; white-space: nowrap; font-weight: 600;">${this.formatMoneyPlain(pReqVnd)}</td>
+            <td style="text-align: right; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (isGroupA ? 'var(--success)' : '#0891b2')};">
+              ${this.formatMoneyPlain(pPaidVnd)}
+            </td>
+            <td style="text-align: right; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+              ${this.formatMoneyPlain(pRemVnd)}
+            </td>
+            <td style="text-align: center; white-space: nowrap;">
+              <button class="button button-outline btn-edit-dn-in-overview" data-pay-id="${p.id}" title="Sửa đợt này" style="padding: 2px 6px; font-size: 0.72rem; margin-right: 4px;">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button class="button button-outline btn-delete-dn-in-overview" data-pay-id="${p.id}" title="Xóa đợt này" style="padding: 2px 6px; font-size: 0.72rem; color: var(--danger); border-color: #fca5a5;">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.zIndex = '10005';
+    modal.innerHTML = `
+      <div class="modal-dialog modal-xl" style="max-width: 1060px; width: 95vw;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-table-list" style="color: var(--primary); font-size: 1.1rem;"></i>
+            <h3 class="modal-title" style="font-size: 1.05rem; margin: 0;">
+              Tổng thể Bảng thu chi: <span style="color: var(--primary);">${contract.contract_no || contract.id}</span>
+              ${contract.scope_of_work ? `<small style="font-size: 0.82rem; color: var(--text-muted); font-weight: normal; margin-left: 6px;">— ${contract.scope_of_work}</small>` : ''}
+            </h3>
+          </div>
+          <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="modal-body" style="padding: 16px 20px;">
+          <!-- Thống kê tổng hợp -->
+          <div class="overview-modal-summary-grid">
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">${partnerRole}</span>
+              <span class="overview-summary-value" style="font-size: 0.8rem; font-weight: 600;" title="${partnerName}">${partnerName}</span>
+            </div>
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">Giá trị HĐ</span>
+              <span class="overview-summary-value">${this.formatMoneyPlain(cValVnd)}</span>
+            </div>
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">KL hoàn thành</span>
+              <span class="overview-summary-value">${this.formatMoneyPlain(totalAct)}</span>
+            </div>
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">KL chấp nhận TT</span>
+              <span class="overview-summary-value">${this.formatMoneyPlain(totalAcc)}</span>
+            </div>
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">Đề nghị TT</span>
+              <span class="overview-summary-value">${this.formatMoneyPlain(totalReq)}</span>
+            </div>
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">Đã ${isGroupA ? 'thu' : 'thanh toán'}</span>
+              <span class="overview-summary-value" style="color: ${isGroupA ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(totalPaid)}</span>
+            </div>
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">Còn lại</span>
+              <span class="overview-summary-value" style="color: ${totalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(totalRemaining)}</span>
+            </div>
+            <div class="overview-summary-item">
+              <span class="overview-summary-label">Tỷ lệ giải ngân</span>
+              <span class="overview-summary-value" style="color: #2563eb;">${disbursePercent}%</span>
+            </div>
+          </div>
+
+          <!-- Toolbar bên trên bảng -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #1e293b;">
+              <i class="fa-solid fa-list-check" style="color: #3b82f6; margin-right: 4px;"></i> Chi tiết tất cả các đợt giải ngân (${contractPayments.length} đợt)
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="button button-outline button-sm btn-export-contract-ledger" style="font-size: 0.78rem;">
+                <i class="fa-solid fa-file-excel" style="color: #16a34a;"></i> Xuất Excel HĐ này
+              </button>
+              <button type="button" class="button button-primary button-sm btn-add-dn-in-overview" style="font-size: 0.78rem;">
+                <i class="fa-solid fa-plus"></i> Thêm đợt TT
+              </button>
+            </div>
+          </div>
+
+          <!-- Bảng cuộn chi tiết -->
+          <div class="overview-detail-table-wrap">
+            <table class="overview-detail-table">
+              <thead>
+                <tr>
+                  <th style="width: 44px; text-align: center;">STT</th>
+                  <th style="width: 76px; text-align: center;">Đợt TT</th>
+                  <th style="width: 96px; text-align: center;">Ngày TT</th>
+                  <th style="min-width: 150px; text-align: left;">Nội dung thanh toán</th>
+                  <th style="width: 110px; text-align: right;">KL hoàn thành</th>
+                  <th style="width: 110px; text-align: right;">KL chấp nhận TT</th>
+                  <th style="width: 115px; text-align: right;">Đề nghị TT</th>
+                  <th style="width: 115px; text-align: right;">Đã ${isGroupA ? 'thu' : 'thanh toán'}</th>
+                  <th style="width: 105px; text-align: right;">Còn lại</th>
+                  <th style="width: 76px; text-align: center;">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+              <tfoot>
+                <tr style="background: #f8fafc; font-weight: 700;">
+                  <td colspan="4" style="padding: 6px 8px; text-align: left; font-size: 0.78rem; color: #1e293b;">
+                    TỔNG CỘNG (${contractPayments.length} đợt)
+                  </td>
+                  <td style="text-align: right; padding: 6px 8px;">${this.formatMoneyPlain(totalAct)}</td>
+                  <td style="text-align: right; padding: 6px 8px;">${this.formatMoneyPlain(totalAcc)}</td>
+                  <td style="text-align: right; padding: 6px 8px;">${this.formatMoneyPlain(totalReq)}</td>
+                  <td style="text-align: right; padding: 6px 8px; color: ${isGroupA ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(totalPaid)}</td>
+                  <td style="text-align: right; padding: 6px 8px; color: ${totalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(totalRemaining)}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => {
+      document.removeEventListener('keydown', handleEsc);
+      modal.remove();
+    };
+
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') closeModal();
+    };
+    document.addEventListener('keydown', handleEsc);
+
+    modal.querySelector('.btn-close-submodal').addEventListener('click', closeModal);
+    this.bindModalOutsideClick(modal, closeModal);
+
+    // Nút Thêm đợt TT trong overview modal
+    modal.querySelector('.btn-add-dn-in-overview')?.addEventListener('click', () => {
+      closeModal();
+      this.openPaymentEntryModal(contract);
+    });
+
+    // Nút Xuất Excel riêng cho hợp đồng này
+    modal.querySelector('.btn-export-contract-ledger')?.addEventListener('click', () => {
+      this.exportSingleContractDisbursementsToExcel(contract, contractPayments);
+    });
+
+    // Click vào dòng hoặc nút sửa đợt thanh toán
+    modal.querySelectorAll('.disburse-dn-row').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('.btn-delete-dn-in-overview') || e.target.closest('.btn-edit-dn-in-overview')) return;
+        const payId = row.getAttribute('data-pay-id');
+        const pay = this.payments.find((p) => p.id === payId);
+        if (pay) {
+          closeModal();
+          this.openEditPaymentModal(pay, contract);
+        }
+      });
+    });
+
+    modal.querySelectorAll('.btn-edit-dn-in-overview').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const payId = btn.getAttribute('data-pay-id');
+        const pay = this.payments.find((p) => p.id === payId);
+        if (pay) {
+          closeModal();
+          this.openEditPaymentModal(pay, contract);
+        }
+      });
+    });
+
+    // Nút xóa đợt thanh toán
+    modal.querySelectorAll('.btn-delete-dn-in-overview').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const payId = btn.getAttribute('data-pay-id');
+        const pay = this.payments.find((p) => p.id === payId);
+        if (!pay) return;
+        const dnLabel = this.formatDnNo(pay.payment_no || '');
+        const amtLabel = this.formatCurrency(pay.paid_amount || pay.request_amount);
+        this.showConfirmDialog({
+          title: 'Xác nhận xóa đợt thanh toán?',
+          message: `Bạn có chắc chắn muốn xóa đợt thanh toán <strong>"${pay.item_name || dnLabel}"</strong> (${amtLabel}) không?`,
+          subMessage: 'Sau khi xóa, dữ liệu sẽ được loại bỏ khỏi sổ theo dõi và tự động đồng bộ ngay lập tức.',
+          confirmText: 'Xóa đợt thanh toán',
+          confirmVariant: 'danger',
+          onConfirm: async () => {
+            this.payments = this.payments.filter((p) => p.id !== pay.id);
+            await this.saveData();
+            closeModal();
+            this.showToast('Đã xóa đợt thanh toán thành công!', 'success');
+            this.renderDisbursementsTab();
+          }
+        });
+      });
+    });
+  }
+
+  exportSingleContractDisbursementsToExcel(contract, paymentsList) {
+    const prj = this.projects.find((p) => p.id === this.currentProjectId);
+    const prjName = prj ? (prj.name || prj.id) : (this.currentProjectId || 'DuAn');
+    const isGroupA = contract.group === 'A' || contract.id?.startsWith('A-');
+    const partner = isGroupA ? (contract.company_a || '') : (contract.company_b || '');
+
+    let csvContent = '\uFEFF';
+    csvContent += `BẢNG THEO DÕI THU CHI HỢP ĐỒNG: ${contract.contract_no || contract.id}\r\n`;
+    csvContent += `Dự án: ${prjName}\r\n`;
+    csvContent += `Đối tác: ${partner}\r\n`;
+    csvContent += `Thời điểm xuất: ${new Date().toLocaleString('vi-VN')}\r\n\r\n`;
+    csvContent += `STT,Số ĐN,Nội dung thanh toán,Ngày TT,KL hoàn thành (VNĐ),KL chấp nhận TT (VNĐ),Đề nghị TT (VNĐ),Đã TT (VNĐ),Còn lại (VNĐ),Hóa đơn VAT,Ghi chú\r\n`;
+
+    paymentsList.forEach((p, idx) => {
+      const pRate = this.getPaymentRate(p);
+      const pActVnd = Math.round((Number(p.actual_volume) || 0) * pRate);
+      const pAccVnd = Math.round((Number(p.accepted_vol) || 0) * pRate);
+      const pReqVnd = Math.round((Number(p.request_amount) || 0) * pRate);
+      const pPaidVnd = Math.round((Number(p.paid_amount) || 0) * pRate);
+      const pRemVnd = pReqVnd - pPaidVnd;
+      const rawNo = String(p.payment_no || (idx + 1)).trim();
+      const cleanNo = rawNo.replace(/^ĐN[-_\s]*/i, '').replace(/^DN[-_\s]*/i, '') || String(idx + 1);
+
+      csvContent += `"${idx + 1}","${cleanNo}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pActVnd},${pAccVnd},${pReqVnd},${pPaidVnd},${pRemVnd},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Bang_Thu_Chi_${contract.contract_no || contract.id}_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }
