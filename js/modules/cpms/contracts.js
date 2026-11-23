@@ -7052,9 +7052,9 @@ export class ContractsManager {
     if (contractPayments.length === 0) {
       detailRowsHtml = `
         <tr>
-          <td colspan="10" style="text-align: center; padding: 32px 16px; color: var(--text-muted);">
+          <td colspan="9" style="text-align: center; padding: 32px 16px; color: var(--text-muted);">
             <i class="fa-solid fa-receipt" style="font-size: 1.8rem; color: #cbd5e1; margin-bottom: 8px; display: block;"></i>
-            Hợp đồng này chưa có đợt giải ngân nào. Bấm nút <strong>"+ Thêm Đợt"</strong> ở góc phải để ghi nhận đợt thanh toán đầu tiên.
+            Hợp đồng này chưa có đợt giải ngân nào. Bấm nút <strong>"+ Thêm Thanh toán"</strong> ở phía trên để ghi nhận đợt thanh toán đầu tiên.
           </td>
         </tr>
       `;
@@ -7071,45 +7071,62 @@ export class ContractsManager {
         const pPaidVnd = Math.round(pPaidRaw * pRate);
         const pRemVnd = pReqVnd - pPaidVnd;
 
+        const tooltipParts = [];
+        if (p.invoice_ref && String(p.invoice_ref).trim()) {
+          tooltipParts.push(`Chứng từ / HĐ: ${String(p.invoice_ref).trim()}`);
+        }
+        if (p.note && String(p.note).trim()) {
+          tooltipParts.push(`Ghi chú: ${String(p.note).trim()}`);
+        }
+        const hasNoteInfo = tooltipParts.length > 0;
+        const safeTooltipAttr = tooltipParts
+          .join('\n')
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        const safeItemName = String(p.item_name || 'Đợt thanh toán')
+          .replace(/&/g, '&amp;')
+          .replace(/"/g, '&quot;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+
         detailRowsHtml += `
-          <tr style="border-bottom: 1px solid #f1f5f9;">
-            <td style="font-weight: 700; padding: 6px 8px; white-space: nowrap;">
-              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.78rem;">
+          <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-dn-note="${safeTooltipAttr}" title="${hasNoteInfo ? safeTooltipAttr : safeItemName}" style="border-bottom: 1px solid #f1f5f9;">
+            <td style="font-weight: 700; padding: 6px 6px; white-space: nowrap; text-align: center;">
+              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.76rem;">
                 ${this.formatDnNo(p.payment_no || String(idx + 1))}
               </span>
             </td>
-            <td style="padding: 6px 8px; white-space: nowrap; font-size: 0.8rem; color: #475569;">
-              <i class="fa-regular fa-calendar-days" style="margin-right: 4px;"></i> ${this.formatDate(p.payment_date)}
+            <td style="padding: 6px 6px; white-space: nowrap; font-size: 0.79rem; color: #475569; text-align: center;">
+              <i class="fa-regular fa-calendar-days" style="margin-right: 3px;"></i>${this.formatDate(p.payment_date)}
             </td>
-            <td style="padding: 6px 8px;">
-              <div style="font-weight: 600; color: #1e293b; font-size: 0.81rem;">${p.item_name || 'Đợt thanh toán'}</div>
+            <td style="padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <div style="font-weight: 600; color: #1e293b; font-size: 0.81rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${p.item_name || 'Đợt thanh toán'}${hasNoteInfo ? ' <i class="fa-regular fa-comment-dots" style="color: #6366f1; margin-left: 4px; font-size: 0.76rem;" title="Rê chuột để xem chứng từ / ghi chú"></i>' : ''}
+              </div>
               ${pRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b;">Tỷ giá TT: <strong>${pRate}</strong></div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               ${this.formatCurrency(pActVnd)}
               ${pRate !== 1 && pActRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pActRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               ${this.formatCurrency(pAccVnd)}
               ${pRate !== 1 && pAccRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pAccRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 600;">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 600; overflow: hidden; text-overflow: ellipsis;">
               ${this.formatCurrency(pReqVnd)}
               ${pRate !== 1 && pReqRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pReqRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 700; overflow: hidden; text-overflow: ellipsis; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
               ${this.formatCurrency(pPaidVnd)}
               ${pRate !== 1 && pPaidRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(pPaidRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
               ${this.formatCurrency(pRemVnd)}
             </td>
-            <td style="padding: 6px 8px; font-size: 0.78rem; color: #64748b;">
-              ${p.invoice_ref ? `<span style="background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-family: monospace;">${p.invoice_ref}</span>` : ''}
-              ${p.note ? `<div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;">${p.note}</div>` : ''}
-              ${!p.invoice_ref && !p.note ? '—' : ''}
-            </td>
-            <td style="padding: 6px 8px; text-align: center; white-space: nowrap;">
+            <td style="padding: 6px 6px; text-align: center; white-space: nowrap;">
               <div style="display: flex; gap: 4px; justify-content: center;">
                 <button class="button button-outline btn-edit-selected-dn" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.72rem;" title="Chỉnh sửa đợt thanh toán này">
                   <i class="fa-solid fa-pen-to-square"></i>
@@ -7126,14 +7143,13 @@ export class ContractsManager {
 
     const partnerLabel = this.disburseGroup === 'A' ? (selectedContract.company_a || 'Chủ đầu tư') : (selectedContract.company_b || 'Ban QLDA / Thầu phụ');
     const partnerRole = this.disburseGroup === 'A' ? 'Bên A' : 'Bên B';
-    const selIsMain = !selectedContract.parent_id;
     const selStats = this.calculateTotals(selectedContract);
     const selRate = Number(selectedContract.exchange_rate) || 1.0;
     const selValVnd = selStats.totalSigned;
 
     detailContainer.innerHTML = `
       <div class="disburse-detail-header" style="padding: 8px 16px; background: #ffffff; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-        <div>
+        <div style="width: 100%;">
           <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
             <span class="badge ${this.disburseGroup === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.78rem; padding: 3px 8px;">
               <i class="fa-solid ${this.disburseGroup === 'A' ? 'fa-arrow-down-long' : 'fa-arrow-up-long'}"></i> 
@@ -7151,26 +7167,21 @@ export class ContractsManager {
             <span><i class="fa-solid fa-clock-rotate-left"></i> Còn lại: <strong style="color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(dnTotalRemaining)}</strong></span>
           </div>
         </div>
-
-        <button id="btn-add-dn-for-selected" class="button button-primary button-sm" title="Thêm đợt thanh toán cho hợp đồng này">
-          <i class="fa-solid fa-plus"></i> Thêm Đợt ${this.disburseGroup === 'A' ? 'Thu' : 'Chi'}
-        </button>
       </div>
 
       <div class="disburse-scroll-container disburse-scroll-10">
-        <table class="disburse-compact-table disburse-summary-table" style="width: 100%;">
+        <table class="disburse-compact-table disburse-summary-table" style="width: 100%; table-layout: fixed;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 70px;">Đợt TT</th>
-              <th style="width: 90px;">Ngày TT</th>
-              <th style="min-width: 140px;">Nội dung thanh toán</th>
-              <th style="width: 120px;">KL hoàn thành</th>
-              <th style="width: 120px;">KL chấp nhận TT</th>
-              <th style="width: 120px;">Đề nghị TT</th>
-              <th style="width: 120px;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
-              <th style="width: 110px;">Còn lại</th>
-              <th style="min-width: 120px;">Chứng từ / Ghi chú</th>
-              <th style="width: 70px;">Thao tác</th>
+              <th style="width: 72px;">Đợt TT</th>
+              <th style="width: 98px;">Ngày TT</th>
+              <th>Nội dung thanh toán</th>
+              <th style="width: 124px;">KL hoàn thành</th>
+              <th style="width: 124px;">KL chấp nhận TT</th>
+              <th style="width: 124px;">Đề nghị TT</th>
+              <th style="width: 124px;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
+              <th style="width: 114px;">Còn lại</th>
+              <th style="width: 68px;">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -7187,13 +7198,44 @@ export class ContractsManager {
                 <td style="text-align: right; padding: 8px 8px;">${this.formatCurrency(dnTotalRequested)}</td>
                 <td style="text-align: right; padding: 8px 8px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatCurrency(dnTotalPaid)}</td>
                 <td style="text-align: right; padding: 8px 8px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(dnTotalRemaining)}</td>
-                <td colspan="2"></td>
+                <td></td>
               </tr>
             </tfoot>
           ` : ''}
         </table>
       </div>
     `;
+
+    // Tooltip nổi tức thì khi rê chuột vào dòng ĐN có chứng từ / ghi chú
+    let noteTooltip = document.getElementById('maio-dn-note-tooltip');
+    if (!noteTooltip) {
+      noteTooltip = document.createElement('div');
+      noteTooltip.id = 'maio-dn-note-tooltip';
+      noteTooltip.style.cssText = 'position: fixed; z-index: 99999; max-width: 420px; background: #1e293b; color: #f8fafc; padding: 8px 12px; border-radius: 6px; font-size: 0.78rem; line-height: 1.45; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.25); pointer-events: none; display: none; white-space: pre-wrap; word-break: break-word;';
+      document.body.appendChild(noteTooltip);
+    }
+    detailContainer.querySelectorAll('.disburse-dn-row.has-dn-note').forEach((row) => {
+      row.addEventListener('mouseenter', (e) => {
+        const text = row.getAttribute('data-dn-note');
+        if (!text) return;
+        noteTooltip.textContent = text;
+        noteTooltip.style.display = 'block';
+        const x = Math.min(window.innerWidth - noteTooltip.offsetWidth - 16, e.clientX + 14);
+        const y = Math.min(window.innerHeight - noteTooltip.offsetHeight - 16, e.clientY + 14);
+        noteTooltip.style.left = `${Math.max(12, x)}px`;
+        noteTooltip.style.top = `${Math.max(12, y)}px`;
+      });
+      row.addEventListener('mousemove', (e) => {
+        if (noteTooltip.style.display !== 'block') return;
+        const x = Math.min(window.innerWidth - noteTooltip.offsetWidth - 16, e.clientX + 14);
+        const y = Math.min(window.innerHeight - noteTooltip.offsetHeight - 16, e.clientY + 14);
+        noteTooltip.style.left = `${Math.max(12, x)}px`;
+        noteTooltip.style.top = `${Math.max(12, y)}px`;
+      });
+      row.addEventListener('mouseleave', () => {
+        noteTooltip.style.display = 'none';
+      });
+    });
 
     // 5. GẮN SỰ KIỆN TRONG TAB GIẢI NGÂN
     // Nút thêm đợt thanh toán cho HĐ đang chọn
