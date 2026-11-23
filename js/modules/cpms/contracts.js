@@ -7442,11 +7442,13 @@ export class ContractsManager {
     // Lọc theo Loại hợp đồng, Từ khóa, Checkbox ĐN và Ngày/Tháng/Năm
     const filteredContracts = curGroupContracts.filter((c) => matchesContractFilters(c));
 
-    // Sắp xếp danh sách theo thời gian ký hợp đồng từ sớm nhất đến muộn nhất (CPB xếp cuối)
-    filteredContracts.sort((a, b) => {
-      const isCpbA = Boolean(a.is_cpb || a.contract_type === 'CPB' || (a.id && String(a.id).startsWith('B-CPB-')));
-      const isCpbB = Boolean(b.is_cpb || b.contract_type === 'CPB' || (b.id && String(b.id).startsWith('B-CPB-')));
-      if (isCpbA !== isCpbB) return isCpbA ? 1 : -1;
+    // 3.1 XÂY DỰNG DANH SÁCH CÓ THỨ BẬC CÂY & ĐÁNH SỐ THỨ TỰ (STT) RIÊNG CHO PHỤ LỤC CỦA TỪNG HĐ
+    const isCpbFn = (c) => Boolean(c.is_cpb || c.contract_type === 'CPB' || (c.id && String(c.id).startsWith('B-CPB-')));
+
+    const sortByDate = (a, b) => {
+      const isA = isCpbFn(a);
+      const isB = isCpbFn(b);
+      if (isA !== isB) return isA ? 1 : -1;
 
       const dateA = this.parsePaymentDateObj(a.signing_date || a.created_at);
       const dateB = this.parsePaymentDateObj(b.signing_date || b.created_at);
@@ -7464,20 +7466,82 @@ export class ContractsManager {
       const codeA = String(a.display_no || a.id || '').trim();
       const codeB = String(b.display_no || b.id || '').trim();
       return codeA.localeCompare(codeB, 'vi', { numeric: true, sensitivity: 'base' });
+    };
+
+    // Phân loại HĐ chính (root), phụ lục mồ côi (khi filter chỉ khớp con mà không khớp cha) và CPB
+    const filteredIdSet = new Set(filteredContracts.map((c) => c.id));
+    const rootContracts = [];
+    const orphanAppendices = [];
+    const cpbList = [];
+
+    filteredContracts.forEach((c) => {
+      if (isCpbFn(c)) {
+        cpbList.push(c);
+      } else if (!c.parent_id) {
+        rootContracts.push(c);
+      } else {
+        if (!filteredIdSet.has(c.parent_id)) {
+          orphanAppendices.push(c);
+        }
+      }
+    });
+
+    rootContracts.sort(sortByDate);
+    cpbList.sort(sortByDate);
+    orphanAppendices.sort(sortByDate);
+
+    // Xây dựng danh sách hiển thị có cấu trúc thứ bậc cây và gán STT (HĐ: 1, 2, ... 11; PL: 11.1, 11.2; HĐ tiếp: 12)
+    const displayContracts = [];
+    const sttMap = new Map();
+
+    const appendSubTree = (parentId, parentStt) => {
+      const children = filteredContracts.filter((c) => c.parent_id === parentId);
+      children.sort(sortByDate);
+      children.forEach((child, chIdx) => {
+        const childStt = `${parentStt}.${chIdx + 1}`;
+        sttMap.set(child.id, childStt);
+        displayContracts.push(child);
+        appendSubTree(child.id, childStt);
+      });
+    };
+
+    rootContracts.forEach((root, rIdx) => {
+      const rootStt = String(rIdx + 1);
+      sttMap.set(root.id, rootStt);
+      displayContracts.push(root);
+      appendSubTree(root.id, rootStt);
+    });
+
+    // Các phụ lục mồ côi (khi tìm kiếm chỉ khớp phụ lục, cha bị ẩn)
+    orphanAppendices.forEach((orph, oIdx) => {
+      if (!displayContracts.some((x) => x.id === orph.id)) {
+        const parentContract = this.contracts.find((x) => x.id === orph.parent_id);
+        const parentDisplay = parentContract ? (parentContract.contract_no || parentContract.display_no || 'PL') : 'PL';
+        const orphStt = `${parentDisplay}.${oIdx + 1}`;
+        sttMap.set(orph.id, orphStt);
+        displayContracts.push(orph);
+        appendSubTree(orph.id, orphStt);
+      }
+    });
+
+    // Cuối cùng là các khoản Chi phí Ban (CPB)
+    cpbList.forEach((cpb) => {
+      sttMap.set(cpb.id, 'CPB');
+      displayContracts.push(cpb);
     });
 
     // Xác định mục đang chọn (nếu chưa có hoặc không nằm trong nhóm thì chọn mục đầu tiên)
-    const existsSelected = filteredContracts.some((c) => c.id === this.selectedDisburseContractId);
-    if (!existsSelected && filteredContracts.length > 0) {
+    const existsSelected = displayContracts.some((c) => c.id === this.selectedDisburseContractId);
+    if (!existsSelected && displayContracts.length > 0) {
       // Ưu tiên chọn mục đã có thanh toán
-      const firstWithPay = filteredContracts.find((c) => realPayments.some((p) => p.contract_id === c.id));
-      this.selectedDisburseContractId = firstWithPay ? firstWithPay.id : filteredContracts[0].id;
-    } else if (filteredContracts.length === 0) {
+      const firstWithPay = displayContracts.find((c) => realPayments.some((p) => p.contract_id === c.id));
+      this.selectedDisburseContractId = firstWithPay ? firstWithPay.id : displayContracts[0].id;
+    } else if (displayContracts.length === 0) {
       this.selectedDisburseContractId = null;
     }
 
-    // 3.1 RENDER BẢNG DANH SÁCH CÁC HỢP ĐỒNG CỦA NHÓM ĐANG CHỌN
-    if (filteredContracts.length === 0) {
+    // 3.2 RENDER BẢNG DANH SÁCH CÁC HỢP ĐỒNG CỦA NHÓM ĐANG CHỌN
+    if (displayContracts.length === 0) {
       contractsTableContainer.innerHTML = `
         <div style="text-align: center; padding: 36px 20px; color: var(--text-muted);">
           <i class="fa-solid fa-folder-open" style="font-size: 2rem; color: #cbd5e1; margin-bottom: 8px;"></i>
@@ -7486,9 +7550,11 @@ export class ContractsManager {
       `;
     } else {
       let contractRowsHtml = '';
-      filteredContracts.forEach((c, idx) => {
+      displayContracts.forEach((c) => {
         const isSelected = c.id === this.selectedDisburseContractId;
-        const isCpb = c.is_cpb || c.contract_type === 'CPB' || (c.id && c.id.startsWith('B-CPB-'));
+        const isCpb = isCpbFn(c);
+        const isAppendix = Boolean(c.parent_id);
+        const itemStt = sttMap.get(c.id) || '';
         
         // Tính tổng hợp tài chính của mục này (bao gồm cả các gói con / phụ lục con trực thuộc, loại trừ gói con Cancel)
         // Lưu ý: chỉ dùng để hiển thị trên dòng này, KHÔNG cộng lặp vào bảng Tổng hợp Tài chính phía trên
@@ -7536,10 +7602,10 @@ export class ContractsManager {
             <td style="white-space: nowrap; font-weight: 700; padding: 3px 6px; text-align: center; color: #475569; font-size: 0.77rem;">
               ${isCpb 
                 ? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.68rem; padding: 1.5px 4px;"><i class="fa-solid fa-receipt"></i> CPB</span>` 
-                : `${idx + 1}`}
+                : `<span style="${isAppendix ? 'color: #0369a1; font-weight: 600;' : ''}">${itemStt}</span>`}
             </td>
-            <td style="font-weight: 700; color: #1e293b; padding: 3px 6px; white-space: nowrap; font-size: 0.77rem;">
-              <span>${c.contract_no || c.id}</span>${statusMiniBadge}
+            <td style="font-weight: 700; color: #1e293b; padding: 3px 6px; white-space: nowrap; font-size: 0.77rem; ${isAppendix ? 'padding-left: 18px !important;' : ''}">
+              ${isAppendix ? '<span style="color: #94a3b8; font-weight: normal; margin-right: 4px;">↳</span>' : ''}<span>${c.contract_no || c.id}</span>${statusMiniBadge}
             </td>
             <td style="text-align: right; font-weight: 700; color: #1e293b; padding: 3px 6px; white-space: nowrap; font-size: 0.77rem;">
               ${this.formatMoneyPlain(cVal)}
@@ -7569,13 +7635,27 @@ export class ContractsManager {
         `;
       });
 
+      const mainContractCount = displayContracts.filter((c) => !c.parent_id && !isCpbFn(c)).length;
+      const appendixCount = displayContracts.filter((c) => Boolean(c.parent_id)).length;
+      const cpbCount = displayContracts.filter((c) => isCpbFn(c)).length;
+
+      const countParts = [];
+      countParts.push(`<strong>${mainContractCount}</strong> hợp đồng`);
+      if (appendixCount > 0) {
+        countParts.push(`<strong>${appendixCount}</strong> phụ lục`);
+      }
+      if (cpbCount > 0) {
+        countParts.push(`<strong>${cpbCount}</strong> CPB`);
+      }
+      const summaryCountHtml = countParts.join(' • ');
+
       contractsTableContainer.innerHTML = `
         <div class="disburse-contracts-card-header">
           <span style="font-weight: 700; color: #1e293b;">
             <i class="fa-solid fa-list-check" style="color: var(--primary); margin-right: 4px;"></i> DANH SÁCH HỢP ĐỒNG & GIÁ TRỊ (NHÓM ${this.disburseGroup})
           </span>
           <span style="color: var(--text-muted); font-size: 0.75rem; font-weight: 600;">
-            ${filteredContracts.length} mục
+            ${summaryCountHtml}
           </span>
         </div>
         <div class="disburse-scroll-container disburse-scroll-contract-list">
