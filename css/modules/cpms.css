@@ -2295,5 +2295,93 @@ textarea.form-control:focus {
   color: #0f172a;
 }
 
+/* ============================================================
+   CỐ ĐỊNH KÍCH THƯỚC POPUP CHI TIẾT HỢP ĐỒNG (TẤT CẢ 4 TABS)
+   ============================================================ */
+#contract-detail-modal .modal-container,
+.contract-detail-dialog {
+  width: 95vw !important;
+  max-width: 1240px !important;
+  height: 88vh !important;
+  max-height: 88vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+#contract-detail-modal .modal-header,
+.contract-detail-dialog .modal-header {
+  flex-shrink: 0 !important;
+}
+
+#contract-detail-modal .modal-nav-wrap,
+.contract-detail-dialog .modal-nav-wrap {
+  flex-shrink: 0 !important;
+}
+
+#contract-detail-modal .modal-body,
+.contract-detail-dialog .modal-body {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  padding: 20px !important;
+}
+
+/* Dashboard Progress bar & Accepted marker */
+.dashboard-progress-container {
+  margin: 32px 0 20px 0;
+  position: relative;
+}
+
+.dashboard-progress-track {
+  width: 100%;
+  height: 20px;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  position: relative;
+  overflow: visible;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.dashboard-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
+  border-radius: 9999px;
+  transition: width 0.4s ease;
+}
+
+.dashboard-progress-marker-accepted {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  width: 3px;
+  background-color: #ea580c;
+  z-index: 10;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(234, 88, 12, 0.7);
+}
+
+.dashboard-marker-pin {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #ea580c;
+  background: #fff7ed;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  border: 1px solid #fed7aa;
+  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+
 
 

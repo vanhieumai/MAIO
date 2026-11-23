@@ -2821,6 +2821,48 @@ export class ContractsManager {
     const realPayments = this.getRealPayments(contract.id);
     const docs = this.getDocuments(contract.id);
 
+    // Sắp xếp các đợt giải ngân theo ngày thanh toán hoặc item_index
+    realPayments.sort((a, b) => {
+      const dateA = this.parsePaymentDateObj(a.payment_date)?.getTime() || 0;
+      const dateB = this.parsePaymentDateObj(b.payment_date)?.getTime() || 0;
+      return dateA - dateB;
+    });
+
+    // 1. Tính tổng các cột cho Bảng thu chi (Tab 3)
+    let dnTotalActual = 0;
+    let dnTotalAccepted = 0;
+    let dnTotalRequested = 0;
+    let dnTotalPaid = 0;
+    let totalAdvance = 0;
+    let advanceCount = 0;
+
+    realPayments.forEach((p) => {
+      dnTotalActual += this.getPaymentVnd(p, 'actual_volume');
+      dnTotalAccepted += this.getPaymentVnd(p, 'accepted_vol');
+      dnTotalRequested += this.getPaymentVnd(p, 'request_amount');
+      dnTotalPaid += this.getPaymentVnd(p, 'paid_amount');
+
+      const isAdv = (p.item_name && /tạm\s*ứng/i.test(p.item_name)) ||
+                    (p.payment_ref && /tạm\s*ứng/i.test(p.payment_ref)) ||
+                    (p.note && /tạm\s*ứng/i.test(p.note));
+      if (isAdv) {
+        totalAdvance += this.getPaymentVnd(p, 'paid_amount');
+        advanceCount++;
+      }
+    });
+    const dnTotalRemaining = dnTotalRequested - dnTotalPaid;
+
+    // 2. Căn cứ vẽ Dashboard (Tab 4): Với những HĐ không có giá trị (totalSigned = 0), lấy Giá trị nghiệm thu để làm căn cứ
+    const hasSignedVal = stats.totalSigned > 0;
+    const baseTarget = hasSignedVal 
+      ? stats.totalSigned 
+      : (stats.totalAccepted > 0 ? stats.totalAccepted : (stats.totalPaid > 0 ? stats.totalPaid : 0));
+    const isZeroContract = !hasSignedVal && stats.totalAccepted > 0;
+
+    const paidRate = baseTarget > 0 ? Math.min(100, Math.round((stats.totalPaid / baseTarget) * 1000) / 10) : 0;
+    const acceptedRate = baseTarget > 0 ? Math.min(100, Math.round((stats.totalAccepted / baseTarget) * 1000) / 10) : 0;
+    const advanceRate = baseTarget > 0 ? Math.min(100, Math.round((totalAdvance / baseTarget) * 1000) / 10) : 0;
+
     let modal = document.getElementById('contract-detail-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -2830,9 +2872,9 @@ export class ContractsManager {
     }
 
     modal.innerHTML = `
-      <div class="modal-container">
+      <div class="modal-container contract-detail-dialog" style="height: 88vh; max-height: 88vh; display: flex; flex-direction: column;">
         <!-- Modal Header kèm Breadcrumb -->
-        <div class="modal-header">
+        <div class="modal-header" style="flex-shrink: 0;">
           <div>
             ${
               !isMain && parentContract
@@ -2873,7 +2915,7 @@ export class ContractsManager {
         </div>
 
         <!-- 4 TABS NGHIỆP VỤ -->
-        <div style="padding: 0 20px; background: #fff; border-bottom: 1px solid var(--border-color);">
+        <div class="modal-nav-wrap" style="flex-shrink: 0; padding: 0 20px; background: #fff; border-bottom: 1px solid var(--border-color);">
           <div class="tab-nav" style="margin-bottom: 0;">
             <button class="tab-btn active modal-tab-btn" data-target="m-tab-info">
               <i class="fa-solid fa-circle-info"></i> 1. Thông tin ${isMain ? 'Hợp đồng' : 'Phụ lục'}
@@ -2890,7 +2932,7 @@ export class ContractsManager {
           </div>
         </div>
 
-        <div class="modal-body">
+        <div class="modal-body" style="flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 20px;">
           <!-- PHÂN KHU 1: THÔNG TIN -->
           <div id="m-tab-info" class="modal-tab-pane">
             <div class="card" style="margin-bottom: 20px;">
@@ -3100,77 +3142,91 @@ export class ContractsManager {
             </div>
           </div>
 
-          <!-- PHÂN KHU 3: THANH TOÁN (PAYMENT LEDGER / IPC) -->
+          <!-- PHÂN KHU 3: THANH TOÁN (PAYMENT LEDGER / IPC) ĐỒNG BỘ BẢNG THU CHI -->
           <div id="m-tab-ipc" class="modal-tab-pane hidden">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px;">
-              <div>
-                <span style="font-size: 0.9rem; color: var(--text-muted);">
-                  Tổng đã giải ngân thực tế: <strong style="color: var(--success); font-size: 1.05rem;">${this.formatCurrency(stats.totalPaid)}</strong> / Đề nghị: <strong>${this.formatCurrency(stats.totalRequested)}</strong>
-                </span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+              <div style="font-size: 0.82rem; color: var(--text-muted); display: flex; gap: 14px; flex-wrap: wrap; align-items: center;">
+                <span><i class="fa-solid fa-building"></i> ${contract.group === 'A' ? 'Bên A' : 'Bên B'}: <strong>${contract.group === 'A' ? (contract.company_a || 'Chủ đầu tư') : (contract.company_b || 'Ban QLDA / Thầu phụ')}</strong></span>
+                <span><i class="fa-solid fa-file-contract"></i> Giá trị HĐ: <strong>${this.formatMoneyPlain(stats.totalSigned)}</strong></span>
+                <span><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Đã ${contract.group === 'A' ? 'thu' : 'thanh toán'}: <strong style="color: ${contract.group === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</strong></span>
+                <span><i class="fa-solid fa-clock-rotate-left"></i> Còn lại: <strong style="color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</strong></span>
               </div>
-              <button id="btn-add-payment-entry" class="button button-primary" style="font-size: 0.8rem; padding: 6px 14px;">
-                <i class="fa-solid fa-plus"></i> Nhập đợt Giải ngân (Đề nghị thanh toán)
+              <button id="btn-add-payment-entry" class="button button-primary" style="font-size: 0.8rem; padding: 5px 12px;">
+                <i class="fa-solid fa-plus"></i> Thêm đợt TT
               </button>
             </div>
 
-            <div class="data-table-wrap">
-              <table class="data-table">
+            <div class="data-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+              <table class="data-table disburse-detail-table" style="width: 100%; margin: 0; font-size: 0.78rem;">
                 <thead>
-                  <tr>
-                    <th>ĐN</th>
-                    <th>Nội dung thanh toán</th>
-                    <th>Ngày thanh toán</th>
-                    <th class="num-col">Nghiệm thu</th>
-                    <th class="num-col">Đề nghị</th>
-                    <th class="num-col">Thực trả</th>
-                    <th class="num-col">Chênh lệch</th>
-                    <th>Hóa đơn VAT</th>
-                    <th>Thao tác</th>
+                  <tr style="background: #f8fafc;">
+                    <th style="width: 65px; text-align: center;">Đợt TT</th>
+                    <th style="width: 85px; text-align: center;">Ngày TT</th>
+                    <th style="min-width: 160px; text-align: center;">Nội dung thanh toán</th>
+                    <th style="width: 110px; text-align: center;">KL hoàn thành</th>
+                    <th style="width: 110px; text-align: center;">KL chấp nhận TT</th>
+                    <th style="width: 110px; text-align: center;">Đề nghị TT</th>
+                    <th style="width: 110px; text-align: center;">Đã ${contract.group === 'A' ? 'thu' : 'thanh toán'}</th>
+                    <th style="width: 105px; text-align: center;">Còn lại</th>
+                    <th style="width: 75px; text-align: center;">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   ${
                     realPayments.length === 0
-                      ? '<tr><td colspan="9" style="text-align:center; padding: 20px;">Chưa có đợt giải ngân nào. Bấm "+ Nhập đợt Giải ngân" để tạo.</td></tr>'
+                      ? '<tr><td colspan="9" style="text-align:center; padding: 25px; color: #94a3b8;"><i class="fa-regular fa-folder-open" style="font-size: 1.5rem; display: block; margin-bottom: 6px;"></i>Chưa có đợt thanh toán nào. Bấm "+ Thêm đợt TT" để tạo mới.</td></tr>'
                       : realPayments
-                          .map((p) => {
+                          .map((p, idx) => {
                             const pRate = this.getPaymentRate(p);
-                            const pAccVnd = this.getPaymentVnd(p, 'accepted_vol');
-                            const pReqVnd = this.getPaymentVnd(p, 'request_amount');
-                            const pPaidVnd = this.getPaymentVnd(p, 'paid_amount');
+                            const pActRaw = Number(p.actual_volume) || 0;
+                            const pAccRaw = Number(p.accepted_vol) || 0;
+                            const pReqRaw = Number(p.request_amount) || 0;
+                            const pPaidRaw = Number(p.paid_amount) || 0;
+                            const pActVnd = Math.round(pActRaw * pRate);
+                            const pAccVnd = Math.round(pAccRaw * pRate);
+                            const pReqVnd = Math.round(pReqRaw * pRate);
+                            const pPaidVnd = Math.round(pPaidRaw * pRate);
                             const pRemVnd = pReqVnd - pPaidVnd;
+                            const rawNo = String(p.payment_no || (idx + 1)).trim();
+                            const cleanNo = rawNo.replace(/^ĐN[-_\s]*/i, '').replace(/^DN[-_\s]*/i, '') || String(idx + 1);
+                            const safeContent = this.getPaymentContent(p);
+
                             return `
                         <tr>
-                          <td><strong>${this.formatDnNo(p.payment_no || p.item_index || '01')}</strong></td>
-                          <td>
-                            ${this.getPaymentContent(p)}
-                            ${pRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b;">Tỷ giá TT: ${pRate}</div>` : ''}
+                          <td style="text-align: center; font-weight: 700;">
+                            <span style="background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-size: 0.74rem;">
+                              ${cleanNo}
+                            </span>
                           </td>
-                          <td>${this.formatDate(p.payment_date)}</td>
-                          <td class="num-col">
-                            ${this.formatCurrency(pAccVnd)}
-                            ${pRate !== 1 && p.accepted_vol ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(p.accepted_vol)} nt</div>` : ''}
-                          </td>
-                          <td class="num-col">
-                            ${this.formatCurrency(pReqVnd)}
-                            ${pRate !== 1 && p.request_amount ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(p.request_amount)} nt</div>` : ''}
-                          </td>
-                          <td class="num-col" style="color: ${pPaidVnd < 0 ? 'var(--danger)' : 'var(--success)'};">
-                            ${this.formatCurrency(pPaidVnd)}
-                            ${pRate !== 1 && p.paid_amount ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(p.paid_amount)} nt</div>` : ''}
-                          </td>
-                          <td class="num-col" style="color: ${pRemVnd > 0 ? 'var(--danger)' : 'var(--text-main)'};">
-                            ${this.formatCurrency(pRemVnd)}
+                          <td style="text-align: center; color: #475569; white-space: nowrap;">
+                            ${this.formatDate(p.payment_date)}
                           </td>
                           <td>
-                            ${p.invoice_ref ? `<span class="badge badge-primary">HĐ: ${p.invoice_ref}</span>` : ''}
-                            <small style="color: var(--text-muted); display: block;">${p.note || ''}</small>
+                            <span style="font-weight: 600; color: #1e293b;">${safeContent}</span>
+                            ${p.invoice_ref ? `<span class="badge badge-primary" style="font-size: 0.68rem; margin-left: 4px; padding: 1px 5px;">HĐ: ${p.invoice_ref}</span>` : ''}
+                            ${p.note ? `<div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;"><i class="fa-regular fa-note-sticky"></i> ${p.note}</div>` : ''}
+                            ${pRate !== 1 ? `<div style="font-size: 0.68rem; color: #64748b;">Tỷ giá TT: ${pRate}</div>` : ''}
                           </td>
-                          <td style="white-space: nowrap;">
-                            <button class="button button-outline btn-edit-payment" data-pay-id="${p.id}" style="padding: 2px 7px; font-size: 0.75rem; color: var(--primary); margin-right: 4px;" title="Chỉnh sửa đợt giải ngân (ĐN)">
-                              <i class="fa-solid fa-pen-to-square"></i> Sửa
+                          <td style="text-align: right; white-space: nowrap;">
+                            ${this.formatMoneyPlain(pActVnd)}
+                          </td>
+                          <td style="text-align: right; white-space: nowrap;">
+                            ${this.formatMoneyPlain(pAccVnd)}
+                          </td>
+                          <td style="text-align: right; white-space: nowrap; font-weight: 600;">
+                            ${this.formatMoneyPlain(pReqVnd)}
+                          </td>
+                          <td style="text-align: right; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (contract.group === 'A' ? 'var(--success)' : '#0891b2')};">
+                            ${this.formatMoneyPlain(pPaidVnd)}
+                          </td>
+                          <td style="text-align: right; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+                            ${this.formatMoneyPlain(pRemVnd)}
+                          </td>
+                          <td style="text-align: center; white-space: nowrap;">
+                            <button class="button button-outline btn-edit-payment" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.73rem; color: var(--primary); margin-right: 3px;" title="Chỉnh sửa đợt thanh toán">
+                              <i class="fa-solid fa-pen-to-square"></i>
                             </button>
-                            <button class="button button-outline btn-delete-payment" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.75rem; color: var(--danger);" title="Xóa đợt giải ngân">
+                            <button class="button button-outline btn-delete-payment" data-pay-id="${p.id}" style="padding: 2px 5px; font-size: 0.73rem; color: var(--danger);" title="Xóa đợt thanh toán">
                               <i class="fa-solid fa-trash"></i>
                             </button>
                           </td>
@@ -3180,6 +3236,19 @@ export class ContractsManager {
                           .join('')
                   }
                 </tbody>
+                <tfoot>
+                  <tr style="background: #f8fafc; font-weight: 700; border-top: 2px solid #cbd5e1;">
+                    <td colspan="3" style="padding: 6px 8px; color: #1e293b; text-align: left; font-size: 0.77rem;">
+                      TỔNG CỘNG (${realPayments.length} đợt ${contract.group === 'A' ? 'thu' : 'chi'})
+                    </td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem;">${this.formatMoneyPlain(dnTotalActual)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem;">${this.formatMoneyPlain(dnTotalRequested)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; color: ${contract.group === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -3187,39 +3256,71 @@ export class ContractsManager {
           <!-- PHÂN KHU 4: DASHBOARD TIẾN ĐỘ & XUẤT BÁO CÁO -->
           <div id="m-tab-dash" class="modal-tab-pane hidden">
             <div class="card" style="margin-bottom: 20px;">
-              <h3 class="card-title"><i class="fa-solid fa-chart-line"></i> Tiến độ Thực hiện & Giải ngân</h3>
-              <div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600;">
-                  <span>Tỷ lệ Giải ngân:</span>
-                  <span style="color: var(--primary);">${stats.paymentRate}%</span>
-                </div>
-                <div class="progress-bar-bg">
-                  <div class="progress-bar-fill" style="width: ${stats.paymentRate}%;"></div>
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-muted);">
-                  <span>Đã giải ngân: ${this.formatCurrency(stats.totalPaid)}</span>
-                  <span>Tổng giá trị ký kết: ${this.formatCurrency(stats.totalSigned)}</span>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                <h3 class="card-title" style="margin-bottom: 0;">
+                  <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i> Tiến độ Thực hiện & Giải ngân
+                </h3>
+                <div style="font-size: 0.85rem; display: flex; gap: 14px; align-items: center;">
+                  <span>Tỷ lệ Giải ngân: <strong style="color: #10b981; font-size: 1.15rem;">${paidRate}%</strong></span>
+                  <span>Nghiệm thu: <strong style="color: #ea580c; font-size: 1.05rem;">${acceptedRate}%</strong></span>
+                  <span>Tạm ứng: <strong style="color: #f59e0b;">${advanceRate}%</strong></span>
                 </div>
               </div>
 
-              <div class="grid-4" style="margin-top: 16px;">
-                <div class="stat-box">
-                  <div class="stat-label">Tổng nghiệm thu</div>
-                  <div style="font-weight: 700; font-size: 1.05rem;">${this.formatCurrency(stats.totalAccepted)}</div>
-                </div>
-                <div class="stat-box">
-                  <div class="stat-label">Tổng đề nghị</div>
-                  <div style="font-weight: 700; font-size: 1.05rem;">${this.formatCurrency(stats.totalRequested)}</div>
-                </div>
-                <div class="stat-box">
-                  <div class="stat-label">Công nợ tồn</div>
-                  <div style="font-weight: 700; font-size: 1.05rem; color: ${stats.remaining > 0 ? 'var(--danger)' : 'var(--text-main)'};">
-                    ${this.formatCurrency(stats.remaining)}
+              <!-- Thanh tiến độ có vạch đánh dấu nghiệm thu -->
+              <div class="dashboard-progress-container">
+                <div class="dashboard-progress-track">
+                  <!-- Thanh giải ngân đã thanh toán -->
+                  <div class="dashboard-progress-bar-fill" style="width: ${paidRate}%;"></div>
+
+                  <!-- Vạch đánh dấu giá trị nghiệm thu -->
+                  <div class="dashboard-progress-marker-accepted" style="left: ${Math.min(100, acceptedRate)}%;" title="Mốc nghiệm thu: ${this.formatCurrency(stats.totalAccepted)} (${acceptedRate}%)">
+                    <div class="dashboard-marker-pin">
+                      <i class="fa-solid fa-location-pin"></i> Nghiệm thu: ${acceptedRate}%
+                    </div>
                   </div>
                 </div>
-                <div class="stat-box">
-                  <div class="stat-label">Số đợt IPC thực tế</div>
-                  <div style="font-weight: 700; font-size: 1.05rem;">${stats.ipcCount} đợt</div>
+              </div>
+
+              <!-- Chú thích chân thanh tiến độ -->
+              <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 8px; flex-wrap: wrap; gap: 8px;">
+                <span><i class="fa-solid fa-square" style="color: #10b981;"></i> Đã giải ngân: <strong style="color: #0f172a;">${this.formatCurrency(stats.totalPaid)}</strong> (${paidRate}%)</span>
+                <span><i class="fa-solid fa-circle" style="color: #f59e0b;"></i> Giá trị tạm ứng: <strong style="color: #0f172a;">${this.formatCurrency(totalAdvance)}</strong> (${advanceRate}%)</span>
+                <span><i class="fa-solid fa-location-pin" style="color: #ea580c;"></i> Vạch nghiệm thu: <strong style="color: #0f172a;">${this.formatCurrency(stats.totalAccepted)}</strong> (${acceptedRate}%)</span>
+                <span><i class="fa-solid fa-bullseye" style="color: #3b82f6;"></i> Căn cứ kế hoạch (100%): <strong style="color: #0f172a;">${this.formatCurrency(baseTarget)}</strong> ${isZeroContract ? '<span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.72rem; padding: 1px 6px; margin-left: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Căn cứ theo Giá trị Nghiệm thu (HĐ không ghi giá trị)</span>' : ''}</span>
+              </div>
+
+              <!-- Lưới 6 Thẻ Thống kê chỉ số -->
+              <div class="grid-3" style="margin-top: 20px; gap: 12px;">
+                <div class="stat-box" style="padding: 12px 14px;">
+                  <div class="stat-label">Căn cứ Kế hoạch / HĐ</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: #1e293b;">${this.formatCurrency(baseTarget)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem;">${isZeroContract ? 'Lấy theo Giá trị Nghiệm thu' : 'Giá trị hợp đồng ký kết'}</div>
+                </div>
+                <div class="stat-box" style="padding: 12px 14px;">
+                  <div class="stat-label">Giá trị Tạm ứng</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: #d97706;">${this.formatCurrency(totalAdvance)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem;">Chiếm ${advanceRate}% căn cứ (${advanceCount} đợt)</div>
+                </div>
+                <div class="stat-box" style="padding: 12px 14px;">
+                  <div class="stat-label">Tổng Nghiệm thu</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: #ea580c;">${this.formatCurrency(stats.totalAccepted)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem;">Đạt ${acceptedRate}% căn cứ</div>
+                </div>
+                <div class="stat-box" style="padding: 12px 14px;">
+                  <div class="stat-label">Tổng Đề nghị TT</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: #2563eb;">${this.formatCurrency(stats.totalRequested)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem;">${stats.ipcCount} đợt đề nghị</div>
+                </div>
+                <div class="stat-box" style="padding: 12px 14px;">
+                  <div class="stat-label">Tổng Đã giải ngân</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: var(--success);">${this.formatCurrency(stats.totalPaid)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem;">Đạt ${paidRate}% căn cứ</div>
+                </div>
+                <div class="stat-box" style="padding: 12px 14px;">
+                  <div class="stat-label">Công nợ tồn / Còn lại</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: ${stats.remaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(stats.remaining)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem;">Đề nghị trừ Thực trả</div>
                 </div>
               </div>
             </div>
@@ -3426,6 +3527,8 @@ export class ContractsManager {
             await this.loadData();
             await this.syncToLocalFile();
             this.openContractDetail(contract.id);
+            const tabIpcBtn = document.querySelector('#contract-detail-modal [data-target="m-tab-ipc"]');
+            tabIpcBtn?.click();
             this.showToast('Đã xóa đợt thanh toán thành công!', 'success');
           },
         });
@@ -6617,6 +6720,11 @@ export class ContractsManager {
       this.render();
       this.renderDisbursementsTab();
       await this.syncToLocalFile();
+      if (document.getElementById('contract-detail-modal') && !document.getElementById('contract-detail-modal').classList.contains('hidden')) {
+        this.openContractDetail(actualContract.id);
+        const tabIpcBtn = document.querySelector('#contract-detail-modal [data-target="m-tab-ipc"]');
+        tabIpcBtn?.click();
+      }
       this.showToast(isActualCpb ? 'Đã ghi sổ thành công đợt Chi phí Ban!' : 'Đã ghi sổ thành công đợt Giải ngân!', 'success');
     });
   }
@@ -6738,6 +6846,11 @@ export class ContractsManager {
           this.render();
           this.renderDisbursementsTab();
           await this.syncToLocalFile();
+          if (document.getElementById('contract-detail-modal') && !document.getElementById('contract-detail-modal').classList.contains('hidden')) {
+            this.openContractDetail(targetContract.id);
+            const tabIpcBtn = document.querySelector('#contract-detail-modal [data-target="m-tab-ipc"]');
+            tabIpcBtn?.click();
+          }
           this.showToast(`Đã xóa thành công đợt thanh toán ${dnLabel}!`, 'success');
         },
       });
@@ -6790,6 +6903,11 @@ export class ContractsManager {
       this.render();
       this.renderDisbursementsTab();
       await this.syncToLocalFile();
+      if (document.getElementById('contract-detail-modal') && !document.getElementById('contract-detail-modal').classList.contains('hidden')) {
+        this.openContractDetail(targetContract.id);
+        const tabIpcBtn = document.querySelector('#contract-detail-modal [data-target="m-tab-ipc"]');
+        tabIpcBtn?.click();
+      }
       this.showToast(`Đã cập nhật thành công đợt Giải ngân ${this.formatDnNo(payment.payment_no)}!`, 'success');
     });
   }
