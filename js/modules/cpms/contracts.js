@@ -7005,38 +7005,31 @@ export class ContractsManager {
           .replace(/>/g, '&gt;');
 
         detailRowsHtml += `
-          <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-pay-id="${p.id}" data-dn-note="${safeTooltipAttr}" title="Bấm để xem & chỉnh sửa đợt thanh toán này${hasNoteInfo ? '\n' + safeTooltipAttr : ''}" style="border-bottom: 1px solid #f1f5f9; cursor: pointer;">
-            <td style="font-weight: 700; padding: 3.5px 4px !important; white-space: nowrap; text-align: center;">
+          <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-pay-id="${p.id}" data-dn-note="${safeTooltipAttr}" title="Bấm để xem & chỉnh sửa đợt thanh toán này${hasNoteInfo ? '\n' + safeTooltipAttr : ''}">
+            <td style="font-weight: 700; white-space: nowrap; text-align: center;">
               <span style="background: #e0f2fe; color: #0369a1; padding: 1.5px 4px; border-radius: 4px; font-size: 0.72rem;">
                 ${this.formatDnNo(p.payment_no || String(idx + 1))}
               </span>
             </td>
-            <td style="padding: 3.5px 4px !important; white-space: nowrap; font-size: 0.76rem; color: #475569; text-align: center;">
+            <td style="white-space: nowrap; font-size: 0.76rem; color: #475569; text-align: center;">
               ${this.formatDate(p.payment_date)}
             </td>
-            <td style="padding: 3.5px 6px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              <div style="font-weight: 600; color: #1e293b; font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                ${p.item_name || 'Đợt thanh toán'}${hasNoteInfo ? ' <i class="fa-regular fa-comment-dots" style="color: #6366f1; margin-left: 4px; font-size: 0.72rem;" title="Rê chuột để xem chứng từ / ghi chú"></i>' : ''}
-              </div>
-              ${pRate !== 1 ? `<div style="font-size: 0.66rem; color: #64748b;">TG: <strong>${pRate}</strong></div>` : ''}
+            <td style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${safeItemName}">
+              <span style="font-weight: 600; color: #1e293b; font-size: 0.78rem;">${safeItemName}</span>${hasNoteInfo ? ' <i class="fa-regular fa-comment-dots" style="color: #6366f1; margin-left: 3px; font-size: 0.72rem;" title="Rê chuột để xem chứng từ / ghi chú"></i>' : ''}${pRate !== 1 ? ` <span style="font-size: 0.68rem; color: #64748b; font-weight: normal;">(TG: ${pRate})</span>` : ''}
             </td>
-            <td style="text-align: right; padding: 3.5px 6px !important; white-space: nowrap;">
+            <td style="text-align: right; white-space: nowrap;">
               ${this.formatMoneyPlain(pActVnd)}
-              ${pRate !== 1 && pActRaw !== 0 ? `<div style="font-size: 0.66rem; color: #64748b;">${this.formatNumberWithDots(pActRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 3.5px 6px !important; white-space: nowrap;">
+            <td style="text-align: right; white-space: nowrap;">
               ${this.formatMoneyPlain(pAccVnd)}
-              ${pRate !== 1 && pAccRaw !== 0 ? `<div style="font-size: 0.66rem; color: #64748b;">${this.formatNumberWithDots(pAccRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 3.5px 6px !important; white-space: nowrap; font-weight: 600;">
+            <td style="text-align: right; white-space: nowrap; font-weight: 600;">
               ${this.formatMoneyPlain(pReqVnd)}
-              ${pRate !== 1 && pReqRaw !== 0 ? `<div style="font-size: 0.66rem; color: #64748b;">${this.formatNumberWithDots(pReqRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 3.5px 6px !important; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
+            <td style="text-align: right; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
               ${this.formatMoneyPlain(pPaidVnd)}
-              ${pRate !== 1 && pPaidRaw !== 0 ? `<div style="font-size: 0.66rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(pPaidRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 3.5px 6px !important; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+            <td style="text-align: right; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
               ${this.formatMoneyPlain(pRemVnd)}
             </td>
           </tr>
@@ -7069,23 +7062,23 @@ export class ContractsManager {
     const selValVnd = selStats.totalSigned;
 
     detailContainer.innerHTML = `
-      <div class="disburse-detail-header" style="padding: 5px 12px; background: #ffffff; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
-        <div style="width: 100%;">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <span class="badge ${this.disburseGroup === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.74rem; padding: 2px 6px;">
+      <div class="disburse-detail-header">
+        <div style="width: 100%; overflow: hidden;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; overflow: hidden;">
+            <span class="badge ${this.disburseGroup === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.73rem; padding: 1.5px 6px; flex-shrink: 0;">
               <i class="fa-solid ${this.disburseGroup === 'A' ? 'fa-arrow-down-long' : 'fa-arrow-up-long'}"></i> 
               ${this.disburseGroup === 'A' ? 'BẢNG THEO DÕI THU TIỀN (NHÓM A)' : 'BẢNG THEO DÕI CHI TIỀN (NHÓM B)'}
             </span>
-            <strong style="font-size: 0.9rem; color: #1e293b;">
+            <strong style="font-size: 0.88rem; color: #1e293b; white-space: nowrap; flex-shrink: 0;">
               ${selectedContract.contract_no || selectedContract.id}
             </strong>
-            <span style="color: var(--text-muted); font-size: 0.78rem;">— ${selectedContract.scope_of_work || 'Hợp đồng thực hiện dự án'}</span>
+            <span style="color: var(--text-muted); font-size: 0.77rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;" title="${String(selectedContract.scope_of_work || 'Hợp đồng thực hiện dự án').replace(/"/g, '&quot;')}">— ${selectedContract.scope_of_work || 'Hợp đồng thực hiện dự án'}</span>
           </div>
-          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 3px; display: flex; gap: 12px; flex-wrap: wrap;">
-            <span><i class="fa-solid fa-building"></i> ${partnerRole}: <strong>${partnerLabel}</strong></span>
-            <span><i class="fa-solid fa-file-contract"></i> Giá trị HĐ: <strong>${this.formatMoneyPlain(selValVnd)}</strong>${selRate !== 1 ? ` <small style="font-weight: normal; color: #64748b;">(${this.formatNumberWithDots(selectedContract.contract_val)} nguyên tệ × TG ${selRate})</small>` : ''}</span>
-            <span><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}: <strong style="color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</strong></span>
-            <span><i class="fa-solid fa-clock-rotate-left"></i> Còn lại: <strong style="color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</strong></span>
+          <div style="font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; display: flex; gap: 12px; flex-wrap: nowrap; overflow: hidden; text-overflow: ellipsis;">
+            <span style="white-space: nowrap; flex-shrink: 0;"><i class="fa-solid fa-building"></i> ${partnerRole}: <strong>${partnerLabel}</strong></span>
+            <span style="white-space: nowrap; flex-shrink: 0;"><i class="fa-solid fa-file-contract"></i> Giá trị HĐ: <strong>${this.formatMoneyPlain(selValVnd)}</strong>${selRate !== 1 ? ` <small style="font-weight: normal; color: #64748b;">(${this.formatNumberWithDots(selectedContract.contract_val)} nguyên tệ × TG ${selRate})</small>` : ''}</span>
+            <span style="white-space: nowrap; flex-shrink: 0;"><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}: <strong style="color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</strong></span>
+            <span style="white-space: nowrap; flex-shrink: 0;"><i class="fa-solid fa-clock-rotate-left"></i> Còn lại: <strong style="color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</strong></span>
           </div>
         </div>
       </div>
@@ -7531,7 +7524,7 @@ export class ContractsManager {
       });
 
       contractsTableContainer.innerHTML = `
-        <div style="padding: 5px 12px; background: #f8fafc; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+        <div class="disburse-contracts-card-header">
           <span style="font-weight: 700; color: #1e293b;">
             <i class="fa-solid fa-list-check" style="color: var(--primary); margin-right: 4px;"></i> DANH SÁCH HỢP ĐỒNG & GIÁ TRỊ (NHÓM ${this.disburseGroup})
           </span>
@@ -7540,7 +7533,7 @@ export class ContractsManager {
           </span>
         </div>
         <div class="disburse-scroll-container disburse-scroll-contract-list">
-          <table class="disburse-compact-table disburse-summary-table" style="width: 100%;">
+          <table class="disburse-compact-table disburse-contract-list-table" style="width: 100%; border-collapse: separate !important; border-spacing: 0 !important;">
             <thead>
               <tr>
                 <th style="width: 68px; padding: 4px 6px !important; text-align: center !important;">Mã</th>

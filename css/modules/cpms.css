@@ -1400,17 +1400,21 @@ textarea.form-control:focus {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
-  margin-bottom: 10px;
+  margin-bottom: 0 !important;
 }
 
 .disburse-detail-header {
-  padding: 6px 12px;
+  padding: 4px 12px !important;
+  min-height: 52px !important;
+  max-height: 52px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
   background: linear-gradient(to right, #f8fafc, #eff6ff);
   border-bottom: 1px solid #bfdbfe;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap !important;
   gap: 8px;
 }
 
@@ -1750,19 +1754,70 @@ textarea.form-control:focus {
   }
 }
 
-/* Tối ưu chiều rộng Bảng theo dõi thu chi (hạn chế scrollbar ngang & căn giữa header) */
+/* Tối ưu chiều rộng & cố định chiều cao Bảng theo dõi thu chi (cố định đúng 5 dòng hiển thị cho mọi HĐ) */
 .disburse-detail-table {
   width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
 }
 
-.disburse-detail-table th {
+.disburse-detail-table thead tr {
+  height: 28px !important;
+  background: #f8fafc !important;
+}
+
+.disburse-detail-table thead th {
+  height: 28px !important;
+  max-height: 28px !important;
+  padding: 2px 4px !important;
+  box-sizing: border-box !important;
   text-align: center !important;
   vertical-align: middle !important;
+  font-size: 0.76rem !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  white-space: nowrap !important;
 }
 
-.disburse-detail-table th,
-.disburse-detail-table td {
-  box-sizing: border-box;
+.disburse-detail-table tbody tr,
+.disburse-detail-table .disburse-dn-row,
+.disburse-detail-table .disburse-empty-row {
+  height: 28px !important;
+  max-height: 28px !important;
+  box-sizing: border-box !important;
+}
+
+.disburse-detail-table tbody td {
+  height: 28px !important;
+  max-height: 28px !important;
+  padding: 2px 6px !important;
+  box-sizing: border-box !important;
+  vertical-align: middle !important;
+  font-size: 0.77rem !important;
+  line-height: 1.2 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.disburse-detail-table tfoot tr {
+  height: 30px !important;
+  background: #f8fafc !important;
+}
+
+.disburse-detail-table tfoot td {
+  height: 30px !important;
+  max-height: 30px !important;
+  padding: 2px 6px !important;
+  box-sizing: border-box !important;
+  vertical-align: middle !important;
+  font-size: 0.77rem !important;
+  border-top: 2px solid #cbd5e1 !important;
+  background: #f8fafc !important;
 }
 
 .disburse-dn-row {
@@ -1815,38 +1870,69 @@ textarea.form-control:focus {
 }
 
 #cpms-tab-disbursements {
-  padding-bottom: 12px;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Loại bỏ padding-bottom của main-content khi đang mở tab Giải ngân */
+.main-content:has(#cpms-tab-disbursements:not(.hidden)) {
+  padding-bottom: 0 !important;
+}
+
+.disburse-contracts-card {
+  margin-bottom: 6px !important;
+  overflow: hidden !important;
+}
+
+.disburse-contracts-card-header {
+  padding: 5px 12px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  box-sizing: border-box;
 }
 
 .disburse-scroll-15 {
   max-height: 520px; /* Hiển thị ~15 dòng */
 }
 
+/* Chiều cao cân đối chính xác để vừa khít màn hình khi ẩn bảng tổng hợp: không thể cuộn lố, không hở đáy */
 .disburse-scroll-contract-list {
-  height: calc(100vh - 425px);
-  max-height: calc(100vh - 425px);
-  min-height: 280px;
+  height: calc(100vh - 436px);
+  max-height: calc(100vh - 436px);
+  min-height: 240px;
 }
 
 .disburse-scroll-10 {
   max-height: 380px; /* Hiển thị ~10 dòng + thead + tfoot */
 }
 
+/* Cố định chính xác đúng 5 dòng: thead (28px) + 5 dòng (140px) + tfoot (30px) = 198px */
 .disburse-scroll-detail-5 {
-  height: 206px; /* Chiều cao cố định chính xác đúng 5 dòng: thead (28px) + 5 dòng (145px) + tfoot (33px) */
-  max-height: 206px;
+  height: 198px !important;
+  max-height: 198px !important;
+  min-height: 198px !important;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
 }
 
 .disburse-empty-row {
-  height: 29px !important;
+  height: 28px !important;
+  max-height: 28px !important;
   background-color: #fafbfc;
 }
 
 .disburse-empty-row td {
-  padding: 3px 6px !important;
-  color: #cbd5e1;
+  height: 28px !important;
+  max-height: 28px !important;
+  padding: 2px 6px !important;
+  color: #cbd5e1 !important;
   border-bottom: 1px solid #f1f5f9 !important;
-  vertical-align: middle;
+  vertical-align: middle !important;
+  box-sizing: border-box !important;
 }
 
 .disburse-compact-table {
@@ -1856,10 +1942,11 @@ textarea.form-control:focus {
   font-size: 0.77rem;
 }
 
-.disburse-compact-table thead th {
+.disburse-compact-table thead th,
+.disburse-scroll-contract-list thead th {
   position: sticky !important;
   top: 0 !important;
-  z-index: 10 !important;
+  z-index: 15 !important;
   background: #f1f5f9 !important;
   color: #334155;
   font-weight: 700;
@@ -1881,7 +1968,7 @@ textarea.form-control:focus {
 .disburse-compact-table tfoot td {
   position: sticky !important;
   bottom: 0 !important;
-  z-index: 10 !important;
+  z-index: 15 !important;
   background: #f8fafc !important;
   border-top: 2px solid #cbd5e1 !important;
   box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.04);
