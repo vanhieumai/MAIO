@@ -1576,6 +1576,81 @@ textarea.form-control:focus {
   display: none !important;
 }
 
+/* Bộ lọc ĐN và Ngày/Tháng/Năm trong Tab Giải ngân */
+.disburse-dn-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.disburse-dn-checkbox:has(input:checked) {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+.disburse-dn-checkbox input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: #2563eb;
+}
+
+.disburse-date-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+.cpms-sticky-filter-row select.disburse-filter-select {
+  height: 34px !important;
+  padding: 4px 8px !important;
+  font-size: 0.81rem !important;
+  border-radius: var(--radius-sm) !important;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.cpms-sticky-filter-row select#disburse-filter-year.disburse-filter-select {
+  width: 108px !important;
+}
+
+.cpms-sticky-filter-row select#disburse-filter-month.disburse-filter-select {
+  width: 114px !important;
+}
+
+.cpms-sticky-filter-row select#disburse-category-filter.disburse-filter-select {
+  width: auto !important;
+  min-width: 185px !important;
+  max-width: 245px !important;
+}
+
+.cpms-sticky-filter-row input.disburse-filter-date {
+  width: 132px !important;
+  min-width: 132px !important;
+  max-width: 132px !important;
+  height: 34px !important;
+  padding: 4px 6px !important;
+  font-size: 0.8rem !important;
+  border-radius: var(--radius-sm) !important;
+  flex: 0 0 auto;
+}
+
 /* ==========================================================================
    Table Scroll & Compact Styles cho Tab Giải ngân (CPMS Disbursements)
    ========================================================================== */

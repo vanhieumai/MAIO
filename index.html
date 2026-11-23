@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/main.css?v=4.5">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=4.5">
+  <link rel="stylesheet" href="css/main.css?v=4.7">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=4.7">
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -444,22 +444,55 @@
               </div>
             </div>
 
-            <div class="cpms-sticky-filter-row">
-              <div class="search-input-wrap">
+            <div class="cpms-sticky-filter-row" style="gap: 8px;">
+              <!-- Ô tìm kiếm thu gọn -->
+              <div class="search-input-wrap" style="flex: 1 1 190px; max-width: 250px; min-width: 170px;">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="disburse-contract-search" class="search-input" placeholder="Tìm theo mã HĐ, số hiệu, tên đối tác...">
+                <input type="text" id="disburse-contract-search" class="search-input" placeholder="Tìm HĐ, đối tác hoặc ĐN...">
                 <button type="button" id="btn-clear-disburse-search" class="btn-clear-search hidden" title="Xóa từ khóa tìm kiếm">
                   <i class="fa-solid fa-xmark"></i>
                 </button>
               </div>
 
-              <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 8px;">
-                <label for="disburse-category-filter" style="font-size: 0.82rem; font-weight: 600; color: var(--text-muted); display: flex; align-items: center; gap: 5px; white-space: nowrap;">
-                  <i class="fa-solid fa-filter"></i> Loại HĐ:
-                </label>
-                <select id="disburse-category-filter" class="form-control" style="width: auto; min-width: 200px; height: 34px; padding: 4px 10px; font-size: 0.82rem; border-radius: var(--radius-sm); font-weight: 500; cursor: pointer;">
-                  <option value="ALL">📁 Tất cả loại hợp đồng</option>
+              <!-- Checkbox Chỉ tìm ĐN -->
+              <label class="disburse-dn-checkbox" title="Khi tích chọn, ô tìm kiếm chỉ tìm theo số ĐN thanh toán và lọc ra hợp đồng chứa ĐN đó">
+                <input type="checkbox" id="disburse-search-dn-only">
+                <span>ĐN</span>
+              </label>
+
+              <!-- Bộ lọc Thời gian: Năm / Tháng / Khoảng ngày -->
+              <div class="disburse-date-filters">
+                <select id="disburse-filter-year" class="form-control disburse-filter-select" title="Lọc theo năm thanh toán" style="width: 96px !important;">
+                  <option value="">Tất cả năm</option>
                 </select>
+                <select id="disburse-filter-month" class="form-control disburse-filter-select" title="Lọc theo tháng thanh toán" style="width: 102px !important;">
+                  <option value="">Tất cả tháng</option>
+                  <option value="1">Tháng 1</option>
+                  <option value="2">Tháng 2</option>
+                  <option value="3">Tháng 3</option>
+                  <option value="4">Tháng 4</option>
+                  <option value="5">Tháng 5</option>
+                  <option value="6">Tháng 6</option>
+                  <option value="7">Tháng 7</option>
+                  <option value="8">Tháng 8</option>
+                  <option value="9">Tháng 9</option>
+                  <option value="10">Tháng 10</option>
+                  <option value="11">Tháng 11</option>
+                  <option value="12">Tháng 12</option>
+                </select>
+                <input type="date" id="disburse-filter-date-from" class="form-control disburse-filter-date" title="Từ ngày thanh toán" aria-label="Từ ngày">
+                <span style="color: #94a3b8; font-size: 0.78rem;">–</span>
+                <input type="date" id="disburse-filter-date-to" class="form-control disburse-filter-date" title="Đến ngày thanh toán" aria-label="Đến ngày">
+              </div>
+
+              <!-- Bộ lọc Loại HĐ -->
+              <div class="filter-category-wrap" style="display: flex; align-items: center; gap: 6px; margin-left: auto;">
+                <select id="disburse-category-filter" class="form-control disburse-filter-select" title="Lọc theo loại hợp đồng" style="width: auto !important; min-width: 175px;">
+                  <option value="ALL">📁 Tất cả loại HĐ</option>
+                </select>
+                <button type="button" id="btn-reset-disburse-filters" class="button button-outline button-sm hidden" style="color: var(--danger); border-color: #fca5a5; padding: 0 9px;" title="Xóa tất cả bộ lọc giải ngân">
+                  <i class="fa-solid fa-rotate-left"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -654,6 +687,6 @@
   <script src="gdrive-config.js"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=5.8"></script>
+  <script type="module" src="js/app.js?v=5.9"></script>
 </body>
 </html>

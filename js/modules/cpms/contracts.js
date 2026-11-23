@@ -1038,6 +1038,53 @@ export class ContractsManager {
     return Math.round(raw * rate);
   }
 
+  formatMoneyPlain(val) {
+    const num = Math.round(Number(val) || 0);
+    return new Intl.NumberFormat('vi-VN').format(num);
+  }
+
+  parsePaymentDateObj(val) {
+    if (!val) return null;
+    if (val instanceof Date && !isNaN(val.getTime())) return val;
+    if (typeof val === 'number' && val > 20000) {
+      // Excel serial date
+      const ms = Math.round((val - 25569) * 86400 * 1000);
+      const d = new Date(ms);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const s = String(val).trim();
+    if (!s) return null;
+    // DD/MM/YYYY
+    const mDmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (mDmy) {
+      const d = new Date(Number(mDmy[3]), Number(mDmy[2]) - 1, Number(mDmy[1]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    // YYYY-MM-DD
+    const mYmd = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+    if (mYmd) {
+      const d = new Date(Number(mYmd[1]), Number(mYmd[2]) - 1, Number(mYmd[3]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  matchesDnSearch(p, searchTerm) {
+    if (!searchTerm) return true;
+    const rawNo = String(p?.payment_no || '').trim().toLowerCase();
+    const formattedNo = String(this.formatDnNo(p?.payment_no || '')).trim().toLowerCase();
+    const normTerm = searchTerm.replace(/^đn[-\s]?|^dn[-\s]?/i, '').trim();
+    if (!normTerm) return true;
+    if (rawNo.includes(searchTerm) || formattedNo.includes(searchTerm)) return true;
+    if (rawNo.includes(normTerm) || formattedNo.includes(normTerm)) return true;
+    // Khớp theo giá trị số nếu cả 2 là số (vd gõ '5' khớp '05')
+    if (/^\d+$/.test(normTerm) && /^\d+$/.test(rawNo)) {
+      return Number(rawNo) === Number(normTerm);
+    }
+    return false;
+  }
+
   formatNumberWithDots(val) {
     if (val === undefined || val === null || val === '') return '0';
     if (typeof val === 'number') {
@@ -6663,74 +6710,157 @@ export class ContractsManager {
     const curPrj = this.projects.find((p) => p.id === this.currentProjectId) || {};
     const prjName = curPrj.name || curPrj.id || 'Dự án';
 
-    // 1. TÍNH TOÁN BẢNG TỔNG HỢP SUMMARY (FINANCIAL SUMMARY)
+    // 1. TÍNH TOÁN BỘ LỌC & BẢNG TỔNG HỢP SUMMARY (FINANCIAL SUMMARY)
     const realPayments = this.payments.filter((p) => !p.is_header);
 
-    // Summary Nhóm A (Thu - LOẠI TRỪ hoàn toàn các hợp đồng Cancel)
-    const contractsA = this.contracts.filter((c) => c.group === 'A' && !this.isContractOrAncestorCanceled(c));
-    const mainA = contractsA.filter((c) => !c.parent_id);
-    let summaryA = {
-      contractVal: 0,
-      actualVol: 0,
-      acceptedVol: 0,
-      requestedAmt: 0,
-      paidAmt: 0,
-      remaining: 0,
-    };
-    mainA.forEach((c) => {
-      const st = this.calculateTotals(c);
-      summaryA.contractVal += st.totalSigned;
-    });
-    const familyAIds = new Set();
-    contractsA.forEach((c) => familyAIds.add(c.id));
-    realPayments.forEach((p) => {
-      if (familyAIds.has(p.contract_id)) {
-        summaryA.actualVol += this.getPaymentVnd(p, 'actual_volume');
-        summaryA.acceptedVol += this.getPaymentVnd(p, 'accepted_vol');
-        summaryA.requestedAmt += this.getPaymentVnd(p, 'request_amount');
-        summaryA.paidAmt += this.getPaymentVnd(p, 'paid_amount');
-      }
-    });
-    summaryA.remaining = summaryA.requestedAmt - summaryA.paidAmt;
+    // Populate dropdown Năm thanh toán tự động từ dữ liệu thực tế
+    const yearSelect = document.getElementById('disburse-filter-year');
+    if (yearSelect) {
+      const yearsSet = new Set();
+      realPayments.forEach((p) => {
+        const d = this.parsePaymentDateObj(p.payment_date);
+        if (d) yearsSet.add(d.getFullYear());
+      });
+      const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
+      const curYearVal = this.disburseFilterYear || '';
+      yearSelect.innerHTML = `<option value="">Tất cả năm</option>` + sortedYears.map((y) => `<option value="${y}">${y}</option>`).join('');
+      yearSelect.value = sortedYears.includes(Number(curYearVal)) ? String(curYearVal) : '';
+      if (yearSelect.value !== curYearVal) this.disburseFilterYear = yearSelect.value;
+    }
 
-    // Summary Nhóm B (Chi - TÍNH GỘP CẢ CÁC HỢP ĐỒNG B VÀ CPB, LOẠI TRỪ hoàn toàn các hợp đồng Cancel)
-    const contractsB = this.contracts.filter((c) => c.group === 'B' && !this.isContractOrAncestorCanceled(c));
-    const mainB = contractsB.filter((c) => !c.parent_id);
-    let summaryB = {
-      contractVal: 0,
-      actualVol: 0,
-      acceptedVol: 0,
-      requestedAmt: 0,
-      paidAmt: 0,
-      remaining: 0,
-    };
-    mainB.forEach((c) => {
-      const st = this.calculateTotals(c);
-      summaryB.contractVal += st.totalSigned;
-    });
-    const familyBIds = new Set();
-    contractsB.forEach((c) => familyBIds.add(c.id));
-    realPayments.forEach((p) => {
-      if (familyBIds.has(p.contract_id)) {
-        const isCpbPay = /^B-CPB/i.test(p.contract_id);
-        summaryB.actualVol += this.getPaymentVnd(p, 'actual_volume', isCpbPay ? 'paid_amount' : null);
-        summaryB.acceptedVol += this.getPaymentVnd(p, 'accepted_vol', isCpbPay ? 'paid_amount' : null);
-        summaryB.requestedAmt += this.getPaymentVnd(p, 'request_amount');
-        summaryB.paidAmt += this.getPaymentVnd(p, 'paid_amount');
+    const catFilter = this.disburseCategoryFilter || 'ALL';
+    const searchTerm = (this.disburseContractSearchTerm || '').trim().toLowerCase();
+    const dnOnly = Boolean(this.disburseSearchDnOnly);
+    const yearFilter = this.disburseFilterYear || '';
+    const monthFilter = this.disburseFilterMonth || '';
+    const dateFrom = this.disburseFilterDateFrom || '';
+    const dateTo = this.disburseFilterDateTo || '';
+
+    const hasDateFilter = Boolean(yearFilter || monthFilter || dateFrom || dateTo);
+    const hasDnFilter = Boolean(dnOnly && searchTerm);
+    const hasContractTextFilter = Boolean(!dnOnly && searchTerm);
+    const hasCatFilter = catFilter !== 'ALL';
+    const hasAnyFilter = hasDateFilter || hasDnFilter || hasContractTextFilter || hasCatFilter;
+
+    // Hiện/ẩn nút Xóa tất cả bộ lọc
+    const resetFiltersBtn = document.getElementById('btn-reset-disburse-filters');
+    if (resetFiltersBtn) {
+      resetFiltersBtn.classList.toggle('hidden', !hasAnyFilter);
+    }
+
+    // Lọc các đợt thanh toán theo Ngày / Tháng / Năm và Checkbox ĐN
+    const fromDateObj = dateFrom ? this.parsePaymentDateObj(dateFrom) : null;
+    const toDateObj = dateTo ? this.parsePaymentDateObj(dateTo) : null;
+    if (fromDateObj) fromDateObj.setHours(0, 0, 0, 0);
+    if (toDateObj) toDateObj.setHours(23, 59, 59, 999);
+
+    const filteredRealPayments = realPayments.filter((p) => {
+      if (hasDateFilter) {
+        const pd = this.parsePaymentDateObj(p.payment_date);
+        if (!pd) return false;
+        if (yearFilter && pd.getFullYear() !== Number(yearFilter)) return false;
+        if (monthFilter && pd.getMonth() + 1 !== Number(monthFilter)) return false;
+        if (fromDateObj && pd.getTime() < fromDateObj.getTime()) return false;
+        if (toDateObj && pd.getTime() > toDateObj.getTime()) return false;
       }
+      if (hasDnFilter) {
+        if (!this.matchesDnSearch(p, searchTerm)) return false;
+      }
+      return true;
     });
-    summaryB.remaining = summaryB.requestedAmt - summaryB.paidAmt;
+
+    // Helper kiểm tra 1 hợp đồng có thỏa mãn bộ lọc Loại HĐ / Tìm kiếm / ĐN / Ngày không
+    const matchedPaymentContractIds = new Set(filteredRealPayments.map((p) => p.contract_id));
+    const matchesContractFilters = (c) => {
+      if (hasCatFilter) {
+        const effCat = this.getEffectiveCategory(c);
+        if (catFilter === 'OTHER') {
+          if (effCat) return false;
+        } else if (effCat.toLowerCase() !== catFilter.toLowerCase()) {
+          return false;
+        }
+      }
+      if (hasContractTextFilter) {
+        const cNo = String(c.contract_no || c.id || '').toLowerCase();
+        const cDisplay = String(c.display_no || '').toLowerCase();
+        const cScope = String(c.scope_of_work || '').toLowerCase();
+        const cPartA = String(c.company_a || '').toLowerCase();
+        const cPartB = String(c.company_b || '').toLowerCase();
+        if (!(cNo.includes(searchTerm) || cDisplay.includes(searchTerm) || cScope.includes(searchTerm) || cPartA.includes(searchTerm) || cPartB.includes(searchTerm))) {
+          return false;
+        }
+      }
+      if (hasDnFilter || hasDateFilter) {
+        const famIds = this.getAllDescendantIds(c.id);
+        const hasMatchPay = famIds.some((fid) => matchedPaymentContractIds.has(fid));
+        if (!hasMatchPay) return false;
+      }
+      return true;
+    };
+
+    // Hàm tính tổng hợp 1 nhóm (A hoặc B) theo bộ lọc hiện tại (loại trừ hoàn toàn hợp đồng Cancel)
+    const calcGroupSummary = (groupCode) => {
+      const groupActiveContracts = this.contracts.filter((c) => c.group === groupCode && !this.isContractOrAncestorCanceled(c));
+      const matchedContracts = hasAnyFilter
+        ? groupActiveContracts.filter((c) => matchesContractFilters(c))
+        : groupActiveContracts;
+
+      // Tập ID hợp đồng khớp (tránh cộng trùng cha-con khi tính Giá trị HĐ)
+      const matchedIds = new Set(matchedContracts.map((c) => c.id));
+      const topMatched = matchedContracts.filter((c) => !c.parent_id || !matchedIds.has(c.parent_id));
+
+      const summary = {
+        contractVal: 0,
+        actualVol: 0,
+        acceptedVol: 0,
+        requestedAmt: 0,
+        paidAmt: 0,
+        remaining: 0,
+      };
+      topMatched.forEach((c) => {
+        const st = this.calculateTotals(c);
+        summary.contractVal += st.totalSigned;
+      });
+
+      // Tập ID dùng để gom thanh toán (bao gồm toàn bộ con cháu không Cancel của topMatched)
+      const payScopeIds = new Set();
+      topMatched.forEach((c) => {
+        this.getAllDescendantIds(c.id).forEach((fid) => {
+          const fc = this.contracts.find((x) => x.id === fid);
+          if (!fc || !this.isContractOrAncestorCanceled(fc)) {
+            payScopeIds.add(fid);
+          }
+        });
+      });
+
+      filteredRealPayments.forEach((p) => {
+        if (payScopeIds.has(p.contract_id)) {
+          const isCpbPay = groupCode === 'B' && /^B-CPB/i.test(p.contract_id);
+          summary.actualVol += this.getPaymentVnd(p, 'actual_volume', isCpbPay ? 'paid_amount' : null);
+          summary.acceptedVol += this.getPaymentVnd(p, 'accepted_vol', isCpbPay ? 'paid_amount' : null);
+          summary.requestedAmt += this.getPaymentVnd(p, 'request_amount');
+          summary.paidAmt += this.getPaymentVnd(p, 'paid_amount');
+        }
+      });
+      summary.remaining = summary.requestedAmt - summary.paidAmt;
+      return summary;
+    };
+
+    const summaryA = calcGroupSummary('A');
+    const summaryB = calcGroupSummary('B');
 
     // Cân đối dòng tiền A - B
     const balance = summaryA.paidAmt - summaryB.paidAmt;
 
-    // 1.1 RENDER BẢNG SUMMARY CHUẨN CPMS PLUS
+    // 1.1 RENDER BẢNG SUMMARY CHUẨN CPMS PLUS (Bỏ đơn vị đ, tổng hợp theo bộ lọc)
     summaryContainer.innerHTML = `
       <div class="disburse-summary-header">
         <div style="font-weight: 800; font-size: 0.9rem; color: #1e293b; display: flex; align-items: center; gap: 8px;">
           <i class="fa-solid fa-chart-pie" style="color: var(--primary);"></i>
           <span>BẢNG TỔNG HỢP TÀI CHÍNH & GIẢI NGÂN</span>
+          ${hasAnyFilter ? `<span class="badge badge-primary" style="font-size: 0.72rem; padding: 2px 7px;"><i class="fa-solid fa-filter"></i> Đang lọc</span>` : ''}
         </div>
+        <span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 500;">Đơn vị: VNĐ</span>
       </div>
       <div style="overflow-x: auto;">
         <table class="disburse-summary-table">
@@ -6750,24 +6880,24 @@ export class ContractsManager {
               <td style="text-align: center;">
                 <span class="badge badge-primary" style="font-size: 0.76rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 5px;"><i class="fa-solid fa-landmark"></i> Nhóm A</span>
               </td>
-              <td style="text-align: right; font-weight: 700; color: var(--primary);">${this.formatCurrency(summaryA.contractVal)}</td>
-              <td style="text-align: right;">${this.formatCurrency(summaryA.actualVol)}</td>
-              <td style="text-align: right;">${this.formatCurrency(summaryA.acceptedVol)}</td>
-              <td style="text-align: right;">${this.formatCurrency(summaryA.requestedAmt)}</td>
-              <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatCurrency(summaryA.paidAmt)}</td>
-              <td style="text-align: right; color: ${summaryA.remaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(summaryA.remaining)}</td>
+              <td style="text-align: right; font-weight: 700; color: var(--primary);">${this.formatMoneyPlain(summaryA.contractVal)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(summaryA.actualVol)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(summaryA.acceptedVol)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(summaryA.requestedAmt)}</td>
+              <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(summaryA.paidAmt)}</td>
+              <td style="text-align: right; color: ${summaryA.remaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(summaryA.remaining)}</td>
             </tr>
 
             <tr style="background: #ffffff; font-weight: 600;">
               <td style="text-align: center;">
                 <span class="badge badge-warning" style="font-size: 0.76rem; padding: 3px 8px; display: inline-flex; align-items: center; gap: 5px;"><i class="fa-solid fa-handshake"></i> Nhóm B</span>
               </td>
-              <td style="text-align: right; font-weight: 700; color: #4f46e5;">${this.formatCurrency(summaryB.contractVal)}</td>
-              <td style="text-align: right;">${this.formatCurrency(summaryB.actualVol)}</td>
-              <td style="text-align: right;">${this.formatCurrency(summaryB.acceptedVol)}</td>
-              <td style="text-align: right;">${this.formatCurrency(summaryB.requestedAmt)}</td>
-              <td style="text-align: right; font-weight: 700; color: #0891b2;">${this.formatCurrency(summaryB.paidAmt)}</td>
-              <td style="text-align: right; color: ${summaryB.remaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(summaryB.remaining)}</td>
+              <td style="text-align: right; font-weight: 700; color: #4f46e5;">${this.formatMoneyPlain(summaryB.contractVal)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(summaryB.actualVol)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(summaryB.acceptedVol)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(summaryB.requestedAmt)}</td>
+              <td style="text-align: right; font-weight: 700; color: #0891b2;">${this.formatMoneyPlain(summaryB.paidAmt)}</td>
+              <td style="text-align: right; color: ${summaryB.remaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(summaryB.remaining)}</td>
             </tr>
 
             <tr style="background: #f0fdf4; border-top: 2px solid #86efac; font-weight: 700;">
@@ -6775,7 +6905,7 @@ export class ContractsManager {
                 <i class="fa-solid fa-scale-balanced" style="color: #16a34a; margin-right: 6px;"></i> A - B
               </td>
               <td style="text-align: right; font-size: 0.92rem; color: ${balance >= 0 ? 'var(--success)' : 'var(--danger)'};">
-                ${balance >= 0 ? '+' : ''}${this.formatCurrency(balance)}
+                ${balance >= 0 ? '+' : ''}${this.formatMoneyPlain(balance)}
               </td>
               <td></td>
             </tr>
@@ -6810,26 +6940,8 @@ export class ContractsManager {
     // 3. LẤY DANH SÁCH HỢP ĐỒNG THUỘC NHÓM ĐANG CHỌN (KÈM CPB TRONG NHÓM B)
     const curGroupContracts = this.contracts.filter((c) => c.group === this.disburseGroup);
     
-    // Lọc theo Loại hợp đồng và từ khóa tìm kiếm
-    const catFilter = this.disburseCategoryFilter || 'ALL';
-    const searchTerm = (this.disburseContractSearchTerm || '').trim().toLowerCase();
-    const filteredContracts = curGroupContracts.filter((c) => {
-      if (catFilter !== 'ALL') {
-        const effCat = this.getEffectiveCategory(c);
-        if (catFilter === 'OTHER') {
-          if (effCat) return false;
-        } else if (effCat.toLowerCase() !== catFilter.toLowerCase()) {
-          return false;
-        }
-      }
-      if (!searchTerm) return true;
-      const cNo = String(c.contract_no || c.id || '').toLowerCase();
-      const cDisplay = String(c.display_no || '').toLowerCase();
-      const cScope = String(c.scope_of_work || '').toLowerCase();
-      const cPartA = String(c.company_a || '').toLowerCase();
-      const cPartB = String(c.company_b || '').toLowerCase();
-      return cNo.includes(searchTerm) || cDisplay.includes(searchTerm) || cScope.includes(searchTerm) || cPartA.includes(searchTerm) || cPartB.includes(searchTerm);
-    });
+    // Lọc theo Loại hợp đồng, Từ khóa, Checkbox ĐN và Ngày/Tháng/Năm
+    const filteredContracts = curGroupContracts.filter((c) => matchesContractFilters(c));
 
     // Sắp xếp danh sách theo cột Mã từ nhỏ đến lớn (Natural Hierarchical Sort: B-1 < B-2 < B-11 < B-11.1 < B-11.2 ...; CPB xếp cuối)
     filteredContracts.sort((a, b) => {
@@ -6893,7 +7005,7 @@ export class ContractsManager {
               const fc = this.contracts.find((x) => x.id === fid);
               return !fc || !this.isContractOrAncestorCanceled(fc);
             });
-        const cPayments = realPayments.filter((p) => targetFamilyIds.includes(p.contract_id));
+        const cPayments = filteredRealPayments.filter((p) => targetFamilyIds.includes(p.contract_id));
         
         let cActual = 0;
         let cAccepted = 0;
@@ -6935,23 +7047,23 @@ export class ContractsManager {
               <span>${c.contract_no || c.id}</span>${statusMiniBadge}
             </td>
             <td style="text-align: right; font-weight: 700; color: #1e293b; padding: 6px 8px; white-space: nowrap;">
-              ${this.formatCurrency(cVal)}
+              ${this.formatMoneyPlain(cVal)}
               ${exRate !== 1 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(c.contract_val)} nguyên tệ</div>` : ''}
             </td>
             <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
-              ${this.formatCurrency(cActual)}
+              ${this.formatMoneyPlain(cActual)}
             </td>
             <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
-              ${this.formatCurrency(cAccepted)}
+              ${this.formatMoneyPlain(cAccepted)}
             </td>
             <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
-              ${this.formatCurrency(cRequested)}
+              ${this.formatMoneyPlain(cRequested)}
             </td>
             <td style="text-align: right; font-weight: 700; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'}; padding: 6px 8px; white-space: nowrap;">
-              ${this.formatCurrency(cPaid)}
+              ${this.formatMoneyPlain(cPaid)}
             </td>
             <td style="text-align: right; color: ${cRemaining > 0 ? 'var(--danger)' : '#64748b'}; padding: 6px 8px; white-space: nowrap;">
-              ${this.formatCurrency(cRemaining)}
+              ${this.formatMoneyPlain(cRemaining)}
             </td>
             <td style="text-align: center; padding: 6px 8px; white-space: nowrap;">
               <span class="badge ${Number(cRate) >= 100 ? 'badge-success' : 'badge-primary'}" style="font-size: 0.72rem; padding: 2px 6px;">
@@ -6976,14 +7088,14 @@ export class ContractsManager {
             <thead>
               <tr>
                 <th style="width: 68px;">Mã</th>
-                <th style="min-width: 145px;">Số hiệu HĐ / Phụ lục</th>
-                <th style="width: 125px;">Giá trị HĐ</th>
-                <th style="width: 125px;">KL hoàn thành</th>
-                <th style="width: 125px;">KL chấp nhận TT</th>
-                <th style="width: 125px;">Đề nghị TT</th>
-                <th style="width: 125px;">Đã thanh toán</th>
-                <th style="width: 115px;">Còn lại</th>
-                <th style="width: 68px;">Tỷ lệ (%)</th>
+                <th style="min-width: 140px;">Số hiệu HĐ / Phụ lục</th>
+                <th style="width: 136px;">Giá trị HĐ</th>
+                <th style="width: 136px;">KL hoàn thành</th>
+                <th style="width: 136px;">KL chấp nhận TT</th>
+                <th style="width: 136px;">Đề nghị TT</th>
+                <th style="width: 136px;">Đã thanh toán</th>
+                <th style="width: 126px;">Còn lại</th>
+                <th style="width: 64px;">Tỷ lệ (%)</th>
               </tr>
             </thead>
             <tbody>
@@ -7025,13 +7137,13 @@ export class ContractsManager {
           return !fc || !this.isContractOrAncestorCanceled(fc);
         });
     
-    // Lấy các đợt thanh toán của hợp đồng / phụ lục đang chọn (bao gồm cả các gói con trực thuộc)
-    const contractPayments = realPayments.filter((p) => selectedTargetIds.includes(p.contract_id));
+    // Lấy các đợt thanh toán của hợp đồng / phụ lục đang chọn (khớp theo bộ lọc hiện tại)
+    const contractPayments = filteredRealPayments.filter((p) => selectedTargetIds.includes(p.contract_id));
 
     // Sắp xếp các đợt giải ngân theo ngày thanh toán hoặc item_index
     contractPayments.sort((a, b) => {
-      const dateA = a.payment_date ? new Date(a.payment_date).getTime() : 0;
-      const dateB = b.payment_date ? new Date(b.payment_date).getTime() : 0;
+      const dateA = this.parsePaymentDateObj(a.payment_date)?.getTime() || 0;
+      const dateB = this.parsePaymentDateObj(b.payment_date)?.getTime() || 0;
       return dateA - dateB;
     });
 
@@ -7054,7 +7166,7 @@ export class ContractsManager {
         <tr>
           <td colspan="9" style="text-align: center; padding: 32px 16px; color: var(--text-muted);">
             <i class="fa-solid fa-receipt" style="font-size: 1.8rem; color: #cbd5e1; margin-bottom: 8px; display: block;"></i>
-            Hợp đồng này chưa có đợt giải ngân nào. Bấm nút <strong>"+ Thêm Thanh toán"</strong> ở phía trên để ghi nhận đợt thanh toán đầu tiên.
+            ${hasAnyFilter ? 'Không có đợt giải ngân nào khớp với bộ lọc hiện tại.' : 'Hợp đồng này chưa có đợt giải ngân nào. Bấm nút <strong>"+ Thêm Thanh toán"</strong> ở phía trên để ghi nhận đợt thanh toán đầu tiên.'}
           </td>
         </tr>
       `;
@@ -7093,45 +7205,45 @@ export class ContractsManager {
 
         detailRowsHtml += `
           <tr class="disburse-dn-row${hasNoteInfo ? ' has-dn-note' : ''}" data-dn-note="${safeTooltipAttr}" title="${hasNoteInfo ? safeTooltipAttr : safeItemName}" style="border-bottom: 1px solid #f1f5f9;">
-            <td style="font-weight: 700; padding: 6px 6px; white-space: nowrap; text-align: center;">
-              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; font-size: 0.76rem;">
+            <td style="font-weight: 700; padding: 6px 4px; white-space: nowrap; text-align: center;">
+              <span style="background: #e0f2fe; color: #0369a1; padding: 2px 5px; border-radius: 4px; font-size: 0.75rem;">
                 ${this.formatDnNo(p.payment_no || String(idx + 1))}
               </span>
             </td>
-            <td style="padding: 6px 6px; white-space: nowrap; font-size: 0.79rem; color: #475569; text-align: center;">
-              <i class="fa-regular fa-calendar-days" style="margin-right: 3px;"></i>${this.formatDate(p.payment_date)}
+            <td style="padding: 6px 4px; white-space: nowrap; font-size: 0.79rem; color: #475569; text-align: center;">
+              ${this.formatDate(p.payment_date)}
             </td>
             <td style="padding: 6px 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              <div style="font-weight: 600; color: #1e293b; font-size: 0.81rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                ${p.item_name || 'Đợt thanh toán'}${hasNoteInfo ? ' <i class="fa-regular fa-comment-dots" style="color: #6366f1; margin-left: 4px; font-size: 0.76rem;" title="Rê chuột để xem chứng từ / ghi chú"></i>' : ''}
+              <div style="font-weight: 600; color: #1e293b; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                ${p.item_name || 'Đợt thanh toán'}${hasNoteInfo ? ' <i class="fa-regular fa-comment-dots" style="color: #6366f1; margin-left: 4px; font-size: 0.75rem;" title="Rê chuột để xem chứng từ / ghi chú"></i>' : ''}
               </div>
-              ${pRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b;">Tỷ giá TT: <strong>${pRate}</strong></div>` : ''}
+              ${pRate !== 1 ? `<div style="font-size: 0.68rem; color: #64748b;">TG: <strong>${pRate}</strong></div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              ${this.formatCurrency(pActVnd)}
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+              ${this.formatMoneyPlain(pActVnd)}
               ${pRate !== 1 && pActRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pActRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-              ${this.formatCurrency(pAccVnd)}
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap;">
+              ${this.formatMoneyPlain(pAccVnd)}
               ${pRate !== 1 && pAccRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pAccRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 600; overflow: hidden; text-overflow: ellipsis;">
-              ${this.formatCurrency(pReqVnd)}
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 600;">
+              ${this.formatMoneyPlain(pReqVnd)}
               ${pRate !== 1 && pReqRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b;">${this.formatNumberWithDots(pReqRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 700; overflow: hidden; text-overflow: ellipsis; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
-              ${this.formatCurrency(pPaidVnd)}
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2')};">
+              ${this.formatMoneyPlain(pPaidVnd)}
               ${pRate !== 1 && pPaidRaw !== 0 ? `<div style="font-size: 0.68rem; color: #64748b; font-weight: normal;">${this.formatNumberWithDots(pPaidRaw)} nt</div>` : ''}
             </td>
-            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
-              ${this.formatCurrency(pRemVnd)}
+            <td style="text-align: right; padding: 6px 8px; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+              ${this.formatMoneyPlain(pRemVnd)}
             </td>
-            <td style="padding: 6px 6px; text-align: center; white-space: nowrap;">
-              <div style="display: flex; gap: 4px; justify-content: center;">
-                <button class="button button-outline btn-edit-selected-dn" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.72rem;" title="Chỉnh sửa đợt thanh toán này">
+            <td style="padding: 6px 4px; text-align: center; white-space: nowrap;">
+              <div style="display: flex; gap: 3px; justify-content: center;">
+                <button class="button button-outline btn-edit-selected-dn" data-pay-id="${p.id}" style="padding: 2px 5px; font-size: 0.72rem;" title="Chỉnh sửa đợt thanh toán này">
                   <i class="fa-solid fa-pen-to-square"></i>
                 </button>
-                <button class="button button-outline btn-delete-selected-dn" data-pay-id="${p.id}" style="padding: 2px 6px; font-size: 0.72rem; color: var(--danger); border-color: #fca5a5;" title="Xóa đợt thanh toán này">
+                <button class="button button-outline btn-delete-selected-dn" data-pay-id="${p.id}" style="padding: 2px 5px; font-size: 0.72rem; color: var(--danger); border-color: #fca5a5;" title="Xóa đợt thanh toán này">
                   <i class="fa-solid fa-trash-can"></i>
                 </button>
               </div>
@@ -7162,9 +7274,9 @@ export class ContractsManager {
           </div>
           <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; display: flex; gap: 14px; flex-wrap: wrap;">
             <span><i class="fa-solid fa-building"></i> ${partnerRole}: <strong>${partnerLabel}</strong></span>
-            <span><i class="fa-solid fa-file-contract"></i> Giá trị HĐ: <strong>${this.formatCurrency(selValVnd)}</strong>${selRate !== 1 ? ` <small style="font-weight: normal; color: #64748b;">(${this.formatNumberWithDots(selectedContract.contract_val)} nguyên tệ × TG ${selRate})</small>` : ''}</span>
-            <span><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}: <strong style="color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatCurrency(dnTotalPaid)}</strong></span>
-            <span><i class="fa-solid fa-clock-rotate-left"></i> Còn lại: <strong style="color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(dnTotalRemaining)}</strong></span>
+            <span><i class="fa-solid fa-file-contract"></i> Giá trị HĐ: <strong>${this.formatMoneyPlain(selValVnd)}</strong>${selRate !== 1 ? ` <small style="font-weight: normal; color: #64748b;">(${this.formatNumberWithDots(selectedContract.contract_val)} nguyên tệ × TG ${selRate})</small>` : ''}</span>
+            <span><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}: <strong style="color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</strong></span>
+            <span><i class="fa-solid fa-clock-rotate-left"></i> Còn lại: <strong style="color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</strong></span>
           </div>
         </div>
       </div>
@@ -7173,15 +7285,15 @@ export class ContractsManager {
         <table class="disburse-compact-table disburse-summary-table" style="width: 100%; table-layout: fixed;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 72px;">Đợt TT</th>
-              <th style="width: 98px;">Ngày TT</th>
+              <th style="width: 66px;">Đợt TT</th>
+              <th style="width: 84px;">Ngày TT</th>
               <th>Nội dung thanh toán</th>
-              <th style="width: 124px;">KL hoàn thành</th>
-              <th style="width: 124px;">KL chấp nhận TT</th>
-              <th style="width: 124px;">Đề nghị TT</th>
-              <th style="width: 124px;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
-              <th style="width: 114px;">Còn lại</th>
-              <th style="width: 68px;">Thao tác</th>
+              <th style="width: 142px;">KL hoàn thành</th>
+              <th style="width: 142px;">KL chấp nhận TT</th>
+              <th style="width: 142px;">Đề nghị TT</th>
+              <th style="width: 142px;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
+              <th style="width: 136px;">Còn lại</th>
+              <th style="width: 62px;">Thao tác</th>
             </tr>
           </thead>
           <tbody>
@@ -7193,11 +7305,11 @@ export class ContractsManager {
                 <td colspan="3" style="padding: 8px 8px; color: #1e293b;">
                   TỔNG CỘNG (${contractPayments.length} đợt ${this.disburseGroup === 'A' ? 'thu' : 'chi'})
                 </td>
-                <td style="text-align: right; padding: 8px 8px;">${this.formatCurrency(dnTotalActual)}</td>
-                <td style="text-align: right; padding: 8px 8px;">${this.formatCurrency(dnTotalAccepted)}</td>
-                <td style="text-align: right; padding: 8px 8px;">${this.formatCurrency(dnTotalRequested)}</td>
-                <td style="text-align: right; padding: 8px 8px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatCurrency(dnTotalPaid)}</td>
-                <td style="text-align: right; padding: 8px 8px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(dnTotalRemaining)}</td>
+                <td style="text-align: right; padding: 8px 8px;">${this.formatMoneyPlain(dnTotalActual)}</td>
+                <td style="text-align: right; padding: 8px 8px;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
+                <td style="text-align: right; padding: 8px 8px;">${this.formatMoneyPlain(dnTotalRequested)}</td>
+                <td style="text-align: right; padding: 8px 8px; color: ${this.disburseGroup === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
+                <td style="text-align: right; padding: 8px 8px; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
                 <td></td>
               </tr>
             </tfoot>
@@ -7320,6 +7432,76 @@ export class ContractsManager {
       document.getElementById('disburse-category-filter')?.addEventListener('change', (e) => {
         this.disburseCategoryFilter = e.target.value;
         this.selectedDisburseContractId = null;
+        this.renderDisbursementsTab();
+      });
+
+      // Checkbox Chỉ tìm theo số ĐN
+      document.getElementById('disburse-search-dn-only')?.addEventListener('change', (e) => {
+        this.disburseSearchDnOnly = e.target.checked;
+        if (disburseSearchInput) {
+          disburseSearchInput.placeholder = this.disburseSearchDnOnly
+            ? 'Nhập số ĐN (vd: 14, ĐN-14, 05)...'
+            : 'Tìm HĐ, đối tác hoặc ĐN...';
+        }
+        this.selectedDisburseContractId = null;
+        this.renderDisbursementsTab();
+      });
+
+      // Lọc theo Năm / Tháng / Khoảng ngày thanh toán
+      const yearEl = document.getElementById('disburse-filter-year');
+      const monthEl = document.getElementById('disburse-filter-month');
+      const dateFromEl = document.getElementById('disburse-filter-date-from');
+      const dateToEl = document.getElementById('disburse-filter-date-to');
+
+      yearEl?.addEventListener('change', (e) => {
+        this.disburseFilterYear = e.target.value;
+        this.selectedDisburseContractId = null;
+        this.renderDisbursementsTab();
+      });
+
+      monthEl?.addEventListener('change', (e) => {
+        this.disburseFilterMonth = e.target.value;
+        this.selectedDisburseContractId = null;
+        this.renderDisbursementsTab();
+      });
+
+      dateFromEl?.addEventListener('change', (e) => {
+        this.disburseFilterDateFrom = e.target.value;
+        this.selectedDisburseContractId = null;
+        this.renderDisbursementsTab();
+      });
+
+      dateToEl?.addEventListener('change', (e) => {
+        this.disburseFilterDateTo = e.target.value;
+        this.selectedDisburseContractId = null;
+        this.renderDisbursementsTab();
+      });
+
+      // Nút Xóa tất cả bộ lọc giải ngân
+      document.getElementById('btn-reset-disburse-filters')?.addEventListener('click', () => {
+        this.disburseContractSearchTerm = '';
+        this.disburseSearchDnOnly = false;
+        this.disburseCategoryFilter = 'ALL';
+        this.disburseFilterYear = '';
+        this.disburseFilterMonth = '';
+        this.disburseFilterDateFrom = '';
+        this.disburseFilterDateTo = '';
+        this.selectedDisburseContractId = null;
+
+        if (disburseSearchInput) {
+          disburseSearchInput.value = '';
+          disburseSearchInput.placeholder = 'Tìm HĐ, đối tác hoặc ĐN...';
+        }
+        clearDisburseSearchBtn?.classList.add('hidden');
+        const dnChk = document.getElementById('disburse-search-dn-only');
+        if (dnChk) dnChk.checked = false;
+        if (yearEl) yearEl.value = '';
+        if (monthEl) monthEl.value = '';
+        if (dateFromEl) dateFromEl.value = '';
+        if (dateToEl) dateToEl.value = '';
+        const catEl = document.getElementById('disburse-category-filter');
+        if (catEl) catEl.value = 'ALL';
+
         this.renderDisbursementsTab();
       });
 
