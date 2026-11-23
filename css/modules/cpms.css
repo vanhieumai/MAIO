@@ -1619,31 +1619,35 @@ textarea.form-control:focus {
 
 .cpms-sticky-filter-row select.disburse-filter-select {
   height: 34px !important;
-  padding: 4px 8px !important;
+  padding: 0 24px 0 9px !important;
   font-size: 0.81rem !important;
+  line-height: 32px !important;
   border-radius: var(--radius-sm) !important;
   cursor: pointer;
   flex: 0 0 auto;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 
 .cpms-sticky-filter-row select#disburse-filter-year.disburse-filter-select {
-  width: 108px !important;
+  width: 116px !important;
 }
 
 .cpms-sticky-filter-row select#disburse-filter-month.disburse-filter-select {
-  width: 114px !important;
+  width: 124px !important;
 }
 
 .cpms-sticky-filter-row select#disburse-category-filter.disburse-filter-select {
   width: auto !important;
-  min-width: 185px !important;
-  max-width: 245px !important;
+  min-width: 175px !important;
+  max-width: 225px !important;
 }
 
 .cpms-sticky-filter-row input.disburse-filter-date {
-  width: 132px !important;
-  min-width: 132px !important;
-  max-width: 132px !important;
+  width: 126px !important;
+  min-width: 126px !important;
+  max-width: 126px !important;
   height: 34px !important;
   padding: 4px 6px !important;
   font-size: 0.8rem !important;

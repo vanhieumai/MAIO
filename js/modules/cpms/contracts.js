@@ -6742,10 +6742,13 @@ export class ContractsManager {
     const hasCatFilter = catFilter !== 'ALL';
     const hasAnyFilter = hasDateFilter || hasDnFilter || hasContractTextFilter || hasCatFilter;
 
-    // Hiện/ẩn nút Xóa tất cả bộ lọc
+    // Luôn hiển thị nút Reset; làm nổi bật màu đỏ nhẹ khi đang có bộ lọc hoạt động
     const resetFiltersBtn = document.getElementById('btn-reset-disburse-filters');
     if (resetFiltersBtn) {
-      resetFiltersBtn.classList.toggle('hidden', !hasAnyFilter);
+      resetFiltersBtn.classList.remove('hidden');
+      resetFiltersBtn.style.color = hasAnyFilter ? 'var(--danger)' : '';
+      resetFiltersBtn.style.borderColor = hasAnyFilter ? '#fca5a5' : '';
+      resetFiltersBtn.style.background = hasAnyFilter ? '#fef2f2' : '';
     }
 
     // Lọc các đợt thanh toán theo Ngày / Tháng / Năm và Checkbox ĐN
