@@ -2083,7 +2083,7 @@ export class ContractsManager {
   }
 
   getMainContracts() {
-    return this.contracts.filter((c) => {
+    const list = this.contracts.filter((c) => {
       const matchGroup = c.group === this.currentGroup;
       const isMain = !c.parent_id;
       if (!matchGroup || !isMain) return false;
@@ -2109,6 +2109,32 @@ export class ContractsManager {
       const familyIds = this.getAllDescendantIds(c.id);
       return this.contracts.some((ch) => familyIds.includes(ch.id) && (ch.category || '').toLowerCase().trim() === target);
     });
+
+    // Sắp xếp danh sách hợp đồng theo ngày ký hợp đồng từ sớm nhất đến muộn nhất (CPB xếp cuối)
+    list.sort((a, b) => {
+      const isCpbA = Boolean(a.is_cpb || a.contract_type === 'CPB' || (a.id && String(a.id).startsWith('B-CPB-')));
+      const isCpbB = Boolean(b.is_cpb || b.contract_type === 'CPB' || (b.id && String(b.id).startsWith('B-CPB-')));
+      if (isCpbA !== isCpbB) return isCpbA ? 1 : -1;
+
+      const dateA = this.parsePaymentDateObj(a.signing_date || a.created_at);
+      const dateB = this.parsePaymentDateObj(b.signing_date || b.created_at);
+      const timeA = dateA ? dateA.getTime() : 0;
+      const timeB = dateB ? dateB.getTime() : 0;
+
+      if (timeA && timeB) {
+        if (timeA !== timeB) return timeA - timeB;
+      } else if (timeA && !timeB) {
+        return -1;
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+
+      const codeA = String(a.display_no || a.id || '').trim();
+      const codeB = String(b.display_no || b.id || '').trim();
+      return codeA.localeCompare(codeB, 'vi', { numeric: true, sensitivity: 'base' });
+    });
+
+    return list;
   }
 
   // Lấy các con trực tiếp (Level 1 dưới HĐ gốc, hoặc Level 2 dưới Phụ lục)
@@ -2298,7 +2324,7 @@ export class ContractsManager {
     }
 
     container.innerHTML = mainContracts
-      .map((c) => {
+      .map((c, index) => {
         const stats = this.calculateTotals(c);
         const directChildren = this.getDirectChildren(c.id);
         const realPayments = this.getRealPayments(c.id);
@@ -2314,8 +2340,9 @@ export class ContractsManager {
                 <div class="contract-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px;">
                   <div class="contract-header-left" style="flex: 1;">
                     <div class="contract-no" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                      <span class="badge badge-contract-stt" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 700; font-size: 0.8rem; padding: 2px 7px; border-radius: 4px;" title="Số thứ tự hợp đồng">#${index + 1}</span>
                       <i class="fa-solid fa-receipt" style="color: #d97706; font-size: 1.15rem;"></i>
-                      <span style="font-size: 1.05rem; font-weight: 800; color: #92400e;">${c.contract_no || c.id}</span>
+                      <span class="contract-no-text" style="font-size: 1.05rem; font-weight: 800; color: #92400e;">${c.contract_no || c.id}</span>
                       <span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 700;">
                         <i class="fa-solid fa-calculator"></i> Chi phí Quản lý (CPB)
                       </span>
@@ -2436,8 +2463,9 @@ export class ContractsManager {
               <div class="contract-header">
                 <div class="contract-header-left">
                   <div class="contract-no">
+                    <span class="badge badge-contract-stt" style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-weight: 700; font-size: 0.8rem; padding: 2px 7px; border-radius: 4px;" title="Số thứ tự hợp đồng">#${index + 1}</span>
                     <i class="fa-solid fa-file-signature"></i>
-                    <span>${c.contract_no || c.id}</span>
+                    <span class="contract-no-text">${c.contract_no || c.id}</span>
                     <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}">Nhóm ${c.group}</span>
                     ${c.category ? `<span class="badge" style="background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${c.category}</span>` : ''}
                     ${this.getContractStatusBadgeHtml(c.status)}
@@ -2675,6 +2703,26 @@ export class ContractsManager {
   renderAppendixRowsHierarchical(parentId, indentLevel = 0) {
     const children = this.getDirectChildren(parentId);
     if (children.length === 0) return '';
+
+    // Sắp xếp phụ lục con theo ngày ký từ sớm đến muộn
+    children.sort((a, b) => {
+      const dateA = this.parsePaymentDateObj(a.signing_date || a.created_at);
+      const dateB = this.parsePaymentDateObj(b.signing_date || b.created_at);
+      const timeA = dateA ? dateA.getTime() : 0;
+      const timeB = dateB ? dateB.getTime() : 0;
+
+      if (timeA && timeB) {
+        if (timeA !== timeB) return timeA - timeB;
+      } else if (timeA && !timeB) {
+        return -1;
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+
+      const codeA = String(a.display_no || a.id || '').trim();
+      const codeB = String(b.display_no || b.id || '').trim();
+      return codeA.localeCompare(codeB, 'vi', { numeric: true, sensitivity: 'base' });
+    });
 
     return children
       .map((child) => {

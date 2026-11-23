@@ -2048,7 +2048,16 @@ textarea.form-control:focus {
   opacity: 0.82;
 }
 
-.contract-group-wrapper.card-status-cancel .contract-no span:first-of-type,
+.badge-contract-stt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  letter-spacing: 0.3px;
+}
+
+.contract-group-wrapper.card-status-cancel .contract-no .contract-no-text,
+.contract-group-wrapper.card-status-cancel .contract-no span:not(.badge),
 .contract-group-wrapper.card-status-cancel .contract-val-amount,
 .contract-card.card-status-cancel .contract-number,
 .contract-card.card-status-cancel .contract-val-amount {
