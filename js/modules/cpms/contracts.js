@@ -7706,9 +7706,30 @@ export class ContractsManager {
         this.renderDisbursementsTab();
       });
 
-      // Nút Lịch tháng giải ngân
-      document.getElementById('btn-disburse-month-calendar')?.addEventListener('click', () => {
-        this.openDisburseMonthCalendarModal();
+      // Icon Lịch bên trong 2 ô ngày tháng: Click mở bộ chọn ngày, nhấp đúp hoặc chuột phải mở popup Lịch tháng
+      document.querySelectorAll('.disburse-date-input-wrap .disburse-date-icon').forEach((icon) => {
+        icon.addEventListener('click', () => {
+          const input = icon.parentElement?.querySelector('input.disburse-filter-date');
+          if (input) {
+            try {
+              if (typeof input.showPicker === 'function') {
+                input.showPicker();
+              } else {
+                input.focus();
+              }
+            } catch (err) {
+              input.focus();
+            }
+          }
+        });
+        icon.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          this.openDisburseMonthCalendarModal();
+        });
+        icon.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          this.openDisburseMonthCalendarModal();
+        });
       });
 
       // Xuất Excel giải ngân
@@ -7806,7 +7827,7 @@ export class ContractsManager {
       }
 
       modal.innerHTML = `
-        <div class="modal-dialog" style="max-width: 480px; width: 92vw;">
+        <div class="modal-container" style="max-width: 480px; width: 92vw; background: #ffffff; border-radius: 12px; box-shadow: 0 20px 30px rgba(0,0,0,0.2); overflow: hidden; cursor: default;">
           <div class="modal-header">
             <div style="display: flex; align-items: center; gap: 8px;">
               <i class="fa-solid fa-calendar-days" style="color: #2563eb; font-size: 1.1rem;"></i>
@@ -8047,11 +8068,11 @@ export class ContractsManager {
     modal.className = 'modal-overlay';
     modal.style.zIndex = '10005';
     modal.innerHTML = `
-      <div class="modal-dialog modal-xl" style="max-width: 1060px; width: 95vw;">
-        <div class="modal-header" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);">
+      <div class="modal-container" style="max-width: 1100px; width: 95vw; background: #ffffff; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; cursor: default; display: flex; flex-direction: column; max-height: 92vh;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom: 1px solid #e2e8f0; padding: 12px 18px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <i class="fa-solid fa-table-list" style="color: var(--primary); font-size: 1.1rem;"></i>
-            <h3 class="modal-title" style="font-size: 1.05rem; margin: 0;">
+            <h3 class="modal-title" style="font-size: 1.05rem; margin: 0; color: #0f172a;">
               Tổng thể Bảng thu chi: <span style="color: var(--primary);">${contract.contract_no || contract.id}</span>
               ${contract.scope_of_work ? `<small style="font-size: 0.82rem; color: var(--text-muted); font-weight: normal; margin-left: 6px;">— ${contract.scope_of_work}</small>` : ''}
             </h3>
@@ -8059,40 +8080,51 @@ export class ContractsManager {
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
-        <div class="modal-body" style="padding: 16px 20px;">
-          <!-- Thống kê tổng hợp -->
-          <div class="overview-modal-summary-grid">
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">${partnerRole}</span>
-              <span class="overview-summary-value" style="font-size: 0.8rem; font-weight: 600;" title="${partnerName}">${partnerName}</span>
+        <div class="modal-body" style="padding: 16px 20px; background: #ffffff; overflow-y: auto; flex: 1;">
+          <!-- Banner đối tác & Thông tin Hợp đồng -->
+          <div style="background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+              <i class="fa-solid fa-building" style="color: #64748b; font-size: 0.95rem;"></i>
+              <span style="font-size: 0.78rem; color: #64748b; font-weight: 600;">${partnerRole}:</span>
+              <strong style="font-size: 0.88rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${partnerName}">${partnerName}</strong>
             </div>
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">Giá trị HĐ</span>
-              <span class="overview-summary-value">${this.formatMoneyPlain(cValVnd)}</span>
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 0.78rem; color: #64748b;">
+              ${contract.signing_date ? `<span><i class="fa-regular fa-calendar" style="margin-right: 4px;"></i> Ngày ký: <strong style="color: #334155;">${this.formatDate(contract.signing_date)}</strong></span>` : ''}
+              <span class="badge ${contract.status === 'Completed' ? 'badge-success' : (contract.status === 'Cancel' ? 'badge-danger' : 'badge-primary')}" style="font-size: 0.72rem; padding: 2px 7px;">
+                ${contract.status || 'Active'}
+              </span>
             </div>
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">KL hoàn thành</span>
-              <span class="overview-summary-value">${this.formatMoneyPlain(totalAct)}</span>
+          </div>
+
+          <!-- Lưới 7 thẻ chỉ số KPI tài chính đồng đều -->
+          <div class="overview-modal-kpi-grid">
+            <div class="overview-kpi-card">
+              <span class="overview-kpi-label">Giá trị HĐ</span>
+              <span class="overview-kpi-value">${this.formatMoneyPlain(cValVnd)}</span>
             </div>
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">KL chấp nhận TT</span>
-              <span class="overview-summary-value">${this.formatMoneyPlain(totalAcc)}</span>
+            <div class="overview-kpi-card">
+              <span class="overview-kpi-label">KL hoàn thành</span>
+              <span class="overview-kpi-value">${this.formatMoneyPlain(totalAct)}</span>
             </div>
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">Đề nghị TT</span>
-              <span class="overview-summary-value">${this.formatMoneyPlain(totalReq)}</span>
+            <div class="overview-kpi-card">
+              <span class="overview-kpi-label">KL chấp nhận TT</span>
+              <span class="overview-kpi-value">${this.formatMoneyPlain(totalAcc)}</span>
             </div>
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">Đã ${isGroupA ? 'thu' : 'thanh toán'}</span>
-              <span class="overview-summary-value" style="color: ${isGroupA ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(totalPaid)}</span>
+            <div class="overview-kpi-card">
+              <span class="overview-kpi-label">Đề nghị TT</span>
+              <span class="overview-kpi-value">${this.formatMoneyPlain(totalReq)}</span>
             </div>
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">Còn lại</span>
-              <span class="overview-summary-value" style="color: ${totalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(totalRemaining)}</span>
+            <div class="overview-kpi-card" style="background: #f0fdf4; border-color: #bbf7d0;">
+              <span class="overview-kpi-label" style="color: #166534;">Đã ${isGroupA ? 'thu' : 'thanh toán'}</span>
+              <span class="overview-kpi-value" style="color: ${isGroupA ? '#15803d' : '#0891b2'};">${this.formatMoneyPlain(totalPaid)}</span>
             </div>
-            <div class="overview-summary-item">
-              <span class="overview-summary-label">Tỷ lệ giải ngân</span>
-              <span class="overview-summary-value" style="color: #2563eb;">${disbursePercent}%</span>
+            <div class="overview-kpi-card" style="background: ${totalRemaining > 0 ? '#fef2f2' : '#f8fafc'}; border-color: ${totalRemaining > 0 ? '#fecaca' : '#e2e8f0'};">
+              <span class="overview-kpi-label" style="color: ${totalRemaining > 0 ? '#b91c1c' : '#64748b'};">Còn lại</span>
+              <span class="overview-kpi-value" style="color: ${totalRemaining > 0 ? '#dc2626' : '#64748b'};">${this.formatMoneyPlain(totalRemaining)}</span>
+            </div>
+            <div class="overview-kpi-card" style="background: #eff6ff; border-color: #bfdbfe;">
+              <span class="overview-kpi-label" style="color: #1e40af;">Tỷ lệ giải ngân</span>
+              <span class="overview-kpi-value" style="color: #2563eb;">${disbursePercent}%</span>
             </div>
           </div>
 

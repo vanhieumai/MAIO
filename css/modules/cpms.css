@@ -1655,7 +1655,7 @@ textarea.form-control:focus {
 .disburse-date-range-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   flex: 0 0 auto;
 }
 
@@ -1665,44 +1665,64 @@ textarea.form-control:focus {
   padding: 0 1px;
 }
 
+.disburse-date-input-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 122px;
+  flex: 0 0 122px;
+}
+
 .cpms-sticky-filter-row input.disburse-filter-date {
-  width: 120px !important;
-  min-width: 120px !important;
-  max-width: 120px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
   height: 34px !important;
-  padding: 4px 6px !important;
+  padding: 4px 26px 4px 6px !important;
   font-size: 0.8rem !important;
   border-radius: var(--radius-sm) !important;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   margin: 0 !important;
+  cursor: pointer;
+  background-color: #ffffff !important;
+}
+
+.disburse-date-input-wrap .disburse-date-icon {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #3b82f6;
+  font-size: 0.85rem;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 1;
+  transition: color 0.15s ease, transform 0.1s ease;
+}
+
+.disburse-date-input-wrap .disburse-date-icon:hover {
+  color: #1d4ed8;
+  transform: translateY(-50%) scale(1.1);
+}
+
+/* Đặt vùng click picker indicator phủ lên icon để người dùng bấm vào icon là mở native picker */
+.disburse-date-input-wrap input.disburse-filter-date::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 28px;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
 }
 
 .cpms-sticky-filter-row select#disburse-category-filter.disburse-filter-select {
   width: auto !important;
   min-width: 165px !important;
   max-width: 220px !important;
-}
-
-.btn-disburse-calendar {
-  height: 34px !important;
-  padding: 0 10px !important;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 0.8rem !important;
-  font-weight: 600;
-  flex: 0 0 auto;
-  white-space: nowrap;
-  border-color: #cbd5e1 !important;
-  background: #ffffff !important;
-  color: #1e293b !important;
-  transition: all 0.15s ease;
-}
-
-.btn-disburse-calendar:hover {
-  background: #eff6ff !important;
-  border-color: #93c5fd !important;
-  color: #1d4ed8 !important;
 }
 
 .btn-reset-filters {
@@ -1760,19 +1780,18 @@ textarea.form-control:focus {
     display: flex;
     align-items: center;
   }
-  .disburse-date-range-wrap input.disburse-filter-date {
+  .disburse-date-input-wrap {
     flex: 1 1 0;
     width: auto !important;
     min-width: 0 !important;
-    max-width: none !important;
+  }
+  .disburse-date-input-wrap input.disburse-filter-date {
+    width: 100% !important;
   }
   .cpms-sticky-filter-row select#disburse-category-filter.disburse-filter-select {
     flex: 1 1 calc(100% - 85px);
     width: auto !important;
     max-width: none !important;
-  }
-  .btn-disburse-calendar {
-    flex: 0 0 auto;
   }
   .btn-reset-filters {
     flex: 0 0 auto;
@@ -2163,30 +2182,46 @@ textarea.form-control:focus {
 /* ==========================================================================
    POPUP TỔNG THỂ BẢNG THU CHI (CLICK ĐÚP VÀO HỢP ĐỒNG)
    ========================================================================== */
-.overview-modal-summary-grid {
+.overview-modal-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(7, 1fr);
   gap: 8px;
   margin-bottom: 14px;
-  background: #f8fafc;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-color);
 }
 
-.overview-summary-item {
+@media (max-width: 900px) {
+  .overview-modal-kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  }
+}
+
+.overview-kpi-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  text-align: center;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
 
-.overview-summary-label {
-  font-size: 0.7rem;
+.overview-kpi-card:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.overview-kpi-label {
+  font-size: 0.69rem;
   color: var(--text-muted);
   font-weight: 600;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
 }
 
-.overview-summary-value {
+.overview-kpi-value {
   font-size: 0.88rem;
   font-weight: 700;
   color: #0f172a;
@@ -2199,6 +2234,7 @@ textarea.form-control:focus {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   scrollbar-width: thin;
+  background: #ffffff;
 }
 
 .overview-detail-table {
@@ -2206,6 +2242,7 @@ textarea.form-control:focus {
   border-collapse: separate;
   border-spacing: 0;
   font-size: 0.78rem;
+  background: #ffffff;
 }
 
 .overview-detail-table thead th {
@@ -2215,20 +2252,27 @@ textarea.form-control:focus {
   background: #f1f5f9;
   color: #334155;
   font-weight: 700;
-  padding: 6px 8px;
+  padding: 7px 8px;
   border-bottom: 2px solid #cbd5e1;
   text-align: center;
   white-space: nowrap;
 }
 
-.overview-detail-table tbody td {
-  padding: 5px 8px;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
+.overview-detail-table tbody tr {
+  background: #ffffff;
+  transition: background-color 0.12s ease;
 }
 
 .overview-detail-table tbody tr:hover {
-  background-color: #f8fafc;
+  background-color: #eff6ff !important;
+}
+
+.overview-detail-table tbody td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  background: inherit;
+  color: #1e293b;
 }
 
 .overview-detail-table tfoot td {
@@ -2238,7 +2282,8 @@ textarea.form-control:focus {
   background: #f8fafc;
   border-top: 2px solid #cbd5e1;
   font-weight: 700;
-  padding: 6px 8px;
+  padding: 7px 8px;
+  color: #0f172a;
 }
 
 
