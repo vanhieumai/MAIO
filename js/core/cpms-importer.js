@@ -407,6 +407,11 @@ export class CPMSImporterExporter {
         const reqAmt = parseFloat(r[11] || 0) || 0;
         const paidAmt = parseFloat(r[12] || 0) || 0;
 
+        const rawItemName = String(r[5] || '').trim();
+        const rawPaymentRef = String(r[14] || '').trim();
+        const rawNote = String(r[20] || '').trim();
+        const finalContent = rawPaymentRef || rawItemName || rawNote || '';
+
         payments.push({
           id: ledgerId,
           is_header: isHeader,
@@ -415,7 +420,7 @@ export class CPMSImporterExporter {
           contract_id: contractId,
           contract_no: String(r[3] || ''),
           item_index: parseFloat(r[4] || 0) || 0,
-          item_name: String(r[5] || ''),
+          item_name: isHeader ? (rawItemName || finalContent) : (rawPaymentRef || rawItemName || finalContent),
           exchange_rate: parseFloat(r[6] || 1.0) || 1.0,
           contract_val: parseFloat(r[8] || 0) || 0,
           actual_volume: parseFloat(r[9] || 0) || 0,
@@ -423,13 +428,13 @@ export class CPMSImporterExporter {
           request_amount: reqAmt,
           paid_amount: paidAmt,
           remaining: parseFloat(r[13] || reqAmt - paidAmt) || 0,
-          payment_ref: String(r[14] || ''),
+          payment_ref: rawPaymentRef || rawItemName || finalContent,
           payment_no: String(r[15] || ''),
           payment_date: r[16] || null,
           invoice_value: parseFloat(r[17] || 0) || 0,
           invoice_ref: String(r[18] || ''),
           invoice_date: r[19] || null,
-          note: String(r[20] || ''),
+          note: rawNote,
         });
       }
 

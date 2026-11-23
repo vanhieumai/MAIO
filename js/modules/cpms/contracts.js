@@ -391,13 +391,35 @@ export class ContractsManager {
     );
 
     // Chuẩn hóa dữ liệu đợt tạm ứng: Khối lượng hoàn thành và KL chấp nhận thanh toán của đợt tạm ứng luôn bằng 0
+    // Đồng thời tự động chuẩn hóa và đồng bộ nội dung thanh toán (item_name & payment_ref)
     for (const p of this.payments) {
       if (p.is_header) continue;
+      let changed = false;
       const isAdvance = (p.item_name && /tạm\s*ứng/i.test(p.item_name)) ||
                         (p.payment_ref && /tạm\s*ứng/i.test(p.payment_ref));
       if (isAdvance && (p.actual_volume !== 0 || p.accepted_vol !== 0)) {
         p.actual_volume = 0;
         p.accepted_vol = 0;
+        changed = true;
+      }
+
+      const rawName = (p.item_name !== undefined && p.item_name !== null) ? String(p.item_name).trim() : '';
+      const rawRef = (p.payment_ref !== undefined && p.payment_ref !== null) ? String(p.payment_ref).trim() : '';
+      const rawNote = (p.note !== undefined && p.note !== null) ? String(p.note).trim() : '';
+
+      if (!rawName && rawRef) {
+        p.item_name = rawRef;
+        changed = true;
+      } else if (!rawRef && rawName) {
+        p.payment_ref = rawName;
+        changed = true;
+      } else if (!rawName && !rawRef && rawNote) {
+        p.item_name = rawNote;
+        p.payment_ref = rawNote;
+        changed = true;
+      }
+
+      if (changed) {
         await db.put('payments', p);
       }
     }
@@ -2762,6 +2784,27 @@ export class ContractsManager {
       .join('');
   }
 
+  /**
+   * Lấy nội dung diễn giải thanh toán thông minh từ dữ liệu CPMS Plus:
+   * Ưu tiên cột 15 (PaymentRef) chuẩn CPMS, kế tiếp là cột 6 (ItemName),
+   * tiếp đến là Ghi chú (Note) và số đợt nếu cả hai đều rỗng.
+   */
+  getPaymentContent(p) {
+    if (!p) return '';
+    const ref = (p.payment_ref !== undefined && p.payment_ref !== null) ? String(p.payment_ref).trim() : '';
+    const name = (p.item_name !== undefined && p.item_name !== null) ? String(p.item_name).trim() : '';
+    const note = (p.note !== undefined && p.note !== null) ? String(p.note).trim() : '';
+
+    if (ref && !/^đợt\s*thanh\s*toán$/i.test(ref)) return ref;
+    if (name && !/^đợt\s*thanh\s*toán$/i.test(name)) return name;
+    if (ref) return ref;
+    if (name) return name;
+    if (note) return note;
+
+    const noStr = String(p.payment_no || p.item_index || '').trim().replace(/^ĐN[-_\s]*/i, '').replace(/^DN[-_\s]*/i, '');
+    return noStr ? `Đợt thanh toán số ${noStr}` : 'Đợt thanh toán';
+  }
+
   // ==========================================
   // CHI TIẾT HỢP ĐỒNG HOẶC PHỤ LỤC (4 PHÂN KHU)
   // ==========================================
@@ -3100,7 +3143,7 @@ export class ContractsManager {
                         <tr>
                           <td><strong>${this.formatDnNo(p.payment_no || p.item_index || '01')}</strong></td>
                           <td>
-                            ${p.item_name || 'Nghiệm thu giai đoạn'}
+                            ${this.getPaymentContent(p)}
                             ${pRate !== 1 ? `<div style="font-size: 0.7rem; color: #64748b;">Tỷ giá TT: ${pRate}</div>` : ''}
                           </td>
                           <td>${this.formatDate(p.payment_date)}</td>
@@ -3210,17 +3253,23 @@ export class ContractsManager {
             </div>
           </div>
         </div>
-
-        <!-- Modal Footer -->
-        <div class="modal-footer">
-          <button id="btn-close-modal-bottom" class="button button-outline">Đóng</button>
-        </div>
       </div>
     `;
 
-    const closeModal = () => modal.classList.add('hidden');
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        closeModal();
+      }
+    };
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      document.removeEventListener('keydown', handleKeydown);
+    };
+
     document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
-    document.getElementById('btn-close-modal-bottom')?.addEventListener('click', closeModal);
+    this.bindModalOutsideClick(modal, closeModal);
+    document.addEventListener('keydown', handleKeydown);
     modal.classList.remove('hidden');
 
     // Sự kiện Breadcrumb
@@ -6549,6 +6598,7 @@ export class ContractsManager {
         payment_no: formData.get('payment_no'),
         item_index: nextIdx,
         item_name: formData.get('item_name'),
+        payment_ref: formData.get('item_name'),
         exchange_rate: validRate,
         payment_date: formData.get('payment_date'),
         actual_volume: this.parseNumberFromDots(formData.get('actual_volume')),
@@ -6724,6 +6774,7 @@ export class ContractsManager {
       payment.payment_no = formData.get('payment_no');
       payment.payment_date = formData.get('payment_date');
       payment.item_name = formData.get('item_name');
+      payment.payment_ref = formData.get('item_name');
       payment.exchange_rate = validRate;
       payment.actual_volume = this.parseNumberFromDots(formData.get('actual_volume'));
       payment.accepted_vol = this.parseNumberFromDots(formData.get('accepted_vol'));
@@ -6778,7 +6829,7 @@ export class ContractsManager {
       const pReq = this.getPaymentVnd(p, 'request_amount');
       const pPaid = this.getPaymentVnd(p, 'paid_amount');
       const pRem = pReq - pPaid;
-      csvContent += `"${this.formatDnNo(p.payment_no || p.item_index)}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pAcc},${pReq},${pPaid},${pRem},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+      csvContent += `"${this.formatDnNo(p.payment_no || p.item_index)}","${(this.getPaymentContent(p) || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pAcc},${pReq},${pPaid},${pRem},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
     });
     csvContent += `\r\n`;
 
@@ -7048,7 +7099,7 @@ export class ContractsManager {
           .replace(/"/g, '&quot;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
-        const safeItemName = String(p.item_name || 'Đợt thanh toán')
+        const safeItemName = this.getPaymentContent(p)
           .replace(/&/g, '&amp;')
           .replace(/"/g, '&quot;')
           .replace(/</g, '&lt;')
@@ -7890,7 +7941,7 @@ export class ContractsManager {
 
       const pReqVnd = this.getPaymentVnd(p, 'request_amount');
       const pPaidVnd = this.getPaymentVnd(p, 'paid_amount');
-      csvContent += `"${idx + 1}","${this.formatDnNo(p.payment_no || p.item_index)}","${groupName}","${p.contract_id || ''}","${cNo.replace(/"/g, '""')}","${partner.replace(/"/g, '""')}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pReqVnd},${pPaidVnd},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+      csvContent += `"${idx + 1}","${this.formatDnNo(p.payment_no || p.item_index)}","${groupName}","${p.contract_id || ''}","${cNo.replace(/"/g, '""')}","${partner.replace(/"/g, '""')}","${(this.getPaymentContent(p) || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pReqVnd},${pPaidVnd},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -8148,7 +8199,7 @@ export class ContractsManager {
         const rawNo = String(p.payment_no || (idx + 1)).trim();
         const cleanNo = rawNo.replace(/^ĐN[-_\s]*/i, '').replace(/^DN[-_\s]*/i, '') || String(idx + 1);
 
-        const safeItemName = String(p.item_name || 'Đợt thanh toán')
+        const safeItemName = this.getPaymentContent(p)
           .replace(/&/g, '&amp;')
           .replace(/"/g, '&quot;')
           .replace(/</g, '&lt;')
@@ -8411,7 +8462,7 @@ export class ContractsManager {
       const rawNo = String(p.payment_no || (idx + 1)).trim();
       const cleanNo = rawNo.replace(/^ĐN[-_\s]*/i, '').replace(/^DN[-_\s]*/i, '') || String(idx + 1);
 
-      csvContent += `"${idx + 1}","${cleanNo}","${(p.item_name || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pActVnd},${pAccVnd},${pReqVnd},${pPaidVnd},${pRemVnd},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
+      csvContent += `"${idx + 1}","${cleanNo}","${(this.getPaymentContent(p) || '').replace(/"/g, '""')}","${this.formatDate(p.payment_date)}",${pActVnd},${pAccVnd},${pReqVnd},${pPaidVnd},${pRemVnd},"${p.invoice_ref || ''}","${(p.note || '').replace(/"/g, '""')}"\r\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
