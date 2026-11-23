@@ -1386,10 +1386,10 @@ textarea.form-control:focus {
 }
 
 .disburse-contract-row.selected-contract-row {
-  background-color: #f0f9ff !important;
-  outline: 2px solid #38bdf8;
+  background-color: #dbeafe !important;
+  box-shadow: inset 4px 0 0 #1d4ed8, inset 0 1px 0 #93c5fd, inset 0 -1px 0 #93c5fd !important;
   position: relative;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .disburse-detail-card {
@@ -1518,18 +1518,19 @@ textarea.form-control:focus {
 
 .cpms-sticky-filter-row {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  width: 100%;
 }
 
-/* Ô tìm kiếm có icon và nút Clear Search (×) */
+/* Ô tìm kiếm có icon và nút Clear Search (×) co giãn chiếm khoảng trống bên trái */
 .search-input-wrap {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1;
-  min-width: 220px;
+  flex: 1 1 auto;
+  min-width: 170px;
 }
 
 .search-input-wrap .search-icon {
@@ -1576,7 +1577,7 @@ textarea.form-control:focus {
   display: none !important;
 }
 
-/* Bộ lọc ĐN và Ngày/Tháng/Năm trong Tab Giải ngân */
+/* Bộ lọc ĐN */
 .disburse-dn-checkbox {
   display: inline-flex;
   align-items: center;
@@ -1593,6 +1594,7 @@ textarea.form-control:focus {
   user-select: none;
   white-space: nowrap;
   transition: all 0.15s ease;
+  flex: 0 0 auto;
 }
 
 .disburse-dn-checkbox:has(input:checked) {
@@ -1609,17 +1611,18 @@ textarea.form-control:focus {
   accent-color: #2563eb;
 }
 
-.disburse-date-filters {
+/* Nhóm toàn bộ bộ lọc dồn sát sang bên phải */
+.disburse-filters-right-group {
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: nowrap;
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .cpms-sticky-filter-row select.disburse-filter-select {
   height: 34px !important;
-  padding: 0 24px 0 9px !important;
+  padding: 0 20px 0 8px !important;
   font-size: 0.81rem !important;
   line-height: 32px !important;
   border-radius: var(--radius-sm) !important;
@@ -1628,31 +1631,62 @@ textarea.form-control:focus {
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  margin: 0 !important;
 }
 
 .cpms-sticky-filter-row select#disburse-filter-year.disburse-filter-select {
-  width: 116px !important;
+  width: 104px !important;
+  min-width: 104px !important;
+  max-width: 104px !important;
 }
 
 .cpms-sticky-filter-row select#disburse-filter-month.disburse-filter-select {
-  width: 124px !important;
+  width: 108px !important;
+  min-width: 108px !important;
+  max-width: 108px !important;
 }
 
-.cpms-sticky-filter-row select#disburse-category-filter.disburse-filter-select {
-  width: auto !important;
-  min-width: 175px !important;
-  max-width: 225px !important;
+.disburse-date-range-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.disburse-date-range-wrap .date-sep {
+  color: #94a3b8;
+  font-size: 0.8rem;
+  padding: 0 1px;
 }
 
 .cpms-sticky-filter-row input.disburse-filter-date {
-  width: 126px !important;
-  min-width: 126px !important;
-  max-width: 126px !important;
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
   height: 34px !important;
   padding: 4px 6px !important;
   font-size: 0.8rem !important;
   border-radius: var(--radius-sm) !important;
   flex: 0 0 auto;
+  margin: 0 !important;
+}
+
+.cpms-sticky-filter-row select#disburse-category-filter.disburse-filter-select {
+  width: auto !important;
+  min-width: 165px !important;
+  max-width: 220px !important;
+}
+
+.btn-reset-filters {
+  height: 34px !important;
+  padding: 0 10px !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem !important;
+  font-weight: 600;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 /* ==========================================================================
@@ -1734,9 +1768,9 @@ textarea.form-control:focus {
    Phân biệt màu sắc theo Trạng thái Hợp đồng (Completed / Cancel)
    ========================================================================== */
 .badge-status-completed {
-  background: #e0f2fe !important;
-  color: #0369a1 !important;
-  border: 1px solid #bae6fd !important;
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  border: 1px solid #a7f3d0 !important;
 }
 
 .badge-status-cancel {
@@ -1747,7 +1781,7 @@ textarea.form-control:focus {
 
 .contract-group-wrapper.card-status-completed,
 .contract-card.card-status-completed {
-  border-left: 4px solid #0284c7 !important;
+  border-left: 4px solid #10b981 !important;
   background: #f8fafc !important;
 }
 
@@ -1767,11 +1801,11 @@ textarea.form-control:focus {
 }
 
 .disburse-contract-row.row-status-completed {
-  background-color: #f0f9ff;
+  background-color: #f0fdf4;
 }
 
 .disburse-contract-row.row-status-completed:hover {
-  background-color: #e0f2fe;
+  background-color: #dcfce7;
 }
 
 .disburse-contract-row.row-status-cancel {
@@ -1792,6 +1826,18 @@ textarea.form-control:focus {
 
 .disburse-contract-row.row-status-cancel:hover {
   background-color: #fee2e2;
+}
+
+/* Khi dòng Completed hoặc Cancel được chọn, luôn hiển thị nền xanh dương rõ ràng của selected-contract-row */
+.disburse-contract-row.row-status-completed.selected-contract-row,
+.disburse-contract-row.row-status-cancel.selected-contract-row {
+  background-color: #dbeafe !important;
+  box-shadow: inset 4px 0 0 #1d4ed8, inset 0 1px 0 #93c5fd, inset 0 -1px 0 #93c5fd !important;
+}
+
+.disburse-contract-row.row-status-completed.selected-contract-row:hover,
+.disburse-contract-row.row-status-cancel.selected-contract-row:hover {
+  background-color: #bfdbfe !important;
 }
 
 
