@@ -1,5 +1,5 @@
 # Environment & Sensitive Configuration
-gdrive-config.js
+# (gdrive-config.js cần được commit để GitHub Pages có cấu hình kết nối Google Drive)
 
 # OS generated files
 .DS_Store

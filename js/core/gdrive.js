@@ -3,9 +3,17 @@
  * Quản lý xác thực OAuth 2.0 (Google Identity Services) và đồng bộ tệp tin qua Google Drive API v3.
  */
 
+// Cấu hình dự phòng mặc định nếu file gdrive-config.js chưa kịp tải hoặc bị chặn cache
+const DEFAULT_GDRIVE_CONFIG = {
+  clientId: "429965167454-7p2a5fodhue357s10chcussc8u45ufn0.apps.googleusercontent.com",
+  apiKey: "AIzaSyAVqM4ADNcwXo-43eV-qf-oNaCHpD26qqo",
+  appFolderName: "MAIO_Data",
+  scopes: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email"
+};
+
 export class GoogleDriveService {
   constructor(config = window.MAIO_GDRIVE_CONFIG) {
-    this.config = config || {};
+    this.config = Object.assign({}, DEFAULT_GDRIVE_CONFIG, config || window.MAIO_GDRIVE_CONFIG || {});
     this.tokenClient = null;
     this.accessToken = null;
     this.currentUser = null;
@@ -34,6 +42,10 @@ export class GoogleDriveService {
    */
   async init() {
     if (this.isInitialized) return true;
+
+    if (window.MAIO_GDRIVE_CONFIG) {
+      this.config = Object.assign({}, DEFAULT_GDRIVE_CONFIG, this.config, window.MAIO_GDRIVE_CONFIG);
+    }
 
     return new Promise((resolve, reject) => {
       const checkScript = () => {
