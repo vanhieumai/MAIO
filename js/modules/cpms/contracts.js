@@ -2883,9 +2883,11 @@ export class ContractsManager {
       : (stats.totalAccepted > 0 ? stats.totalAccepted : (stats.totalPaid > 0 ? stats.totalPaid : 0));
     const isZeroContract = !hasSignedVal && stats.totalAccepted > 0;
 
+    const paidVolume = Math.max(0, stats.totalPaid - totalAdvance);
     const paidRate = baseTarget > 0 ? Math.min(100, Math.round((stats.totalPaid / baseTarget) * 1000) / 10) : 0;
-    const acceptedRate = baseTarget > 0 ? Math.min(100, Math.round((stats.totalAccepted / baseTarget) * 1000) / 10) : 0;
     const advanceRate = baseTarget > 0 ? Math.min(100, Math.round((totalAdvance / baseTarget) * 1000) / 10) : 0;
+    const payVolumeRate = baseTarget > 0 ? Math.min(100, Math.round((paidVolume / baseTarget) * 1000) / 10) : 0;
+    const acceptedRate = baseTarget > 0 ? Math.min(100, Math.round((stats.totalAccepted / baseTarget) * 1000) / 10) : 0;
 
     // Danh sách phân loại hồ sơ duy nhất để lọc
     const docCategories = [...new Set(docs.map((d) => (d.category || 'Hồ sơ').trim()).filter(Boolean))].sort();
@@ -2953,10 +2955,10 @@ export class ContractsManager {
               <i class="fa-solid fa-circle-info"></i> 1. Thông tin ${isMain ? 'Hợp đồng' : 'Phụ lục'}
             </button>
             <button class="tab-btn modal-tab-btn" data-target="m-tab-docs">
-              <i class="fa-solid fa-folder-closed"></i> 2. Hồ sơ (<span id="modal-tab-docs-count">${docs.length}</span>)
+              <i class="fa-solid fa-folder-closed"></i> 2. Hồ sơ <span class="modal-tab-badge" id="modal-tab-docs-count">${docs.length}</span>
             </button>
             <button class="tab-btn modal-tab-btn" data-target="m-tab-ipc">
-              <i class="fa-solid fa-money-bill-wave"></i> 3. Giải ngân (${realPayments.length} đợt)
+              <i class="fa-solid fa-money-bill-wave"></i> 3. Giải ngân <span class="modal-tab-badge">${realPayments.length} đợt</span>
             </button>
             <button class="tab-btn modal-tab-btn" data-target="m-tab-dash">
               <i class="fa-solid fa-chart-pie"></i> 4. Dashboard & Báo cáo
@@ -3042,10 +3044,10 @@ export class ContractsManager {
                 <table class="data-table">
                   <thead>
                     <tr>
-                      <th style="width: 120px;">Số hiệu</th>
-                      <th>Nội dung / Phạm vi công việc</th>
+                      <th style="width: 120px; text-align: center;">Số hiệu</th>
+                      <th style="text-align: center;">Nội dung / Phạm vi công việc</th>
                       <th style="width: 110px; text-align: center;">Tình trạng</th>
-                      <th class="num-col" style="width: 160px;">Giá trị ký kết</th>
+                      <th style="width: 160px; text-align: center;">Giá trị ký kết</th>
                       <th style="width: 120px; text-align: center;">Ngày ký</th>
                     </tr>
                   </thead>
@@ -3105,13 +3107,13 @@ export class ContractsManager {
               <table class="data-table" style="width: 100%; font-size: 0.82rem;">
                 <thead>
                   <tr>
-                    <th style="width: 110px; white-space: nowrap;">Mã hồ sơ</th>
-                    <th style="width: 140px; white-space: nowrap;">Số công văn / Hồ sơ</th>
+                    <th style="width: 110px; white-space: nowrap; text-align: center;">Mã hồ sơ</th>
+                    <th style="width: 140px; white-space: nowrap; text-align: center;">Số công văn / Hồ sơ</th>
                     <th style="width: 60px; text-align: center; white-space: nowrap;">Phân loại</th>
-                    <th>Tiêu đề tài liệu</th>
+                    <th style="text-align: center;">Tiêu đề tài liệu</th>
                     <th style="width: 80px; text-align: center; white-space: nowrap;">Ngày nhận</th>
                     <th style="width: 85px; text-align: center; white-space: nowrap;">Tình trạng</th>
-                    <th style="width: 110px; white-space: nowrap;">Tệp tin</th>
+                    <th style="width: 110px; white-space: nowrap; text-align: center;">Tệp tin</th>
                     <th style="width: 105px; text-align: center; white-space: nowrap;">Thao tác</th>
                   </tr>
                 </thead>
@@ -3302,20 +3304,32 @@ export class ContractsManager {
                 <h3 class="card-title" style="margin-bottom: 0;">
                   <i class="fa-solid fa-chart-line" style="color: var(--primary);"></i> Tiến độ Thực hiện & Giải ngân
                 </h3>
-                <div style="font-size: 0.85rem; display: flex; gap: 14px; align-items: center;">
-                  <span>Tỷ lệ Giải ngân: <strong style="color: #10b981; font-size: 1.15rem;">${paidRate}%</strong></span>
+                <div style="font-size: 0.85rem; display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
+                  <span>Tạm ứng: <strong style="color: #d97706; font-size: 1.05rem;">${advanceRate}%</strong></span>
+                  <span>Thanh toán KL: <strong style="color: #059669; font-size: 1.05rem;">${payVolumeRate}%</strong></span>
+                  <span>Tổng Giải ngân: <strong style="color: #2563eb; font-size: 1.15rem;">${paidRate}%</strong></span>
                   <span>Nghiệm thu: <strong style="color: #ea580c; font-size: 1.05rem;">${acceptedRate}%</strong></span>
-                  <span>Tạm ứng: <strong style="color: #f59e0b;">${advanceRate}%</strong></span>
                 </div>
               </div>
 
-              <!-- Thanh tiến độ có vạch đánh dấu nghiệm thu -->
+              <!-- Thanh tiến độ có phân biệt màu riêng cho Tạm ứng và Thanh toán khối lượng -->
               <div class="dashboard-progress-container">
                 <div class="dashboard-progress-track">
-                  <!-- Thanh giải ngân đã thanh toán -->
-                  <div class="dashboard-progress-bar-fill" style="width: ${paidRate}%;"></div>
+                  <!-- Phân đoạn 1: Tạm ứng (Màu vàng hổ phách) -->
+                  ${advanceRate > 0 ? `
+                    <div class="dashboard-progress-advance" style="width: ${advanceRate}%;" title="Đã tạm ứng: ${this.formatCurrency(totalAdvance)} (${advanceRate}%)">
+                      ${advanceRate >= 8 ? `<span class="progress-bar-label">Tạm ứng ${advanceRate}%</span>` : ''}
+                    </div>
+                  ` : ''}
 
-                  <!-- Vạch đánh dấu giá trị nghiệm thu -->
+                  <!-- Phân đoạn 2: Thanh toán khối lượng (Màu xanh lục) -->
+                  ${payVolumeRate > 0 ? `
+                    <div class="dashboard-progress-volume" style="width: ${payVolumeRate}%; ${advanceRate === 0 ? 'border-radius: 9999px 0 0 9999px;' : ''}" title="Thanh toán khối lượng: ${this.formatCurrency(paidVolume)} (${payVolumeRate}%)">
+                      ${payVolumeRate >= 8 ? `<span class="progress-bar-label">TT KL ${payVolumeRate}%</span>` : ''}
+                    </div>
+                  ` : ''}
+
+                  <!-- Vạch đánh dấu giá trị nghiệm thu (Màu cam) -->
                   <div class="dashboard-progress-marker-accepted" style="left: ${Math.min(100, acceptedRate)}%;" title="Mốc nghiệm thu: ${this.formatCurrency(stats.totalAccepted)} (${acceptedRate}%)">
                     <div class="dashboard-marker-pin">
                       <i class="fa-solid fa-location-pin"></i> Nghiệm thu: ${acceptedRate}%
@@ -3324,43 +3338,44 @@ export class ContractsManager {
                 </div>
               </div>
 
-              <!-- Chú thích chân thanh tiến độ -->
-              <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 8px; flex-wrap: wrap; gap: 8px;">
-                <span><i class="fa-solid fa-square" style="color: #10b981;"></i> Đã giải ngân: <strong style="color: #0f172a;">${this.formatCurrency(stats.totalPaid)}</strong> (${paidRate}%)</span>
-                <span><i class="fa-solid fa-circle" style="color: #f59e0b;"></i> Giá trị tạm ứng: <strong style="color: #0f172a;">${this.formatCurrency(totalAdvance)}</strong> (${advanceRate}%)</span>
-                <span><i class="fa-solid fa-location-pin" style="color: #ea580c;"></i> Vạch nghiệm thu: <strong style="color: #0f172a;">${this.formatCurrency(stats.totalAccepted)}</strong> (${acceptedRate}%)</span>
-                <span><i class="fa-solid fa-bullseye" style="color: #3b82f6;"></i> Căn cứ kế hoạch (100%): <strong style="color: #0f172a;">${this.formatCurrency(baseTarget)}</strong> ${isZeroContract ? '<span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.72rem; padding: 1px 6px; margin-left: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Căn cứ theo Giá trị Nghiệm thu (HĐ không ghi giá trị)</span>' : ''}</span>
+              <!-- Chú thích chân thanh tiến độ phân định rõ màu riêng cho Tạm ứng và Thanh toán -->
+              <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; flex-wrap: wrap; gap: 10px;">
+                <span><i class="fa-solid fa-square" style="color: #f59e0b;"></i> Đã tạm ứng: <strong style="color: #d97706;">${this.formatCurrency(totalAdvance)}</strong> (${advanceRate}%)</span>
+                <span><i class="fa-solid fa-square" style="color: #10b981;"></i> Thanh toán khối lượng: <strong style="color: #059669;">${this.formatCurrency(paidVolume)}</strong> (${payVolumeRate}%)</span>
+                <span><i class="fa-solid fa-circle-check" style="color: #2563eb;"></i> Tổng giải ngân: <strong style="color: #1d4ed8;">${this.formatCurrency(stats.totalPaid)}</strong> (${paidRate}%)</span>
+                <span><i class="fa-solid fa-location-pin" style="color: #ea580c;"></i> Vạch nghiệm thu: <strong style="color: #c2410c;">${this.formatCurrency(stats.totalAccepted)}</strong> (${acceptedRate}%)</span>
+                <span><i class="fa-solid fa-bullseye" style="color: #6366f1;"></i> Căn cứ kế hoạch (100%): <strong style="color: #0f172a;">${this.formatCurrency(baseTarget)}</strong> ${isZeroContract ? '<span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.72rem; padding: 1px 6px; margin-left: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Căn cứ theo Nghiệm thu</span>' : ''}</span>
               </div>
 
-              <!-- Lưới 6 Thẻ Thống kê chỉ số -->
+              <!-- Lưới 6 Thẻ Thống kê chỉ số phân định màu sắc rõ ràng -->
               <div class="grid-3" style="margin-top: 20px; gap: 12px;">
-                <div class="stat-box" style="padding: 12px 14px;">
+                <div class="stat-box" style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0;">
                   <div class="stat-label">Căn cứ Kế hoạch / HĐ</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #1e293b;">${this.formatCurrency(baseTarget)}</div>
                   <div class="stat-note" style="font-size: 0.73rem;">${isZeroContract ? 'Lấy theo Giá trị Nghiệm thu' : 'Giá trị hợp đồng ký kết'}</div>
                 </div>
-                <div class="stat-box" style="padding: 12px 14px;">
-                  <div class="stat-label">Giá trị Tạm ứng</div>
+                <div class="stat-box" style="padding: 12px 14px; background: #fffbeb; border: 1px solid #fde68a;">
+                  <div class="stat-label" style="color: #b45309;"><i class="fa-solid fa-coins"></i> Giá trị Tạm ứng</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #d97706;">${this.formatCurrency(totalAdvance)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem;">Chiếm ${advanceRate}% căn cứ (${advanceCount} đợt)</div>
+                  <div class="stat-note" style="font-size: 0.73rem; color: #b45309;">Chiếm ${advanceRate}% căn cứ (${advanceCount} đợt)</div>
                 </div>
-                <div class="stat-box" style="padding: 12px 14px;">
-                  <div class="stat-label">Tổng Nghiệm thu</div>
+                <div class="stat-box" style="padding: 12px 14px; background: #f0fdf4; border: 1px solid #bbf7d0;">
+                  <div class="stat-label" style="color: #166534;"><i class="fa-solid fa-file-invoice-dollar"></i> Thanh toán Khối lượng</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: #15803d;">${this.formatCurrency(paidVolume)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem; color: #166534;">Đạt ${payVolumeRate}% căn cứ</div>
+                </div>
+                <div class="stat-box" style="padding: 12px 14px; background: #fff7ed; border: 1px solid #fed7aa;">
+                  <div class="stat-label" style="color: #c2410c;"><i class="fa-solid fa-clipboard-check"></i> Tổng Nghiệm thu</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #ea580c;">${this.formatCurrency(stats.totalAccepted)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem;">Đạt ${acceptedRate}% căn cứ</div>
+                  <div class="stat-note" style="font-size: 0.73rem; color: #c2410c;">Đạt ${acceptedRate}% căn cứ</div>
                 </div>
-                <div class="stat-box" style="padding: 12px 14px;">
-                  <div class="stat-label">Tổng Đề nghị TT</div>
-                  <div style="font-weight: 700; font-size: 1.05rem; color: #2563eb;">${this.formatCurrency(stats.totalRequested)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem;">${stats.ipcCount} đợt đề nghị</div>
+                <div class="stat-box" style="padding: 12px 14px; background: #eff6ff; border: 1px solid #bfdbfe;">
+                  <div class="stat-label" style="color: #1e40af;"><i class="fa-solid fa-money-bill-transfer"></i> Tổng Đã giải ngân</div>
+                  <div style="font-weight: 700; font-size: 1.05rem; color: #2563eb;">${this.formatCurrency(stats.totalPaid)}</div>
+                  <div class="stat-note" style="font-size: 0.73rem; color: #1e40af;">Đạt ${paidRate}% căn cứ (Tạm ứng + TT KL)</div>
                 </div>
-                <div class="stat-box" style="padding: 12px 14px;">
-                  <div class="stat-label">Tổng Đã giải ngân</div>
-                  <div style="font-weight: 700; font-size: 1.05rem; color: var(--success);">${this.formatCurrency(stats.totalPaid)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem;">Đạt ${paidRate}% căn cứ</div>
-                </div>
-                <div class="stat-box" style="padding: 12px 14px;">
-                  <div class="stat-label">Công nợ tồn / Còn lại</div>
+                <div class="stat-box" style="padding: 12px 14px; background: ${stats.remaining > 0 ? '#fef2f2' : '#f8fafc'}; border: 1px solid ${stats.remaining > 0 ? '#fecaca' : '#e2e8f0'};">
+                  <div class="stat-label" style="color: ${stats.remaining > 0 ? '#b91c1c' : '#64748b'};"><i class="fa-solid fa-clock-rotate-left"></i> Công nợ tồn / Còn lại</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: ${stats.remaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(stats.remaining)}</div>
                   <div class="stat-note" style="font-size: 0.73rem;">Đề nghị trừ Thực trả</div>
                 </div>
@@ -7619,13 +7634,13 @@ export class ContractsManager {
         <table class="disburse-summary-table">
           <thead>
             <tr>
-              <th style="width: 110px;">Phân nhóm</th>
-              <th>Giá trị hợp đồng</th>
-              <th>Khối lượng hoàn thành</th>
-              <th>Khối lượng chấp nhận TT</th>
-              <th>Đề nghị thanh toán</th>
-              <th>Đã thanh toán</th>
-              <th>Còn lại</th>
+              <th style="width: 110px; text-align: center;">Phân nhóm</th>
+              <th style="text-align: center;">Giá trị hợp đồng</th>
+              <th style="text-align: center;">Khối lượng hoàn thành</th>
+              <th style="text-align: center;">Khối lượng chấp nhận TT</th>
+              <th style="text-align: center;">Đề nghị thanh toán</th>
+              <th style="text-align: center;">Đã thanh toán</th>
+              <th style="text-align: center;">Còn lại</th>
             </tr>
           </thead>
           <tbody>
@@ -7917,13 +7932,13 @@ export class ContractsManager {
             <thead>
               <tr>
                 <th style="width: 50px; padding: 4px 6px !important; text-align: center !important;">STT</th>
-                <th style="min-width: 140px; padding: 4px 6px !important; text-align: left !important;">Số hiệu HĐ / Phụ lục</th>
-                <th style="width: 136px; padding: 4px 6px !important; text-align: right !important;">Giá trị HĐ</th>
-                <th style="width: 136px; padding: 4px 6px !important; text-align: right !important;">KL hoàn thành</th>
-                <th style="width: 136px; padding: 4px 6px !important; text-align: right !important;">KL chấp nhận TT</th>
-                <th style="width: 136px; padding: 4px 6px !important; text-align: right !important;">Đề nghị TT</th>
-                <th style="width: 136px; padding: 4px 6px !important; text-align: right !important;">Đã thanh toán</th>
-                <th style="width: 126px; padding: 4px 6px !important; text-align: right !important;">Còn lại</th>
+                <th style="min-width: 140px; padding: 4px 6px !important; text-align: center !important;">Số hiệu HĐ / Phụ lục</th>
+                <th style="width: 136px; padding: 4px 6px !important; text-align: center !important;">Giá trị HĐ</th>
+                <th style="width: 136px; padding: 4px 6px !important; text-align: center !important;">KL hoàn thành</th>
+                <th style="width: 136px; padding: 4px 6px !important; text-align: center !important;">KL chấp nhận TT</th>
+                <th style="width: 136px; padding: 4px 6px !important; text-align: center !important;">Đề nghị TT</th>
+                <th style="width: 136px; padding: 4px 6px !important; text-align: center !important;">Đã thanh toán</th>
+                <th style="width: 126px; padding: 4px 6px !important; text-align: center !important;">Còn lại</th>
                 <th style="width: 64px; padding: 4px 6px !important; text-align: center !important;">Tỷ lệ (%)</th>
               </tr>
             </thead>
@@ -8543,12 +8558,12 @@ export class ContractsManager {
                   <th style="width: 44px; text-align: center;">STT</th>
                   <th style="width: 76px; text-align: center;">Đợt TT</th>
                   <th style="width: 96px; text-align: center;">Ngày TT</th>
-                  <th style="min-width: 150px; text-align: left;">Nội dung thanh toán</th>
-                  <th style="width: 110px; text-align: right;">KL hoàn thành</th>
-                  <th style="width: 110px; text-align: right;">KL chấp nhận TT</th>
-                  <th style="width: 115px; text-align: right;">Đề nghị TT</th>
-                  <th style="width: 115px; text-align: right;">Đã ${isGroupA ? 'thu' : 'thanh toán'}</th>
-                  <th style="width: 105px; text-align: right;">Còn lại</th>
+                  <th style="min-width: 150px; text-align: center;">Nội dung thanh toán</th>
+                  <th style="width: 110px; text-align: center;">KL hoàn thành</th>
+                  <th style="width: 110px; text-align: center;">KL chấp nhận TT</th>
+                  <th style="width: 115px; text-align: center;">Đề nghị TT</th>
+                  <th style="width: 115px; text-align: center;">Đã ${isGroupA ? 'thu' : 'thanh toán'}</th>
+                  <th style="width: 105px; text-align: center;">Còn lại</th>
                   <th style="width: 76px; text-align: center;">Thao tác</th>
                 </tr>
               </thead>
