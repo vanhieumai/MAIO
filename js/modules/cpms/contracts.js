@@ -496,7 +496,41 @@ export class ContractsManager {
     return clean;
   }
 
-  handleOpenDocFile(doc) {
+  async openLocalPath(targetPath, isFolder = false) {
+    if (!targetPath || !String(targetPath).trim()) {
+      this.showToast('Chưa có thông tin đường dẫn cục bộ trên máy tính!', 'warning');
+      return false;
+    }
+    const cleanPath = String(targetPath).trim();
+
+    try {
+      const res = await fetch('/api/open-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: cleanPath })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success) {
+          this.showToast(`Đã mở ${isFolder ? 'thư mục' : 'tệp tin'} trên máy tính thành công!`, 'success');
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('Local helper server unavailable:', err);
+    }
+
+    // Fallback nếu chạy web tĩnh thuần túy không có local server hỗ trợ
+    try {
+      await navigator.clipboard.writeText(cleanPath);
+      alert(`Đã sao chép đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'} vào Clipboard:\n\n${cleanPath}\n\nBạn hãy nhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở trên máy tính!`);
+    } catch {
+      prompt(`Đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'} (Ctrl+C để sao chép):`, cleanPath);
+    }
+    return false;
+  }
+
+  async handleOpenDocFile(doc) {
     if (!doc) return;
     const link = doc.drive_link || doc.file_link || doc.local_link;
     if (!link || !String(link).trim()) {
@@ -508,15 +542,10 @@ export class ContractsManager {
       window.open(cleanLink, '_blank');
       return;
     }
-    // Đối với tệp tin trên máy tính / mạng nội bộ
-    navigator.clipboard.writeText(cleanLink).then(() => {
-      alert(`Đã sao chép đường dẫn tệp tin vào Clipboard:\n\n${cleanLink}\n\nDo chính sách an toàn của trình duyệt web đối với file local trên máy tính, bạn hãy nhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở tệp tin ngay lập tức!`);
-    }).catch(() => {
-      prompt('Đường dẫn tệp tin trên máy tính (nhấn Ctrl+C để sao chép):', cleanLink);
-    });
+    await this.openLocalPath(cleanLink, false);
   }
 
-  handleOpenDocFolder(doc, contract = null) {
+  async handleOpenDocFolder(doc, contract = null) {
     if (!doc) return;
     const rawLink = doc.local_link || doc.file_link || '';
     let folderPath = '';
@@ -537,11 +566,7 @@ export class ContractsManager {
       return;
     }
 
-    navigator.clipboard.writeText(folderPath).then(() => {
-      alert(`Đã sao chép đường dẫn thư mục vào Clipboard:\n\n${folderPath}\n\nBạn hãy nhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở thư mục lưu trữ này trên máy tính!`);
-    }).catch(() => {
-      prompt('Đường dẫn thư mục lưu trữ (nhấn Ctrl+C để sao chép):', folderPath);
-    });
+    await this.openLocalPath(folderPath, true);
   }
 
   removeAccents(str) {
@@ -2888,6 +2913,7 @@ export class ContractsManager {
     const advanceRate = baseTarget > 0 ? Math.min(100, Math.round((totalAdvance / baseTarget) * 1000) / 10) : 0;
     const payVolumeRate = baseTarget > 0 ? Math.min(100, Math.round((paidVolume / baseTarget) * 1000) / 10) : 0;
     const acceptedRate = baseTarget > 0 ? Math.min(100, Math.round((stats.totalAccepted / baseTarget) * 1000) / 10) : 0;
+    const remainingRate = baseTarget > 0 ? Math.round((Math.max(0, stats.remaining) / baseTarget) * 1000) / 10 : 0;
 
     // Danh sách phân loại hồ sơ duy nhất để lọc
     const docCategories = [...new Set(docs.map((d) => (d.category || 'Hồ sơ').trim()).filter(Boolean))].sort();
@@ -3344,34 +3370,34 @@ export class ContractsManager {
                 <div class="stat-box" style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0;">
                   <div class="stat-label"><i class="fa-solid fa-file-contract"></i> Giá trị HĐ / Tạm tính</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #1e293b;">${this.formatCurrency(baseTarget)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem;">${isZeroContract ? 'Lấy theo Giá trị Nghiệm thu' : 'Giá trị hợp đồng ký kết'}</div>
+                  <div class="stat-note" style="font-size: 0.82rem; font-weight: 700; color: #64748b;">100%</div>
                 </div>
                 <div class="stat-box" style="padding: 12px 14px; background: #fffbeb; border: 1px solid #fde68a;">
                   <div class="stat-label" style="color: #b45309;"><i class="fa-solid fa-coins"></i> Giá trị Tạm ứng</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #d97706;">${this.formatCurrency(totalAdvance)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem; color: #b45309;">Chiếm ${advanceRate}% căn cứ (${advanceCount} đợt)</div>
+                  <div class="stat-note" style="font-size: 0.82rem; font-weight: 700; color: #b45309;">${advanceRate}%</div>
                 </div>
                 <div class="stat-box" style="padding: 12px 14px; background: #f0fdf4; border: 1px solid #bbf7d0;">
                   <div class="stat-label" style="color: #166534;"><i class="fa-solid fa-file-invoice-dollar"></i> Thanh toán Khối lượng</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #15803d;">${this.formatCurrency(paidVolume)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem; color: #166534;">Đạt ${payVolumeRate}% căn cứ</div>
+                  <div class="stat-note" style="font-size: 0.82rem; font-weight: 700; color: #166534;">${payVolumeRate}%</div>
                 </div>
 
                 <!-- HÀNG 2: Tổng nghiệm thu, Tổng đã giải ngân & Công nợ tồn -->
                 <div class="stat-box" style="padding: 12px 14px; background: #fff7ed; border: 1px solid #fed7aa;">
                   <div class="stat-label" style="color: #c2410c;"><i class="fa-solid fa-clipboard-check"></i> Tổng Nghiệm thu</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #ea580c;">${this.formatCurrency(stats.totalAccepted)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem; color: #c2410c;">Đạt ${acceptedRate}% căn cứ</div>
+                  <div class="stat-note" style="font-size: 0.82rem; font-weight: 700; color: #c2410c;">${acceptedRate}%</div>
                 </div>
                 <div class="stat-box" style="padding: 12px 14px; background: #eff6ff; border: 1px solid #bfdbfe;">
                   <div class="stat-label" style="color: #1e40af;"><i class="fa-solid fa-money-bill-transfer"></i> Tổng Đã giải ngân</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #2563eb;">${this.formatCurrency(stats.totalPaid)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem; color: #1e40af;">Đạt ${paidRate}% (Tạm ứng + TT KL)</div>
+                  <div class="stat-note" style="font-size: 0.82rem; font-weight: 700; color: #1e40af;">${paidRate}%</div>
                 </div>
                 <div class="stat-box" style="padding: 12px 14px; background: ${stats.remaining > 0 ? '#fef2f2' : '#f8fafc'}; border: 1px solid ${stats.remaining > 0 ? '#fecaca' : '#e2e8f0'};">
                   <div class="stat-label" style="color: ${stats.remaining > 0 ? '#b91c1c' : '#64748b'};"><i class="fa-solid fa-clock-rotate-left"></i> Công nợ tồn / Còn lại</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: ${stats.remaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatCurrency(stats.remaining)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem;">Đề nghị trừ Thực trả</div>
+                  <div class="stat-note" style="font-size: 0.82rem; font-weight: 700; color: ${stats.remaining > 0 ? '#b91c1c' : '#64748b'};">${remainingRate}%</div>
                 </div>
               </div>
             </div>
@@ -3496,11 +3522,16 @@ export class ContractsManager {
       });
     }
 
-    // Mở Drive Folder
-    document.getElementById('btn-open-drive-folder')?.addEventListener('click', () => {
-      const drivePath = this.getDrivePathForContract(contract);
+    // Mở Drive Folder (Tự động mở trực tiếp thư mục lưu trữ trên máy tính)
+    document.getElementById('btn-open-drive-folder')?.addEventListener('click', async () => {
       const docPath = this.getDriveDocPathForContract(contract);
-      alert(`Đường dẫn thư mục Google Drive:\n\n1. Hợp đồng & Phụ lục:\n${drivePath}\n\n2. Thư mục Doc (Tài liệu khác):\n${docPath}\n\n(Tự động đồng bộ với Google Drive Cloud & Máy tính)`);
+      const drivePath = this.getDrivePathForContract(contract);
+      const targetPath = docPath || drivePath;
+      if (targetPath) {
+        await this.openLocalPath(targetPath, true);
+      } else {
+        alert(`Đường dẫn thư mục Google Drive:\n\n1. Hợp đồng & Phụ lục:\n${drivePath}\n\n2. Thư mục Doc (Tài liệu khác):\n${docPath}\n\n(Tự động đồng bộ với Google Drive Cloud & Máy tính)`);
+      }
     });
 
     // Sao chép Hợp đồng
