@@ -516,14 +516,18 @@ export class ContractsManager {
   getFolderPath(filePath) {
     if (!filePath) return '';
     const clean = String(filePath).replace(/[/\\]+$/, '');
-    const idx = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
-    if (idx !== -1) {
-      return clean.substring(0, idx);
+    const lastSegment = clean.split(/[/\\]/).pop() || '';
+    // Chỉ cắt lấy thư mục cha nếu phần cuối là tên tệp tin có đuôi mở rộng (như .pdf, .xlsx, .docx, .zip...)
+    if (/\.[a-zA-Z0-9]{2,5}$/.test(lastSegment)) {
+      const idx = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
+      if (idx !== -1) {
+        return clean.substring(0, idx);
+      }
     }
     return clean;
   }
 
-  async openLocalPath(targetPath, isFolder = false) {
+  async openLocalPath(targetPath, isFolder = false, action = 'open') {
     if (!targetPath || !String(targetPath).trim()) {
       this.showToast('Chưa có thông tin đường dẫn cục bộ trên máy tính!', 'warning');
       return false;
@@ -534,12 +538,14 @@ export class ContractsManager {
       const res = await fetch('/api/open-local', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: cleanPath })
+        body: JSON.stringify({ path: cleanPath, is_folder: isFolder, action })
       });
       if (res.ok) {
         const data = await res.json();
         if (data && data.success) {
-          this.showToast(`Đã mở ${isFolder ? 'thư mục' : 'tệp tin'} trên máy tính thành công!`, 'success');
+          const baseName = data.name || this.getBaseName(data.path || cleanPath);
+          const typeStr = isFolder ? 'thư mục' : 'tệp tin';
+          this.showToast(`Đã mở ${typeStr}: "${baseName}" (vui lòng kiểm tra thanh tác vụ Taskbar nếu cửa sổ bị che)`, 'success');
           return true;
         }
       }
