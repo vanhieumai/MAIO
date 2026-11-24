@@ -477,6 +477,33 @@ export class ContractsManager {
         console.warn('[MAIO Migration] Không thể tự động đọc dữ liệu bổ sung cho hồ sơ:', e);
       }
     }
+
+    // Tự động gán ngày nhận mặc định là ngày ký cho các hồ sơ hợp đồng, phụ lục nếu chưa có ngày nhận
+    for (const d of this.documents) {
+      const cat = String(d.category || '').trim().toUpperCase();
+      const isContractDoc = cat === 'CON' || cat === 'CONTRACT' || cat === 'HỢP ĐỒNG' || cat === 'PHỤ LỤC' || cat === 'PLHD' ||
+        String(d.title || '').toLowerCase().includes('contract') ||
+        String(d.title || '').toLowerCase().includes('hợp đồng') ||
+        String(d.title || '').toLowerCase().includes('phụ lục');
+
+      if (isContractDoc && (!d.received_date || String(d.received_date).trim() === '' || d.received_date === '—')) {
+        const targetC = this.contracts.find((c) => c.id === d.contract_id);
+        if (targetC && targetC.signing_date) {
+          d.received_date = targetC.signing_date;
+          await db.put('documents', d);
+        } else if (d.start_date) {
+          d.received_date = d.start_date;
+          await db.put('documents', d);
+        }
+      } else if ((!d.received_date || String(d.received_date).trim() === '' || d.received_date === '—') && d.doc_no) {
+        const m = String(d.doc_no).trim().match(/^(\d{2})(\d{2})(\d{2})\./);
+        if (m) {
+          const yr = Number(m[1]) > 50 ? `19${m[1]}` : `20${m[1]}`;
+          d.received_date = `${yr}-${m[2]}-${m[3]}`;
+          await db.put('documents', d);
+        }
+      }
+    }
   }
 
   getBaseName(path) {
@@ -567,6 +594,37 @@ export class ContractsManager {
     }
 
     await this.openLocalPath(folderPath, true);
+  }
+
+  /**
+   * Lấy ngày nhận của hồ sơ (với hợp đồng, phụ lục mặc định để ngày nhận là ngày ký)
+   */
+  getDocReceivedDate(doc, fallbackContract = null) {
+    if (!doc) return null;
+    let recDate = doc.received_date;
+    if (!recDate || String(recDate).trim() === '' || recDate === '—') {
+      const cat = String(doc.category || '').trim().toUpperCase();
+      const isContractDoc = cat === 'CON' || cat === 'CONTRACT' || cat === 'HỢP ĐỒNG' || cat === 'PHỤ LỤC' || cat === 'PLHD' ||
+        String(doc.title || '').toLowerCase().includes('contract') ||
+        String(doc.title || '').toLowerCase().includes('hợp đồng') ||
+        String(doc.title || '').toLowerCase().includes('phụ lục');
+
+      if (isContractDoc) {
+        const targetC = (this.contracts || []).find((c) => c.id === doc.contract_id) || fallbackContract;
+        if (targetC && targetC.signing_date) {
+          recDate = targetC.signing_date;
+        } else if (doc.start_date) {
+          recDate = doc.start_date;
+        }
+      } else if (doc.doc_no && /^(\d{2})(\d{2})(\d{2})\./.test(String(doc.doc_no).trim())) {
+        const m = String(doc.doc_no).trim().match(/^(\d{2})(\d{2})(\d{2})\./);
+        if (m) {
+          const yr = Number(m[1]) > 50 ? `19${m[1]}` : `20${m[1]}`;
+          recDate = `${yr}-${m[2]}-${m[3]}`;
+        }
+      }
+    }
+    return recDate;
   }
 
   removeAccents(str) {
@@ -2870,6 +2928,25 @@ export class ContractsManager {
     const realPayments = this.getRealPayments(contract.id);
     const docs = this.getDocuments(contract.id);
 
+    // Chuẩn hóa ngày nhận: Các hợp đồng, phụ lục mặc định để ngày nhận là ngày ký
+    docs.forEach((d) => {
+      d.received_date = this.getDocReceivedDate(d, contract);
+    });
+
+    // Sắp xếp thứ tự hồ sơ theo ngày nhận (mặc định tăng dần từ ngày cũ nhất đến mới nhất theo tiến trình thực hiện)
+    docs.sort((a, b) => {
+      const timeA = this.parsePaymentDateObj(a.received_date)?.getTime() || 0;
+      const timeB = this.parsePaymentDateObj(b.received_date)?.getTime() || 0;
+      if (timeA && timeB) {
+        if (timeA !== timeB) return timeA - timeB;
+      } else if (timeA && !timeB) {
+        return -1; // Hồ sơ có ngày nhận xếp trước
+      } else if (!timeA && timeB) {
+        return 1;
+      }
+      return String(a.id || '').localeCompare(String(b.id || ''));
+    });
+
     // Sắp xếp các đợt giải ngân theo ngày thanh toán hoặc item_index
     realPayments.sort((a, b) => {
       const dateA = this.parsePaymentDateObj(a.payment_date)?.getTime() || 0;
@@ -3137,7 +3214,7 @@ export class ContractsManager {
                     <th style="width: 140px; white-space: nowrap; text-align: center;">Số công văn / Hồ sơ</th>
                     <th style="width: 70px; text-align: center; white-space: nowrap;">Phân loại</th>
                     <th style="text-align: center;">Tiêu đề tài liệu</th>
-                    <th style="width: 85px; text-align: center; white-space: nowrap;">Ngày nhận</th>
+                    <th id="th-sort-doc-date" style="width: 95px; text-align: center; white-space: nowrap; cursor: pointer; user-select: none;" title="Bấm để đảo chiều sắp xếp theo ngày nhận">Ngày nhận <i class="fa-solid fa-arrow-down-short-wide" style="font-size: 0.7rem; margin-left: 3px; color: var(--primary);"></i></th>
                     <th style="width: 95px; text-align: center; white-space: nowrap;">Tình trạng</th>
                     <th style="width: 110px; white-space: nowrap; text-align: center;">Tệp tin</th>
                     <th style="width: 105px; text-align: center; white-space: nowrap;">Thao tác</th>
@@ -3150,7 +3227,7 @@ export class ContractsManager {
                       : docs
                           .map(
                             (d) => `
-                        <tr class="doc-item-row" data-doc-category="${(d.category || 'Hồ sơ').trim()}">
+                        <tr class="doc-item-row" data-doc-category="${(d.category || 'Hồ sơ').trim()}" data-received-time="${this.parsePaymentDateObj(d.received_date)?.getTime() || 0}">
                           <td style="white-space: nowrap; font-family: monospace; font-weight: 600; color: #334155; text-align: center;">${d.id}</td>
                           <td style="white-space: nowrap;">${d.doc_no || '—'}</td>
                           <td style="text-align: center; white-space: nowrap;"><span class="badge badge-primary" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">${d.category || 'Hồ sơ'}</span></td>
@@ -3518,6 +3595,35 @@ export class ContractsManager {
         const docCountHeader = modal.querySelector('#doc-list-heading-count');
         if (docCountHeader) {
           docCountHeader.textContent = selectedCat ? `${visibleCount}/${docs.length}` : `${docs.length}`;
+        }
+      });
+    }
+
+    // Đảo chiều sắp xếp thứ tự hồ sơ theo ngày nhận khi click Header cột Ngày nhận
+    let docSortAsc = true;
+    const thSortDocDate = modal.querySelector('#th-sort-doc-date');
+    if (thSortDocDate) {
+      thSortDocDate.addEventListener('click', () => {
+        const tbody = modal.querySelector('#m-tab-docs tbody');
+        if (!tbody) return;
+        docSortAsc = !docSortAsc;
+        const rows = Array.from(tbody.querySelectorAll('tr.doc-item-row'));
+        rows.sort((rowA, rowB) => {
+          const timeA = Number(rowA.getAttribute('data-received-time')) || 0;
+          const timeB = Number(rowB.getAttribute('data-received-time')) || 0;
+          if (timeA && timeB) {
+            return docSortAsc ? (timeA - timeB) : (timeB - timeA);
+          } else if (timeA && !timeB) {
+            return docSortAsc ? -1 : 1;
+          } else if (!timeA && timeB) {
+            return docSortAsc ? 1 : -1;
+          }
+          return 0;
+        });
+        rows.forEach((r) => tbody.appendChild(r));
+        const icon = thSortDocDate.querySelector('i');
+        if (icon) {
+          icon.className = docSortAsc ? 'fa-solid fa-arrow-down-short-wide' : 'fa-solid fa-arrow-up-wide-short';
         }
       });
     }
