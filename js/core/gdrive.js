@@ -113,13 +113,15 @@ export class GoogleDriveService {
             this.isInitialized = true;
             resolve(true);
           } catch (err) {
+            this.initError = err;
+            console.error('[MAIO Google Drive] initTokenClient Error:', err);
             this.notifyAuthChange(null);
             reject(err);
           }
         } else {
           scriptAttempts++;
           if (scriptAttempts > 60) {
-            // Sau 6 giây nếu Google SDK không tải được, vẫn kích hoạt Auth Gate
+            this.initError = new Error('Không thể tải thư viện Google Identity Services từ accounts.google.com sau 6 giây (có thể bị trình duyệt chặn hoặc mất mạng).');
             this.notifyAuthChange(null);
             resolve(false);
           } else {
@@ -142,23 +144,26 @@ export class GoogleDriveService {
       try {
         await this.init();
       } catch (e) {
+        this.initError = e;
         console.warn('[MAIO Google Drive] Lỗi khởi tạo GIS:', e);
       }
     }
 
     if (!this.tokenClient) {
       const currentOrigin = window.location.origin;
+      const detailError = this.initError ? `\n\nChi tiết lỗi kỹ thuật: ${this.initError.message || this.initError}` : '';
+
       throw new Error(
-        `Google Identity Services chưa được khởi tạo thành công!\n\n` +
-        `Nguyên nhân chính:\n` +
-        `• Tên miền trang web này (${currentOrigin}) chưa được thêm vào mục "Authorized JavaScript origins" (Nguồn gốc JavaScript được ủy quyền) trong Google Cloud Console của Client ID.\n\n` +
-        `Cách khắc phục:\n` +
-        `1. Mở console.cloud.google.com -> APIs & Services -> Credentials.\n` +
-        `2. Bấm vào OAuth 2.0 Client ID của bạn.\n` +
-        `3. Tại ô "Authorized JavaScript origins", bấm "+ ADD URI" và nhập:\n` +
-        `   ${currentOrigin}\n` +
-        `4. Bấm SAVE và chờ 1-2 phút rồi thử lại.\n\n` +
-        `(Bạn cũng có thể bấm "Làm việc Cục bộ" để mở file CPMS/Excel làm việc ngay mà không cần đăng nhập Google).`
+        `Google Identity Services chưa được khởi tạo thành công!${detailError}\n\n` +
+        `Hướng dẫn khắc phục:\n` +
+        `1. Bạn đã thêm email vào "Test users", nhưng BẮT BUỘC phải thêm URL website vào mục "Authorized JavaScript origins":\n` +
+        `   • Truy cập: console.cloud.google.com -> APIs & Services -> Credentials\n` +
+        `   • Bấm vào OAuth 2.0 Client ID của bạn\n` +
+        `   • Cuộn xuống mục "Authorized JavaScript origins", bấm "+ ADD URI" và điền:\n` +
+        `     ${currentOrigin}\n` +
+        `   • Bấm nút SAVE (Lưu) ở cuối trang và đợi 1 - 2 phút.\n\n` +
+        `2. Nếu dùng trình duyệt chặn quảng cáo (Brave, AdBlock), vui lòng tạm tắt để cho phép tải accounts.google.com.\n\n` +
+        `(Mẹo: Bạn có thể bấm "Làm việc Cục bộ" để chọn file CPMS/Excel dùng ngay mà không cần kết nối Google Drive).`
       );
     }
     this.tokenClient.requestAccessToken({ prompt: 'consent' });
