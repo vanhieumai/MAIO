@@ -3327,18 +3327,18 @@ export class ContractsManager {
             </div>
 
             <div class="data-table-wrap modal-sticky-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; overflow-y: auto; max-height: calc(88vh - 175px); position: relative; background: #ffffff;">
-              <table class="data-table disburse-detail-table" style="width: 100%; margin: 0;">
+              <table class="data-table disburse-detail-table" style="min-width: 1060px; width: 100%; margin: 0;">
                 <thead>
                   <tr>
-                    <th style="width: 65px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đợt TT</th>
-                    <th style="width: 85px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Ngày TT</th>
-                    <th style="min-width: 160px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Nội dung thanh toán</th>
-                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">KL hoàn thành</th>
-                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">KL chấp nhận TT</th>
-                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đề nghị TT</th>
-                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đã ${contract.group === 'A' ? 'thu' : 'thanh toán'}</th>
-                    <th style="width: 105px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Còn lại</th>
-                    <th style="width: 75px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Thao tác</th>
+                    <th style="width: 55px; min-width: 55px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đợt TT</th>
+                    <th style="width: 85px; min-width: 85px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Ngày TT</th>
+                    <th style="width: 170px; max-width: 200px; min-width: 130px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Nội dung thanh toán</th>
+                    <th style="width: 140px; min-width: 135px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">KL hoàn thành</th>
+                    <th style="width: 140px; min-width: 135px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">KL chấp nhận TT</th>
+                    <th style="width: 140px; min-width: 135px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đề nghị TT</th>
+                    <th style="width: 140px; min-width: 135px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đã ${contract.group === 'A' ? 'thu' : 'thanh toán'}</th>
+                    <th style="width: 130px; min-width: 125px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Còn lại</th>
+                    <th style="width: 70px; min-width: 70px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3371,25 +3371,25 @@ export class ContractsManager {
                           <td style="text-align: center; color: #475569; white-space: nowrap;">
                             ${this.formatDate(p.payment_date)}
                           </td>
-                          <td>
+                          <td style="max-width: 200px; word-break: break-word; line-height: 1.35; padding: 5px 8px;">
                             <span style="font-weight: 600; color: #1e293b;">${safeContent}</span>
                             ${p.invoice_ref ? `<span class="badge badge-primary" style="font-size: 0.68rem; margin-left: 4px; padding: 1px 5px;">HĐ: ${p.invoice_ref}</span>` : ''}
                             ${p.note ? `<div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;"><i class="fa-regular fa-note-sticky"></i> ${p.note}</div>` : ''}
                             ${pRate !== 1 ? `<div style="font-size: 0.68rem; color: #64748b;">Tỷ giá TT: ${pRate}</div>` : ''}
                           </td>
-                          <td style="text-align: right; white-space: nowrap;">
+                          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 0.77rem; padding: 5px 8px;">
                             ${this.formatMoneyPlain(pActVnd)}
                           </td>
-                          <td style="text-align: right; white-space: nowrap;">
+                          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 0.77rem; padding: 5px 8px;">
                             ${this.formatMoneyPlain(pAccVnd)}
                           </td>
-                          <td style="text-align: right; white-space: nowrap; font-weight: 600;">
+                          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 0.77rem; padding: 5px 8px;">
                             ${this.formatMoneyPlain(pReqVnd)}
                           </td>
-                          <td style="text-align: right; white-space: nowrap; font-weight: 700; color: ${pPaidVnd < 0 ? 'var(--danger)' : (contract.group === 'A' ? 'var(--success)' : '#0891b2')};">
+                          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.77rem; padding: 5px 8px; color: ${pPaidVnd < 0 ? 'var(--danger)' : (contract.group === 'A' ? 'var(--success)' : '#0891b2')};">
                             ${this.formatMoneyPlain(pPaidVnd)}
                           </td>
-                          <td style="text-align: right; white-space: nowrap; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
+                          <td style="text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 0.77rem; padding: 5px 8px; color: ${pRemVnd > 0 ? 'var(--danger)' : '#64748b'};">
                             ${this.formatMoneyPlain(pRemVnd)}
                           </td>
                           <td style="text-align: center; white-space: nowrap;">
@@ -3411,11 +3411,11 @@ export class ContractsManager {
                     <td colspan="3" style="padding: 6px 8px; color: #1e293b; text-align: left; font-size: 0.77rem;">
                       TỔNG CỘNG (${realPayments.length} đợt ${contract.group === 'A' ? 'thu' : 'chi'})
                     </td>
-                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem;">${this.formatMoneyPlain(dnTotalActual)}</td>
-                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
-                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem;">${this.formatMoneyPlain(dnTotalRequested)}</td>
-                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; color: ${contract.group === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
-                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; white-space: nowrap; font-variant-numeric: tabular-nums;">${this.formatMoneyPlain(dnTotalActual)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; white-space: nowrap; font-variant-numeric: tabular-nums;">${this.formatMoneyPlain(dnTotalAccepted)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; white-space: nowrap; font-variant-numeric: tabular-nums;">${this.formatMoneyPlain(dnTotalRequested)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; white-space: nowrap; font-variant-numeric: tabular-nums; color: ${contract.group === 'A' ? 'var(--success)' : '#0891b2'};">${this.formatMoneyPlain(dnTotalPaid)}</td>
+                    <td style="text-align: right; padding: 6px 8px; font-size: 0.77rem; white-space: nowrap; font-variant-numeric: tabular-nums; color: ${dnTotalRemaining > 0 ? 'var(--danger)' : '#64748b'};">${this.formatMoneyPlain(dnTotalRemaining)}</td>
                     <td></td>
                   </tr>
                 </tfoot>
@@ -7557,17 +7557,17 @@ export class ContractsManager {
       </div>
 
       <div class="disburse-scroll-container disburse-scroll-detail-5">
-        <table class="disburse-compact-table disburse-summary-table disburse-detail-table" style="width: 100%;">
+        <table class="disburse-compact-table disburse-summary-table disburse-detail-table" style="min-width: 1040px; width: 100%;">
           <thead>
             <tr style="background: #f8fafc;">
-              <th style="width: 76px; padding: 4px 4px !important; text-align: center !important;">Đợt TT</th>
-              <th style="width: 96px; padding: 4px 4px !important; text-align: center !important;">Ngày TT</th>
-              <th style="min-width: 140px; padding: 4px 6px !important; text-align: center !important;">Nội dung thanh toán</th>
-              <th style="width: 120px; padding: 4px 6px !important; text-align: center !important;">KL hoàn thành</th>
-              <th style="width: 120px; padding: 4px 6px !important; text-align: center !important;">KL chấp nhận TT</th>
-              <th style="width: 122px; padding: 4px 6px !important; text-align: center !important;">Đề nghị TT</th>
-              <th style="width: 122px; padding: 4px 6px !important; text-align: center !important;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
-              <th style="width: 114px; padding: 4px 6px !important; text-align: center !important;">Còn lại</th>
+              <th style="width: 60px; min-width: 60px; padding: 4px 4px !important; text-align: center !important;">Đợt TT</th>
+              <th style="width: 85px; min-width: 85px; padding: 4px 4px !important; text-align: center !important; white-space: nowrap;">Ngày TT</th>
+              <th style="width: 170px; max-width: 210px; min-width: 120px; padding: 4px 6px !important; text-align: center !important;">Nội dung thanh toán</th>
+              <th style="width: 135px; min-width: 130px; padding: 4px 6px !important; text-align: center !important; white-space: nowrap;">KL hoàn thành</th>
+              <th style="width: 135px; min-width: 130px; padding: 4px 6px !important; text-align: center !important; white-space: nowrap;">KL chấp nhận TT</th>
+              <th style="width: 135px; min-width: 130px; padding: 4px 6px !important; text-align: center !important; white-space: nowrap;">Đề nghị TT</th>
+              <th style="width: 135px; min-width: 130px; padding: 4px 6px !important; text-align: center !important; white-space: nowrap;">Đã ${this.disburseGroup === 'A' ? 'thu' : 'thanh toán'}</th>
+              <th style="width: 125px; min-width: 120px; padding: 4px 6px !important; text-align: center !important; white-space: nowrap;">Còn lại</th>
             </tr>
           </thead>
           <tbody>
