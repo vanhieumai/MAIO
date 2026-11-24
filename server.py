@@ -5,6 +5,8 @@ import subprocess
 import platform
 import socketserver
 import time
+import mimetypes
+import urllib.parse
 from http.server import SimpleHTTPRequestHandler
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
@@ -21,14 +23,13 @@ def bring_window_to_front(target_name):
         pass
 
     try:
-        # Sử dụng PowerShell Wscript.Shell để active cửa sổ có tiêu đề chứa target_name
         clean_name = target_name.replace("'", "''").replace('"', '')
         ps_cmd = f"""
-        Start-Sleep -Milliseconds 400
+        Start-Sleep -Milliseconds 300
         $ws = New-Object -ComObject Wscript.Shell
         $ws.AppActivate('{clean_name}')
         """
-        subprocess.Popen(['powershell.exe', '-NoProfile', '-WindowStyle', 'Hidden', '-Command', ps_cmd])
+        subprocess.Popen(['powershell.exe', '-NoProfile', '-WindowStyle', 'Hidden', '-Command', ps_cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except Exception:
         pass
 
@@ -39,6 +40,58 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()
+
+    def do_GET(self):
+        # Endpoint xem / tải trực tiếp tệp tin nội bộ từ ổ cứng máy tính
+        if self.path.startswith('/api/view-file'):
+            try:
+                parsed = urllib.parse.urlparse(self.path)
+                qs = urllib.parse.parse_qs(parsed.query)
+                target_path = qs.get('path', [''])[0].strip()
+                if not target_path or not os.path.exists(target_path):
+                    self.send_error(404, "File not found on local disk")
+                    return
+
+                clean_path = os.path.normpath(target_path)
+                if os.path.isdir(clean_path):
+                    self.send_error(400, "Target is a folder, not a file")
+                    return
+
+                ctype, _ = mimetypes.guess_type(clean_path)
+                if not ctype:
+                    low = clean_path.lower()
+                    if low.endswith('.pdf'):
+                        ctype = 'application/pdf'
+                    elif low.endswith('.xlsx'):
+                        ctype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                    elif low.endswith('.xls'):
+                        ctype = 'application/vnd.ms-excel'
+                    elif low.endswith('.docx'):
+                        ctype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    elif low.endswith('.doc'):
+                        ctype = 'application/msword'
+                    else:
+                        ctype = 'application/octet-stream'
+
+                filename = os.path.basename(clean_path)
+                encoded_filename = urllib.parse.quote(filename)
+
+                with open(clean_path, 'rb') as f:
+                    content = f.read()
+
+                self.send_response(200)
+                self.send_header('Content-Type', ctype)
+                self.send_header('Content-Length', str(len(content)))
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Content-Disposition', f"inline; filename*=UTF-8''{encoded_filename}")
+                self.end_headers()
+                self.wfile.write(content)
+                return
+            except Exception as e:
+                self.send_error(500, f"Error reading file: {e}")
+                return
+
+        super().do_GET()
 
     def do_POST(self):
         if self.path == '/api/open-local':
@@ -55,20 +108,17 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                     return
 
                 clean_path = os.path.normpath(target_path)
-                print(f"[API open-local] Received: {clean_path} (is_folder={is_folder}, action={action})")
 
                 if platform.system() == "Windows":
-                    # Đảm bảo Windows cho phép tiến trình mới chiếm foreground
                     try:
                         import ctypes
                         ctypes.windll.user32.AllowSetForegroundWindow(-1)
                     except Exception:
                         pass
 
-                    # 1. Trường hợp yêu cầu mở thư mục hoặc đường dẫn thực tế là thư mục
+                    # 1. Mở thư mục
                     if is_folder or os.path.isdir(clean_path):
                         folder_to_open = clean_path if os.path.isdir(clean_path) else os.path.dirname(clean_path)
-                        # Tìm thư mục cha gần nhất nếu thư mục con chưa tồn tại
                         p = folder_to_open
                         while p and not os.path.exists(p):
                             np = os.path.dirname(p)
@@ -77,9 +127,11 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                             p = np
                         final_folder = p if (p and os.path.exists(p)) else folder_to_open
 
-                        # Mở Explorer trực tiếp vào thư mục
+                        # Mở Explorer
                         subprocess.Popen(['explorer.exe', final_folder])
+                        # Kích hoạt cửa sổ Explorer lên trên cùng
                         bring_window_to_front(os.path.basename(final_folder))
+
                         self._send_json(200, {
                             "success": True,
                             "type": "folder",
@@ -88,7 +140,7 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                         })
                         return
 
-                    # 2. Trường hợp yêu cầu chọn (highlight) file trong thư mục
+                    # 2. Chọn file trong thư mục
                     if action == 'select' and os.path.isfile(clean_path):
                         subprocess.Popen(['explorer.exe', f'/select,{clean_path}'])
                         bring_window_to_front(os.path.basename(os.path.dirname(clean_path)))
@@ -100,19 +152,24 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                         })
                         return
 
-                    # 3. Trường hợp mở tệp tin
+                    # 3. Mở tệp tin
                     if os.path.isfile(clean_path):
-                        os.startfile(clean_path)
+                        try:
+                            os.startfile(clean_path)
+                        except Exception:
+                            subprocess.Popen(f'cmd.exe /c start "" "{clean_path}"', shell=True)
+                        
                         bring_window_to_front(os.path.basename(clean_path))
                         self._send_json(200, {
                             "success": True,
                             "type": "file",
                             "path": clean_path,
-                            "name": os.path.basename(clean_path)
+                            "name": os.path.basename(clean_path),
+                            "view_url": f"/api/view-file?path={urllib.parse.quote(clean_path)}"
                         })
                         return
 
-                    # Nếu tệp tin không tồn tại, mở thư mục cha gần nhất và báo
+                    # Nếu tệp tin không tồn tại, mở thư mục cha gần nhất
                     p = clean_path
                     while p and not os.path.exists(p):
                         np = os.path.dirname(p)
@@ -147,7 +204,6 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                     self._send_json(200, {"success": True, "path": clean_path})
 
             except Exception as e:
-                print(f"[API open-local ERROR] {e}")
                 self._send_json(500, {"success": False, "error": str(e)})
             return
 
@@ -165,8 +221,8 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer((HOST, PORT), MAIORequestHandler) as httpd:
-        print(f"MAIO Server running at http://{HOST}:{PORT}/")
+        print(f"MAIO Server running at http://{HOST}:{PORT}/", flush=True)
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
-            print("\nServer stopped.")
+            print("\nServer stopped.", flush=True)

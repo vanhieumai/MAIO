@@ -575,7 +575,12 @@ export class ContractsManager {
       window.open(cleanLink, '_blank');
       return;
     }
-    await this.openLocalPath(cleanLink, false);
+
+    // 1. Mở xem trực tiếp trong tab mới của trình duyệt qua localhost API
+    window.open(`/api/view-file?path=${encodeURIComponent(cleanLink)}`, '_blank');
+
+    // 2. Đồng thời gọi ứng dụng mặc định trên máy tính mở file
+    await this.openLocalPath(cleanLink, false, 'open');
   }
 
   async handleOpenDocFolder(doc, contract = null) {
@@ -599,7 +604,13 @@ export class ContractsManager {
       return;
     }
 
-    await this.openLocalPath(folderPath, true);
+    // Tự động sao chép đường dẫn thư mục vào Clipboard để tiện dùng ngay
+    try {
+      await navigator.clipboard.writeText(folderPath);
+    } catch {}
+
+    // Gửi lệnh mở File Explorer
+    await this.openLocalPath(folderPath, true, 'open');
   }
 
   /**
@@ -1154,6 +1165,15 @@ export class ContractsManager {
     if (s === 'accepted' || s === 'approved' || s === 'phê duyệt' || s === 'chấp thuận') {
       return `<span class="badge-doc-status badge-doc-approved" title="Hồ sơ đã phê duyệt"><i class="fa-solid fa-check-double"></i> ${raw}</span>`;
     }
+    if (s.startsWith('cancel') || s === 'hủy' || s === 'đã hủy' || s === 'rejected' || s === 'từ chối') {
+      return `<span class="badge-doc-status badge-doc-canceled" title="Hồ sơ bị hủy / Canceled"><i class="fa-solid fa-ban"></i> ${raw}</span>`;
+    }
+    if (s.startsWith('process') || s === 'đang xử lý' || s === 'in progress' || s === 'đang thực hiện') {
+      return `<span class="badge-doc-status badge-doc-processing" title="Hồ sơ đang xử lý / Processing"><i class="fa-solid fa-rotate"></i> ${raw}</span>`;
+    }
+    if (s === 'returned' || s === 'trả lại' || s === 'yêu cầu sửa') {
+      return `<span class="badge-doc-status badge-doc-returned" title="Hồ sơ bị trả lại"><i class="fa-solid fa-arrow-rotate-left"></i> ${raw}</span>`;
+    }
     if (s === 'checking' || s === 'underreview' || s === 'đang kiểm tra' || s === 'kiểm tra' || s === 'rà soát') {
       return `<span class="badge-doc-status badge-doc-checking" title="Đang kiểm tra / Rà soát"><i class="fa-solid fa-magnifying-glass"></i> ${raw}</span>`;
     }
@@ -1162,9 +1182,6 @@ export class ContractsManager {
     }
     if (s === 'draft' || s === 'dự thảo') {
       return `<span class="badge-doc-status badge-doc-draft" title="Hồ sơ dự thảo"><i class="fa-regular fa-file-lines"></i> ${raw}</span>`;
-    }
-    if (s === 'rejected' || s === 'từ chối' || s === 'cancel' || s === 'hủy') {
-      return `<span class="badge-doc-status badge-doc-rejected" title="Hồ sơ bị từ chối / Hủy"><i class="fa-solid fa-ban"></i> ${raw}</span>`;
     }
     return `<span class="badge-doc-status badge-doc-default"><i class="fa-solid fa-file"></i> ${raw}</span>`;
   }
@@ -3212,18 +3229,18 @@ export class ContractsManager {
               </div>
             </div>
 
-            <div class="data-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; background: #ffffff;">
+            <div class="data-table-wrap modal-sticky-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; overflow-y: auto; max-height: calc(88vh - 175px); position: relative; background: #ffffff;">
               <table class="data-table" style="width: 100%; margin: 0;">
                 <thead>
                   <tr>
-                    <th style="width: 110px; white-space: nowrap; text-align: center;">Mã hồ sơ</th>
-                    <th style="width: 140px; white-space: nowrap; text-align: center;">Số công văn / Hồ sơ</th>
-                    <th style="width: 70px; text-align: center; white-space: nowrap;">Phân loại</th>
-                    <th style="text-align: center;">Tiêu đề tài liệu</th>
-                    <th id="th-sort-doc-date" style="width: 95px; text-align: center; white-space: nowrap; cursor: pointer; user-select: none;" title="Bấm để đảo chiều sắp xếp theo ngày nhận">Ngày nhận <i class="fa-solid fa-arrow-down-short-wide" style="font-size: 0.7rem; margin-left: 3px; color: var(--primary);"></i></th>
-                    <th style="width: 95px; text-align: center; white-space: nowrap;">Tình trạng</th>
-                    <th style="width: 110px; white-space: nowrap; text-align: center;">Tệp tin</th>
-                    <th style="width: 105px; text-align: center; white-space: nowrap;">Thao tác</th>
+                    <th style="width: 110px; white-space: nowrap; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Mã hồ sơ</th>
+                    <th style="width: 140px; white-space: nowrap; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Số công văn / Hồ sơ</th>
+                    <th style="width: 70px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Phân loại</th>
+                    <th style="text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Tiêu đề tài liệu</th>
+                    <th id="th-sort-doc-date" style="width: 95px; text-align: center; white-space: nowrap; cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);" title="Bấm để đảo chiều sắp xếp theo ngày nhận">Ngày nhận <i class="fa-solid fa-arrow-down-short-wide" style="font-size: 0.7rem; margin-left: 3px; color: var(--primary);"></i></th>
+                    <th style="width: 95px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Tình trạng</th>
+                    <th style="width: 110px; white-space: nowrap; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Tệp tin</th>
+                    <th style="width: 105px; text-align: center; white-space: nowrap; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3309,19 +3326,19 @@ export class ContractsManager {
               </button>
             </div>
 
-            <div class="data-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; background: #ffffff;">
+            <div class="data-table-wrap modal-sticky-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; overflow-y: auto; max-height: calc(88vh - 175px); position: relative; background: #ffffff;">
               <table class="data-table disburse-detail-table" style="width: 100%; margin: 0;">
                 <thead>
                   <tr>
-                    <th style="width: 65px; text-align: center;">Đợt TT</th>
-                    <th style="width: 85px; text-align: center;">Ngày TT</th>
-                    <th style="min-width: 160px; text-align: center;">Nội dung thanh toán</th>
-                    <th style="width: 110px; text-align: center;">KL hoàn thành</th>
-                    <th style="width: 110px; text-align: center;">KL chấp nhận TT</th>
-                    <th style="width: 110px; text-align: center;">Đề nghị TT</th>
-                    <th style="width: 110px; text-align: center;">Đã ${contract.group === 'A' ? 'thu' : 'thanh toán'}</th>
-                    <th style="width: 105px; text-align: center;">Còn lại</th>
-                    <th style="width: 75px; text-align: center;">Thao tác</th>
+                    <th style="width: 65px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đợt TT</th>
+                    <th style="width: 85px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Ngày TT</th>
+                    <th style="min-width: 160px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Nội dung thanh toán</th>
+                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">KL hoàn thành</th>
+                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">KL chấp nhận TT</th>
+                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đề nghị TT</th>
+                    <th style="width: 110px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Đã ${contract.group === 'A' ? 'thu' : 'thanh toán'}</th>
+                    <th style="width: 105px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Còn lại</th>
+                    <th style="width: 75px; text-align: center; position: sticky; top: 0; z-index: 10; background: #f8fafc; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
