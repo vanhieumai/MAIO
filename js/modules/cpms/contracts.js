@@ -3338,19 +3338,11 @@ export class ContractsManager {
                 </div>
               </div>
 
-              <!-- Chú thích chân thanh tiến độ phân định rõ màu riêng cho Tạm ứng và Thanh toán -->
-              <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; flex-wrap: wrap; gap: 10px;">
-                <span><i class="fa-solid fa-square" style="color: #f59e0b;"></i> Đã tạm ứng: <strong style="color: #d97706;">${this.formatCurrency(totalAdvance)}</strong> (${advanceRate}%)</span>
-                <span><i class="fa-solid fa-square" style="color: #10b981;"></i> Thanh toán khối lượng: <strong style="color: #059669;">${this.formatCurrency(paidVolume)}</strong> (${payVolumeRate}%)</span>
-                <span><i class="fa-solid fa-circle-check" style="color: #2563eb;"></i> Tổng giải ngân: <strong style="color: #1d4ed8;">${this.formatCurrency(stats.totalPaid)}</strong> (${paidRate}%)</span>
-                <span><i class="fa-solid fa-location-pin" style="color: #ea580c;"></i> Vạch nghiệm thu: <strong style="color: #c2410c;">${this.formatCurrency(stats.totalAccepted)}</strong> (${acceptedRate}%)</span>
-                <span><i class="fa-solid fa-bullseye" style="color: #6366f1;"></i> Căn cứ kế hoạch (100%): <strong style="color: #0f172a;">${this.formatCurrency(baseTarget)}</strong> ${isZeroContract ? '<span class="badge" style="background:#fef3c7; color:#b45309; font-size:0.72rem; padding: 1px 6px; margin-left: 4px;"><i class="fa-solid fa-triangle-exclamation"></i> Căn cứ theo Nghiệm thu</span>' : ''}</span>
-              </div>
-
-              <!-- Lưới 6 Thẻ Thống kê chỉ số phân định màu sắc rõ ràng -->
-              <div class="grid-3" style="margin-top: 20px; gap: 12px;">
+              <!-- Lưới 6 Thẻ Thống kê chỉ số phân định chuẩn xác 2 hàng x 3 cột -->
+              <div style="margin-top: 24px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                <!-- HÀNG 1: Căn cứ HĐ, Tạm ứng & Thanh toán khối lượng -->
                 <div class="stat-box" style="padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0;">
-                  <div class="stat-label">Căn cứ Kế hoạch / HĐ</div>
+                  <div class="stat-label"><i class="fa-solid fa-file-contract"></i> Giá trị HĐ / Tạm tính</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #1e293b;">${this.formatCurrency(baseTarget)}</div>
                   <div class="stat-note" style="font-size: 0.73rem;">${isZeroContract ? 'Lấy theo Giá trị Nghiệm thu' : 'Giá trị hợp đồng ký kết'}</div>
                 </div>
@@ -3364,6 +3356,8 @@ export class ContractsManager {
                   <div style="font-weight: 700; font-size: 1.05rem; color: #15803d;">${this.formatCurrency(paidVolume)}</div>
                   <div class="stat-note" style="font-size: 0.73rem; color: #166534;">Đạt ${payVolumeRate}% căn cứ</div>
                 </div>
+
+                <!-- HÀNG 2: Tổng nghiệm thu, Tổng đã giải ngân & Công nợ tồn -->
                 <div class="stat-box" style="padding: 12px 14px; background: #fff7ed; border: 1px solid #fed7aa;">
                   <div class="stat-label" style="color: #c2410c;"><i class="fa-solid fa-clipboard-check"></i> Tổng Nghiệm thu</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #ea580c;">${this.formatCurrency(stats.totalAccepted)}</div>
@@ -3372,7 +3366,7 @@ export class ContractsManager {
                 <div class="stat-box" style="padding: 12px 14px; background: #eff6ff; border: 1px solid #bfdbfe;">
                   <div class="stat-label" style="color: #1e40af;"><i class="fa-solid fa-money-bill-transfer"></i> Tổng Đã giải ngân</div>
                   <div style="font-weight: 700; font-size: 1.05rem; color: #2563eb;">${this.formatCurrency(stats.totalPaid)}</div>
-                  <div class="stat-note" style="font-size: 0.73rem; color: #1e40af;">Đạt ${paidRate}% căn cứ (Tạm ứng + TT KL)</div>
+                  <div class="stat-note" style="font-size: 0.73rem; color: #1e40af;">Đạt ${paidRate}% (Tạm ứng + TT KL)</div>
                 </div>
                 <div class="stat-box" style="padding: 12px 14px; background: ${stats.remaining > 0 ? '#fef2f2' : '#f8fafc'}; border: 1px solid ${stats.remaining > 0 ? '#fecaca' : '#e2e8f0'};">
                   <div class="stat-label" style="color: ${stats.remaining > 0 ? '#b91c1c' : '#64748b'};"><i class="fa-solid fa-clock-rotate-left"></i> Công nợ tồn / Còn lại</div>
