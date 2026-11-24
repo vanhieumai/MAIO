@@ -118,8 +118,8 @@ export class GoogleDriveService {
           }
         } else {
           scriptAttempts++;
-          if (scriptAttempts > 30) {
-            // Sau 3 giây nếu Google SDK không tải được, vẫn kích hoạt Auth Gate
+          if (scriptAttempts > 60) {
+            // Sau 6 giây nếu Google SDK không tải được, vẫn kích hoạt Auth Gate
             this.notifyAuthChange(null);
             resolve(false);
           } else {
@@ -136,9 +136,30 @@ export class GoogleDriveService {
   /**
    * Mở popup đăng nhập tài khoản Google
    */
-  signIn() {
+  async signIn() {
     if (!this.tokenClient) {
-      throw new Error('Google Identity Services chưa được khởi tạo. Vui lòng kiểm tra Client ID.');
+      // Thử khởi tạo lại nếu script Google Identity Services tải chậm
+      try {
+        await this.init();
+      } catch (e) {
+        console.warn('[MAIO Google Drive] Lỗi khởi tạo GIS:', e);
+      }
+    }
+
+    if (!this.tokenClient) {
+      const currentOrigin = window.location.origin;
+      throw new Error(
+        `Google Identity Services chưa được khởi tạo thành công!\n\n` +
+        `Nguyên nhân chính:\n` +
+        `• Tên miền trang web này (${currentOrigin}) chưa được thêm vào mục "Authorized JavaScript origins" (Nguồn gốc JavaScript được ủy quyền) trong Google Cloud Console của Client ID.\n\n` +
+        `Cách khắc phục:\n` +
+        `1. Mở console.cloud.google.com -> APIs & Services -> Credentials.\n` +
+        `2. Bấm vào OAuth 2.0 Client ID của bạn.\n` +
+        `3. Tại ô "Authorized JavaScript origins", bấm "+ ADD URI" và nhập:\n` +
+        `   ${currentOrigin}\n` +
+        `4. Bấm SAVE và chờ 1-2 phút rồi thử lại.\n\n` +
+        `(Bạn cũng có thể bấm "Làm việc Cục bộ" để mở file CPMS/Excel làm việc ngay mà không cần đăng nhập Google).`
+      );
     }
     this.tokenClient.requestAccessToken({ prompt: 'consent' });
   }

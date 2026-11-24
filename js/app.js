@@ -442,9 +442,9 @@ class App {
     const testSyncBtn = document.getElementById('btn-test-sync');
     const syncNowBtn = document.getElementById('btn-sync-now');
 
-    const handleLogin = () => {
+    const handleLogin = async () => {
       try {
-        gdrive.signIn();
+        await gdrive.signIn();
       } catch (err) {
         alert(err.message || 'Chưa thể kết nối Google Drive. Vui lòng kiểm tra Client ID.');
       }
