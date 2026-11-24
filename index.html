@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="css/main.css?v=5.0">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=7.0">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=8.0">
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -134,6 +134,9 @@
           </button>
           <button class="cpms-subtab-btn" data-cpms-tab="disbursements">
             <i class="fa-solid fa-money-bill-wave"></i> Giải ngân
+          </button>
+          <button class="cpms-subtab-btn" data-cpms-tab="reminder" id="tab-btn-reminder">
+            <i class="fa-solid fa-bell"></i> Reminder <span class="badge-reminder-count" id="reminder-tab-badge">0</span>
           </button>
         </div>
 
@@ -511,6 +514,13 @@
             <!-- Render tự động bởi contracts.js -->
           </div>
         </div>
+
+        <!-- SUB-TAB 4: NHẮC VIỆC & THEO DÕI HỒ SƠ (REMINDERS - CPMS PLUS) -->
+        <div id="cpms-tab-reminder" class="cpms-tab-pane hidden">
+          <div id="reminder-layout-container" class="reminder-layout">
+            <!-- Render tự động bởi contracts.js: renderRemindersTab() -->
+          </div>
+        </div>
       </div>
 
       <!-- 3. PHÂN HỆ QUẢN LÝ VĂN PHÒNG -->
@@ -691,6 +701,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=8.8"></script>
+  <script type="module" src="js/app.js?v=8.9"></script>
 </body>
 </html>

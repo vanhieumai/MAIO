@@ -218,6 +218,9 @@ class App {
 
     if (el('stat-docs-count')) el('stat-docs-count').textContent = docs.length;
     if (el('stat-payments-count')) el('stat-payments-count').textContent = `${realPayments.length} đợt`;
+
+    // Cập nhật số đếm badge nhắc việc
+    contractsManager.updateReminderBadge?.();
   }
 
   bindNavigation() {
@@ -388,7 +391,7 @@ class App {
     }
 
     // Ẩn/hiện các tab pane trong CPMS khi dự án đã sẵn sàng
-    const panes = ['overview', 'contracts', 'disbursements'];
+    const panes = ['overview', 'contracts', 'disbursements', 'reminder'];
     panes.forEach((p) => {
       const paneEl = document.getElementById(`cpms-tab-${p}`);
       if (p === this.currentCpmsTab) {
@@ -398,6 +401,9 @@ class App {
       }
     });
 
+    // Cập nhật badge số lượng nhắc việc
+    contractsManager?.updateReminderBadge?.();
+
     // Thực hiện render dữ liệu cho tab tương ứng
     if (this.currentCpmsTab === 'overview') {
       this.updateDashboardStats();
@@ -405,6 +411,8 @@ class App {
       contractsManager.loadData().then(() => contractsManager.render());
     } else if (this.currentCpmsTab === 'disbursements') {
       contractsManager.loadData().then(() => contractsManager.renderDisbursementsTab());
+    } else if (this.currentCpmsTab === 'reminder') {
+      contractsManager.loadData().then(() => contractsManager.renderRemindersTab());
     }
   }
 

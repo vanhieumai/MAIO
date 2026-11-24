@@ -31,6 +31,12 @@ export class ContractsManager {
     this.selectedDisburseContractId = null;
     this.disburseContractSearchTerm = '';
     this.disburseEventsBound = false;
+    this.reminderShowCompleted = false;
+    this.reminderDocType = 'ALL';
+    this.reminderCategory = 'ALL';
+    this.reminderSearchTerm = '';
+    this.selectedReminderDocId = null;
+    this.reminderEventsBound = false;
   }
 
   showLocalSaveStatus(message, isError = false) {
@@ -189,13 +195,15 @@ export class ContractsManager {
     const overviewPane = document.getElementById('cpms-tab-overview');
     const contractsPane = document.getElementById('cpms-tab-contracts');
     const disbursementsPane = document.getElementById('cpms-tab-disbursements');
+    const reminderPane = document.getElementById('cpms-tab-reminder');
     const projectInfoBar = document.getElementById('project-info-bar');
 
     if (!ready) {
-      // Ẩn toàn bộ 3 tab nội dung
+      // Ẩn toàn bộ 4 tab nội dung
       overviewPane?.classList.add('hidden');
       contractsPane?.classList.add('hidden');
       disbursementsPane?.classList.add('hidden');
+      reminderPane?.classList.add('hidden');
       if (projectInfoBar) projectInfoBar.style.display = 'none';
 
       // Hiển thị khung Empty State
@@ -226,6 +234,10 @@ export class ContractsManager {
       if (disbursementsPane) {
         if (activeTab === 'disbursements') disbursementsPane.classList.remove('hidden');
         else disbursementsPane.classList.add('hidden');
+      }
+      if (reminderPane) {
+        if (activeTab === 'reminder') reminderPane.classList.remove('hidden');
+        else reminderPane.classList.add('hidden');
       }
 
       // Hiện lại các nút thao tác dự án
@@ -504,6 +516,9 @@ export class ContractsManager {
         }
       }
     }
+
+    // Tự động cập nhật số lượng hồ sơ nhắc việc trên thanh tab Reminder
+    this.updateReminderBadge();
   }
 
   getBaseName(path) {
@@ -8854,6 +8869,614 @@ export class ContractsManager {
     link.download = `Bang_Thu_Chi_${contract.contract_no || contract.id}_${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  // ==========================================
+  // PHÂN HỆ NHẮC VIỆC & THEO DÕI HỒ SƠ (REMINDERS - CPMS PLUS)
+  // ==========================================
+
+  /**
+   * Kiểm tra hồ sơ đã hoàn thành hay chưa
+   */
+  isDocCompleted(doc) {
+    if (!doc) return false;
+    const raw = String(doc.status || '').trim().toLowerCase();
+    const completedList = ['completed', 'hoàn thành', 'closed', 'done', 'accepted', 'approved', 'phê duyệt', 'chấp thuận'];
+    return completedList.includes(raw);
+  }
+
+  /**
+   * Cập nhật số đếm badge nhắc việc trên thanh tab Reminders
+   */
+  updateReminderBadge() {
+    const badge = document.getElementById('reminder-tab-badge');
+    if (!this.documents || this.documents.length === 0) {
+      if (badge) {
+        badge.textContent = '0';
+        badge.style.display = 'none';
+      }
+      return 0;
+    }
+    const pendingDocs = this.documents.filter((d) => !this.isDocCompleted(d));
+    const count = pendingDocs.length;
+    if (badge) {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    }
+    return count;
+  }
+
+  /**
+   * Lấy số hiệu hoặc số đợt rút gọn cho hồ sơ (hiển thị giống cột 3 trong CPMS Plus Reminders)
+   */
+  getDocShortSequence(doc) {
+    if (!doc) return '—';
+    const docNo = String(doc.doc_no || '').trim();
+    const title = String(doc.title || '').trim();
+
+    // 1. Tìm số đợt dạng .001, .004, -001, .05 ở đuôi mã hồ sơ
+    const matchNo = docNo.match(/(?:\.|\-)(\d{2,4})(?:[^\d]|$)/);
+    if (matchNo) return matchNo[1];
+
+    // 2. Tìm số trong tiêu đề (ví dụ: đợt 01, IPC 02)
+    const matchTitle = title.match(/(?:đợt|ipc|dn|số|no\.)\s*(\d+)/i);
+    if (matchTitle) return matchTitle[1];
+
+    if (doc.version) return String(doc.version);
+    return '—';
+  }
+
+  /**
+   * Lọc danh sách hồ sơ cho Tab Reminder theo bộ lọc hiện tại
+   */
+  getFilteredReminderDocs() {
+    if (!this.documents) return [];
+
+    let list = [...this.documents];
+
+    // 1. Chuẩn hóa ngày nhận cho tất cả hồ sơ nếu chưa có
+    list.forEach((d) => {
+      if (!d.received_date || String(d.received_date).trim() === '' || d.received_date === '—') {
+        d.received_date = this.getDocReceivedDate(d);
+      }
+    });
+
+    // 2. Lọc theo checkbox Show Completed
+    if (!this.reminderShowCompleted) {
+      list = list.filter((d) => !this.isDocCompleted(d));
+    }
+
+    // 3. Lọc theo Radio Type: ALL / IPC / OTHER
+    if (this.reminderDocType === 'IPC') {
+      list = list.filter((d) => {
+        const cat = String(d.category || '').toUpperCase();
+        const title = String(d.title || '').toUpperCase();
+        const docNo = String(d.doc_no || '').toUpperCase();
+        return cat.includes('IPC') || title.includes('IPC') || docNo.includes('IPC');
+      });
+    } else if (this.reminderDocType === 'OTHER') {
+      list = list.filter((d) => {
+        const cat = String(d.category || '').toUpperCase();
+        const title = String(d.title || '').toUpperCase();
+        const docNo = String(d.doc_no || '').toUpperCase();
+        return !cat.includes('IPC') && !title.includes('IPC') && !docNo.includes('IPC');
+      });
+    }
+
+    // 4. Lọc theo Category dropdown cụ thể (nếu !== 'ALL')
+    if (this.reminderCategory && this.reminderCategory !== 'ALL') {
+      const targetCat = this.reminderCategory.toUpperCase();
+      list = list.filter((d) => String(d.category || '').toUpperCase() === targetCat);
+    }
+
+    // 5. Tìm kiếm (Search term)
+    if (this.reminderSearchTerm && this.reminderSearchTerm.trim()) {
+      const q = this.reminderSearchTerm.trim().toLowerCase();
+      list = list.filter((d) => {
+        const targetC = this.contracts.find((c) => c.id === d.contract_id);
+        const partyB = String(targetC?.company_b || '').toLowerCase();
+        const cNo = String(targetC?.contract_no || '').toLowerCase();
+        const scope = String(targetC?.scope_of_work || '').toLowerCase();
+        const docNo = String(d.doc_no || '').toLowerCase();
+        const title = String(d.title || '').toLowerCase();
+        const status = String(d.status || '').toLowerCase();
+        const cat = String(d.category || '').toLowerCase();
+        const id = String(d.id || '').toLowerCase();
+        return (
+          partyB.includes(q) ||
+          cNo.includes(q) ||
+          scope.includes(q) ||
+          docNo.includes(q) ||
+          title.includes(q) ||
+          status.includes(q) ||
+          cat.includes(q) ||
+          id.includes(q)
+        );
+      });
+    }
+
+    // 6. Sắp xếp: Mặc định sắp xếp theo ngày nhận/xử lý (mới nhất lên đầu để tiện theo dõi nhắc việc)
+    list.sort((a, b) => {
+      const tA = this.parsePaymentDateObj(a.received_date)?.getTime() || 0;
+      const tB = this.parsePaymentDateObj(b.received_date)?.getTime() || 0;
+      if (tA && tB) {
+        if (tA !== tB) return tB - tA;
+      } else if (tA && !tB) {
+        return -1;
+      } else if (!tA && tB) {
+        return 1;
+      }
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    });
+
+    return list;
+  }
+
+  /**
+   * Render giao diện Tab Reminders (Nhắc việc & Theo dõi hồ sơ - chuẩn CPMS Plus)
+   */
+  renderRemindersTab() {
+    this.updateEmptyStateUI('reminder');
+    if (!this.isProjectReady()) return;
+
+    const container = document.getElementById('reminder-layout-container');
+    if (!container) return;
+
+    // Cập nhật số đếm badge
+    this.updateReminderBadge();
+
+    const allDocs = this.documents || [];
+    const pendingDocs = allDocs.filter((d) => !this.isDocCompleted(d));
+    const totalPending = pendingDocs.length;
+
+    // Lấy danh mục categories duy nhất từ toàn bộ documents
+    const catSet = new Set();
+    allDocs.forEach((d) => {
+      const c = String(d.category || '').trim().toUpperCase();
+      if (c) catSet.add(c);
+    });
+    const categories = Array.from(catSet).sort();
+
+    const categoriesOptionsHtml = categories
+      .map(
+        (c) => `<option value="${c}" ${this.reminderCategory === c ? 'selected' : ''}>${c}</option>`
+      )
+      .join('');
+
+    const filteredDocs = this.getFilteredReminderDocs();
+
+    // Xác định hồ sơ đang được chọn
+    if (!this.selectedReminderDocId || !filteredDocs.some((d) => d.id === this.selectedReminderDocId)) {
+      this.selectedReminderDocId = filteredDocs[0]?.id || null;
+    }
+
+    const selectedDoc = (allDocs.find((d) => d.id === this.selectedReminderDocId)) || filteredDocs[0] || null;
+    const targetContract = selectedDoc ? this.contracts.find((c) => c.id === selectedDoc.contract_id) : null;
+
+    // Render danh sách các dòng hồ sơ (Cột trái)
+    const rowsHtml =
+      filteredDocs.length === 0
+        ? `<tr><td colspan="5" style="text-align: center; padding: 40px 16px; color: var(--text-muted);">
+            <i class="fa-solid fa-clipboard-check" style="font-size: 2rem; color: #10b981; margin-bottom: 8px; display: block;"></i>
+            Không có hồ sơ nào cần xử lý trong bộ lọc hiện tại.
+          </td></tr>`
+        : filteredDocs
+            .map((d) => {
+              const c = this.contracts.find((item) => item.id === d.contract_id);
+              const partyB = c?.company_b || c?.company_a || '—';
+              const shortSeq = this.getDocShortSequence(d);
+              const recDate = this.formatDate(d.received_date || this.getDocReceivedDate(d, c));
+              const isSelected = d.id === this.selectedReminderDocId;
+
+              return `
+                <tr class="reminder-table-row ${isSelected ? 'selected' : ''}" data-doc-id="${d.id}" style="cursor: pointer;">
+                  <td class="reminder-col-party" title="${partyB}">
+                    <div class="reminder-party-cell">
+                      <span class="reminder-party-name">${partyB}</span>
+                      <span class="reminder-contract-sub">${c?.contract_no || d.contract_id}</span>
+                    </div>
+                  </td>
+                  <td style="text-align: center; white-space: nowrap;">
+                    <span class="badge badge-primary reminder-type-badge">${d.category || 'IPC'}</span>
+                  </td>
+                  <td style="text-align: center; white-space: nowrap; font-family: monospace; font-weight: 700; color: #334155;">
+                    ${shortSeq}
+                  </td>
+                  <td style="text-align: center; white-space: nowrap; font-size: 0.82rem; color: #475569;">
+                    ${recDate}
+                  </td>
+                  <td style="text-align: center; white-space: nowrap;">
+                    ${this.getDocumentStatusBadgeHtml(d.status)}
+                  </td>
+                </tr>
+              `;
+            })
+            .join('');
+
+    // Chuẩn bị đường link cho cột chi tiết
+    let docLinkHtml = '<span style="color: #94a3b8;">—</span>';
+    if (selectedDoc) {
+      const locLink = selectedDoc.local_link || (!String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link);
+      const drvLink = selectedDoc.drive_link || (String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link);
+
+      if (locLink || drvLink) {
+        docLinkHtml = `
+          <div style="display: flex; flex-direction: column; gap: 4px; word-break: break-all;">
+            ${
+              locLink
+                ? `<div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
+                    <i class="fa-solid fa-laptop" style="color: #64748b; flex-shrink: 0;"></i>
+                    <span class="font-mono text-muted" style="font-size: 0.78rem;">${locLink}</span>
+                    <button type="button" class="button button-outline btn-copy-doc-local" data-path="${encodeURIComponent(locLink)}" style="padding: 1px 5px; font-size: 0.65rem; height: 20px;" title="Sao chép đường dẫn">
+                      <i class="fa-regular fa-copy"></i>
+                    </button>
+                  </div>`
+                : ''
+            }
+            ${
+              drvLink
+                ? `<div>
+                    <a href="${drvLink}" target="_blank" style="padding: 2px 8px; font-size: 0.75rem; color: #0284c7; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; text-decoration: none;">
+                      <i class="fa-brands fa-google-drive"></i> Mở trên Google Drive
+                    </a>
+                  </div>`
+                : ''
+            }
+          </div>
+        `;
+      }
+    }
+
+    // Render toàn bộ layout 2 cột
+    container.innerHTML = `
+      <div class="reminder-main-grid">
+        <!-- CỘT TRÁI: DANH SÁCH HỒ SƠ & BỘ LỌC -->
+        <div class="reminder-left-col">
+          <!-- BỘ LỌC (FILTER CARD) -->
+          <div class="card reminder-filter-card">
+            <div class="reminder-filter-row-top">
+              <label class="reminder-checkbox-wrap" title="Tích chọn để hiển thị cả các hồ sơ đã hoàn tất (Approved, Accepted, Completed)">
+                <input type="checkbox" id="reminder-filter-show-completed" ${this.reminderShowCompleted ? 'checked' : ''}>
+                <span>Show Completed</span>
+              </label>
+
+              <div class="reminder-radio-group">
+                <label class="reminder-radio-label">
+                  <input type="radio" name="reminder-doc-type-radio" value="ALL" ${this.reminderDocType === 'ALL' ? 'checked' : ''}>
+                  <span>All Documents</span>
+                </label>
+                <label class="reminder-radio-label">
+                  <input type="radio" name="reminder-doc-type-radio" value="IPC" ${this.reminderDocType === 'IPC' ? 'checked' : ''}>
+                  <span>Interim Payment Certificate</span>
+                </label>
+                <label class="reminder-radio-label">
+                  <input type="radio" name="reminder-doc-type-radio" value="OTHER" ${this.reminderDocType === 'OTHER' ? 'checked' : ''}>
+                  <span>Other Documents</span>
+                </label>
+              </div>
+
+              <div class="reminder-category-select-wrap">
+                <select id="reminder-filter-category" class="form-control" title="Chọn loại hồ sơ cụ thể">
+                  <option value="ALL">Tất cả loại (IPC, CON, VO...)</option>
+                  ${categoriesOptionsHtml}
+                </select>
+              </div>
+            </div>
+
+            <div class="reminder-filter-row-bottom">
+              <div class="search-input-wrap reminder-search-wrap">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="reminder-search-input" class="search-input" placeholder="Tìm kiếm đối tác, số công văn, hợp đồng, nội dung..." value="${this.reminderSearchTerm || ''}">
+                <button type="button" id="btn-clear-reminder-search" class="btn-clear-search ${this.reminderSearchTerm ? '' : 'hidden'}" title="Xóa từ khóa">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- BẢNG DANH SÁCH (TABLE CARD) -->
+          <div class="card reminder-table-card">
+            <div class="reminder-table-scroll-wrap">
+              <table class="data-table reminder-data-table">
+                <thead>
+                  <tr>
+                    <th style="text-align: left; min-width: 220px;">Party B (Đối tác)</th>
+                    <th style="text-align: center; width: 75px;">Type</th>
+                    <th style="text-align: center; width: 85px;">Số đợt/hiệu</th>
+                    <th style="text-align: center; width: 105px;">Ngày nhận</th>
+                    <th style="text-align: center; width: 120px;">Tình trạng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- FOOTER DANH SÁCH -->
+            <div class="reminder-list-footer">
+              <div class="reminder-pending-count-text">
+                Pending [All]: <strong id="reminder-pending-number" class="text-primary" style="font-size: 1.05rem;">${totalPending}</strong> document(s)
+                ${this.reminderShowCompleted ? `<span style="font-size: 0.8rem; color: #64748b; margin-left: 8px;">(Đang hiện ${filteredDocs.length} / ${allDocs.length} hồ sơ)</span>` : ''}
+              </div>
+              <div class="reminder-footer-hint">
+                <i class="fa-solid fa-circle-info"></i> Nhấp đúp vào dòng để mở chi tiết hợp đồng
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CỘT PHẢI: KHUNG CHI TIẾT HỒ SƠ (REMINDER DETAIL CARD - CPMS PLUS) -->
+        <div class="reminder-right-col">
+          <div class="card reminder-detail-card">
+            <!-- HEADER CHI TIẾT -->
+            <div class="reminder-detail-header">
+              <div class="reminder-detail-title-box">
+                <span class="badge ${targetContract?.group === 'B' ? 'badge-warning' : 'badge-primary'}">
+                  GROUP ${targetContract?.group || 'A'}
+                </span>
+                <span class="reminder-detail-contract-no">
+                  ${targetContract?.contract_no || selectedDoc?.contract_id || 'Chưa chọn hồ sơ'}
+                </span>
+              </div>
+              <div>${selectedDoc ? this.getDocumentStatusBadgeHtml(selectedDoc.status) : ''}</div>
+            </div>
+
+            <!-- NỘI DUNG CHI TIẾT -->
+            ${
+              selectedDoc
+                ? `
+              <div class="reminder-detail-fields">
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Party B</div>
+                  <div class="reminder-field-value"><strong>${targetContract?.company_b || targetContract?.company_a || '—'}</strong></div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Scope</div>
+                  <div class="reminder-field-value">${targetContract?.scope_of_work || '—'}</div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Type</div>
+                  <div class="reminder-field-value">
+                    <span class="badge badge-primary" style="font-weight: 700; font-size: 0.78rem;">${selectedDoc.category || 'IPC'}</span>
+                  </div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Name</div>
+                  <div class="reminder-field-value reminder-field-name"><strong>${selectedDoc.title || selectedDoc.name || '—'}</strong></div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Document Number</div>
+                  <div class="reminder-field-value font-mono"><strong>${selectedDoc.doc_no || selectedDoc.id || '—'}</strong></div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Status</div>
+                  <div class="reminder-field-value">${this.getDocumentStatusBadgeHtml(selectedDoc.status)}</div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Processed Date</div>
+                  <div class="reminder-field-value">${this.formatDate(this.getDocReceivedDate(selectedDoc, targetContract))}</div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Supporting Docs</div>
+                  <div class="reminder-field-value">${selectedDoc.supporting_docs || '—'}</div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Version</div>
+                  <div class="reminder-field-value">${selectedDoc.version || '1'}</div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Note</div>
+                  <div class="reminder-field-value reminder-field-note">${selectedDoc.note || '—'}</div>
+                </div>
+
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">Link</div>
+                  <div class="reminder-field-value reminder-field-link">${docLinkHtml}</div>
+                </div>
+              </div>
+
+              <!-- FOOTER THAO TÁC (ACTIONS) -->
+              <div class="reminder-detail-actions">
+                <button type="button" id="btn-reminder-refresh" class="button button-outline" title="Làm mới danh sách dữ liệu">
+                  <i class="fa-solid fa-rotate-right"></i> Refresh
+                </button>
+                <button type="button" id="btn-reminder-goto" class="button button-primary" title="Mở chi tiết Hợp đồng và trỏ đến hồ sơ này">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Go to
+                </button>
+                ${
+                  (selectedDoc.local_link || selectedDoc.file_link || selectedDoc.drive_link)
+                    ? `
+                  <button type="button" id="btn-reminder-open-file" class="button button-outline" style="color: #0284c7; border-color: #bae6fd; background: #f0f9ff;" title="Mở tệp tin">
+                    <i class="fa-solid fa-file-arrow-up"></i> Mở file
+                  </button>
+                  <button type="button" id="btn-reminder-open-folder" class="button button-outline" style="color: #d97706; border-color: #fde68a; background: #fffbeb;" title="Mở thư mục chứa file">
+                    <i class="fa-solid fa-folder-open"></i> Mở thư mục
+                  </button>
+                `
+                    : ''
+                }
+              </div>
+            `
+                : `
+              <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+                <i class="fa-regular fa-folder-open" style="font-size: 2.5rem; color: #cbd5e1; margin-bottom: 12px; display: block;"></i>
+                Chọn một hồ sơ trong danh sách bên trái để xem chi tiết.
+              </div>
+            `
+            }
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Gắn sự kiện cho các thành phần điều khiển
+    this.bindReminderEvents(filteredDocs, selectedDoc, targetContract);
+  }
+
+  /**
+   * Gắn sự kiện tương tác cho Tab Reminders
+   */
+  bindReminderEvents(filteredDocs, selectedDoc, targetContract) {
+    const container = document.getElementById('reminder-layout-container');
+    if (!container) return;
+
+    // 1. Chọn dòng trong bảng
+    container.querySelectorAll('.reminder-table-row').forEach((row) => {
+      row.addEventListener('click', (e) => {
+        const docId = row.getAttribute('data-doc-id');
+        if (docId && docId !== this.selectedReminderDocId) {
+          this.selectedReminderDocId = docId;
+          this.renderRemindersTab();
+        }
+      });
+
+      // Nhấp đúp chuột -> Kích hoạt Go to
+      row.addEventListener('dblclick', (e) => {
+        const docId = row.getAttribute('data-doc-id');
+        const doc = (this.documents || []).find((d) => d.id === docId);
+        if (doc) {
+          this.handleReminderGoTo(doc);
+        }
+      });
+    });
+
+    // 2. Nút Refresh
+    document.getElementById('btn-reminder-refresh')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-reminder-refresh');
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
+      await this.loadData();
+      this.updateReminderBadge();
+      this.renderRemindersTab();
+      this.showLocalSaveStatus('Đã làm mới danh sách hồ sơ nhắc việc!');
+    });
+
+    // 3. Nút Go to
+    document.getElementById('btn-reminder-goto')?.addEventListener('click', () => {
+      if (selectedDoc) {
+        this.handleReminderGoTo(selectedDoc);
+      }
+    });
+
+    // 4. Nút Mở file
+    document.getElementById('btn-reminder-open-file')?.addEventListener('click', () => {
+      if (selectedDoc) {
+        this.handleOpenDocFile(selectedDoc);
+      }
+    });
+
+    // 5. Nút Mở thư mục
+    document.getElementById('btn-reminder-open-folder')?.addEventListener('click', () => {
+      if (selectedDoc) {
+        this.handleOpenDocFolder(selectedDoc, targetContract);
+      }
+    });
+
+    // 6. Nút Sao chép link local
+    container.querySelectorAll('.btn-copy-doc-local').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const p = decodeURIComponent(btn.getAttribute('data-path') || '');
+        if (p) {
+          navigator.clipboard
+            .writeText(p)
+            .then(() => {
+              const orig = btn.innerHTML;
+              btn.innerHTML = '<i class="fa-solid fa-check" style="color: var(--success);"></i>';
+              setTimeout(() => {
+                btn.innerHTML = orig;
+              }, 1500);
+            })
+            .catch(() => {
+              prompt('Đường dẫn file trên máy tính (sao chép Ctrl+C):', p);
+            });
+        }
+      });
+    });
+
+    // 7. Checkbox Show Completed
+    const chkCompleted = document.getElementById('reminder-filter-show-completed');
+    chkCompleted?.addEventListener('change', (e) => {
+      this.reminderShowCompleted = e.target.checked;
+      this.renderRemindersTab();
+    });
+
+    // 8. Radio lọc loại tài liệu (ALL / IPC / OTHER)
+    container.querySelectorAll('input[name="reminder-doc-type-radio"]').forEach((radio) => {
+      radio.addEventListener('change', (e) => {
+        this.reminderDocType = e.target.value;
+        this.renderRemindersTab();
+      });
+    });
+
+    // 9. Dropdown chọn loại hồ sơ cụ thể
+    const catSelect = document.getElementById('reminder-filter-category');
+    catSelect?.addEventListener('change', (e) => {
+      this.reminderCategory = e.target.value;
+      this.renderRemindersTab();
+    });
+
+    // 10. Ô tìm kiếm
+    const searchInput = document.getElementById('reminder-search-input');
+    const clearBtn = document.getElementById('btn-clear-reminder-search');
+
+    searchInput?.addEventListener('input', (e) => {
+      this.reminderSearchTerm = e.target.value;
+      if (clearBtn) {
+        if (this.reminderSearchTerm) clearBtn.classList.remove('hidden');
+        else clearBtn.classList.add('hidden');
+      }
+      this.renderRemindersTab();
+    });
+
+    clearBtn?.addEventListener('click', () => {
+      this.reminderSearchTerm = '';
+      if (searchInput) searchInput.value = '';
+      clearBtn.classList.add('hidden');
+      this.renderRemindersTab();
+    });
+  }
+
+  /**
+   * Điều hướng trực tiếp đến Hợp đồng/Phụ lục chứa hồ sơ và trỏ vào Tab 2 Hồ sơ
+   */
+  handleReminderGoTo(doc) {
+    if (!doc || !doc.contract_id) return;
+    this.openContractDetail(doc.contract_id);
+
+    // Mở Tab 2 (m-tab-docs) trong modal hợp đồng
+    setTimeout(() => {
+      const docsTabBtn = document.querySelector('.modal-tab-btn[data-target="m-tab-docs"]');
+      if (docsTabBtn) {
+        docsTabBtn.click();
+      }
+
+      // Cuộn và highlight dòng hồ sơ
+      setTimeout(() => {
+        const row =
+          document.querySelector(`.doc-item-row[data-doc-id="${doc.id}"]`) ||
+          Array.from(document.querySelectorAll('.doc-item-row')).find(
+            (r) => r.textContent.includes(doc.id) || (doc.doc_no && r.textContent.includes(doc.doc_no))
+          );
+
+        if (row) {
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          row.classList.add('row-highlight-active');
+          setTimeout(() => {
+            row.classList.remove('row-highlight-active');
+          }, 3500);
+        }
+      }, 150);
+    }, 100);
   }
 }
 

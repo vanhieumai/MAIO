@@ -2717,6 +2717,363 @@ textarea.form-control:focus {
   padding: 0 6px;
 }
 
+/* ==========================================================================
+   PHÂN HỆ NHẮC VIỆC & THEO DÕI HỒ SƠ (REMINDERS - CPMS PLUS)
+   ========================================================================== */
+
+/* Badge số lượng hồ sơ nhắc việc trên thanh Tab Top Nav */
+.badge-reminder-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  line-height: 1.2;
+  margin-left: 4px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(239, 68, 68, 0.3);
+}
+
+.badge-reminder-count[data-count="0"],
+.badge-reminder-count:empty {
+  display: none !important;
+}
+
+/* Bố cục chính 2 cột (Reminders Split Grid) */
+.reminder-layout {
+  width: 100%;
+}
+
+.reminder-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(360px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .reminder-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* CỘT TRÁI: Bộ lọc & Bảng danh sách hồ sơ */
+.reminder-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.reminder-filter-card {
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.reminder-filter-row-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.reminder-checkbox-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.reminder-checkbox-wrap input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.reminder-radio-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.reminder-radio-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.reminder-radio-label input[type="radio"] {
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.reminder-category-select-wrap {
+  margin-left: auto;
+}
+
+#reminder-filter-category {
+  height: 32px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  min-width: 150px;
+}
+
+.reminder-filter-row-bottom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reminder-search-wrap {
+  flex: 1;
+}
+
+/* Card Bảng danh sách hồ sơ */
+.reminder-table-card {
+  padding: 0;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.reminder-table-scroll-wrap {
+  max-height: calc(88vh - 230px);
+  min-height: 350px;
+  overflow-y: auto;
+  overflow-x: auto;
+  position: relative;
+}
+
+.reminder-data-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.reminder-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  white-space: nowrap;
+}
+
+.reminder-data-table tbody td {
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.reminder-table-row {
+  transition: background-color 0.15s ease;
+}
+
+.reminder-table-row:hover {
+  background-color: #f8fafc;
+}
+
+.reminder-table-row.selected {
+  background-color: #eff6ff !important;
+  border-left: 3px solid #2563eb;
+}
+
+.reminder-table-row.selected td {
+  font-weight: 500;
+}
+
+.reminder-party-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.reminder-party-name {
+  font-weight: 600;
+  color: #1e293b;
+  max-width: 260px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reminder-contract-sub {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-family: monospace;
+}
+
+.reminder-type-badge {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+/* Footer danh sách hồ sơ */
+.reminder-list-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reminder-pending-count-text {
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.reminder-footer-hint {
+  font-size: 0.76rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* CỘT PHẢI: Khung chi tiết hồ sơ (Reminder Detail Card) */
+.reminder-right-col {
+  position: sticky;
+  top: 16px;
+}
+
+.reminder-detail-card {
+  padding: 18px 20px;
+  background: #ffffff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.reminder-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.reminder-detail-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reminder-detail-contract-no {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  word-break: break-all;
+}
+
+.reminder-detail-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 0.85rem;
+}
+
+.reminder-field-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 12px;
+  align-items: start;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #f1f5f9;
+}
+
+.reminder-field-row:last-child {
+  border-bottom: none;
+}
+
+.reminder-field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #64748b;
+  user-select: none;
+}
+
+.reminder-field-value {
+  color: #1e293b;
+  word-break: break-word;
+  line-height: 1.5;
+}
+
+.reminder-field-name {
+  color: #0284c7;
+  font-size: 0.9rem;
+}
+
+.reminder-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 14px;
+  margin-top: 6px;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Hiệu ứng nhấp nháy dòng khi chuyển tới (Go to) từ Reminders */
+.row-highlight-active {
+  animation: rowFlashPulse 1s ease-in-out infinite alternate;
+  background-color: #fef08a !important;
+}
+
+@keyframes rowFlashPulse {
+  0% {
+    background-color: #fef08a;
+  }
+  100% {
+    background-color: #fde047;
+  }
+}
+
 
 
 
