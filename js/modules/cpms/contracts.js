@@ -3040,8 +3040,8 @@ export class ContractsManager {
             ${
               directChildren.length > 0
                 ? `
-              <div class="data-table-wrap">
-                <table class="data-table">
+              <div class="data-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; background: #ffffff;">
+                <table class="data-table" style="width: 100%; margin: 0;">
                   <thead>
                     <tr>
                       <th style="width: 120px; text-align: center;">Số hiệu</th>
@@ -3103,16 +3103,16 @@ export class ContractsManager {
               </div>
             </div>
 
-            <div class="data-table-wrap" style="overflow-x: auto; max-width: 100%;">
-              <table class="data-table" style="width: 100%; font-size: 0.82rem;">
+            <div class="data-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; background: #ffffff;">
+              <table class="data-table" style="width: 100%; margin: 0;">
                 <thead>
                   <tr>
                     <th style="width: 110px; white-space: nowrap; text-align: center;">Mã hồ sơ</th>
                     <th style="width: 140px; white-space: nowrap; text-align: center;">Số công văn / Hồ sơ</th>
-                    <th style="width: 60px; text-align: center; white-space: nowrap;">Phân loại</th>
+                    <th style="width: 70px; text-align: center; white-space: nowrap;">Phân loại</th>
                     <th style="text-align: center;">Tiêu đề tài liệu</th>
-                    <th style="width: 80px; text-align: center; white-space: nowrap;">Ngày nhận</th>
-                    <th style="width: 85px; text-align: center; white-space: nowrap;">Tình trạng</th>
+                    <th style="width: 85px; text-align: center; white-space: nowrap;">Ngày nhận</th>
+                    <th style="width: 95px; text-align: center; white-space: nowrap;">Tình trạng</th>
                     <th style="width: 110px; white-space: nowrap; text-align: center;">Tệp tin</th>
                     <th style="width: 105px; text-align: center; white-space: nowrap;">Thao tác</th>
                   </tr>
@@ -3125,11 +3125,11 @@ export class ContractsManager {
                           .map(
                             (d) => `
                         <tr class="doc-item-row" data-doc-category="${(d.category || 'Hồ sơ').trim()}">
-                          <td style="white-space: nowrap; font-family: monospace; font-size: 0.75rem; color: #334155;"><strong>${d.id}</strong></td>
-                          <td style="white-space: nowrap; font-size: 0.78rem;">${d.doc_no || '—'}</td>
-                          <td style="text-align: center; white-space: nowrap;"><span class="badge badge-primary" style="font-size: 0.7rem; padding: 1px 6px;">${d.category || 'Hồ sơ'}</span></td>
+                          <td style="white-space: nowrap; font-family: monospace; font-weight: 600; color: #334155; text-align: center;">${d.id}</td>
+                          <td style="white-space: nowrap;">${d.doc_no || '—'}</td>
+                          <td style="text-align: center; white-space: nowrap;"><span class="badge badge-primary" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">${d.category || 'Hồ sơ'}</span></td>
                           <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.title || ''}">${d.title || '—'}</td>
-                          <td style="text-align: center; white-space: nowrap; font-size: 0.78rem;">${this.formatDate(d.received_date)}</td>
+                          <td style="text-align: center; white-space: nowrap;">${this.formatDate(d.received_date)}</td>
                           <td style="text-align: center; white-space: nowrap;">${this.getDocumentStatusBadgeHtml(d.status)}</td>
                           <td style="width: 110px; max-width: 120px; padding: 4px 6px;">
                             <div style="display: flex; flex-direction: column; gap: 3px;">
@@ -3200,10 +3200,10 @@ export class ContractsManager {
               </button>
             </div>
 
-            <div class="data-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
-              <table class="data-table disburse-detail-table" style="width: 100%; margin: 0; font-size: 0.78rem;">
+            <div class="data-table-wrap" style="border: 1px solid #e2e8f0; border-radius: 6px; overflow-x: auto; background: #ffffff;">
+              <table class="data-table disburse-detail-table" style="width: 100%; margin: 0;">
                 <thead>
-                  <tr style="background: #f8fafc;">
+                  <tr>
                     <th style="width: 65px; text-align: center;">Đợt TT</th>
                     <th style="width: 85px; text-align: center;">Ngày TT</th>
                     <th style="min-width: 160px; text-align: center;">Nội dung thanh toán</th>
