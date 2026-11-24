@@ -1056,6 +1056,30 @@ export class ContractsManager {
     return `<span class="badge badge-success"${style}>${raw}</span>`;
   }
 
+  getDocumentStatusBadgeHtml(status) {
+    const raw = String(status || 'Completed').trim();
+    const s = raw.toLowerCase();
+    if (s === 'completed' || s === 'hoàn thành' || s === 'closed' || s === 'done') {
+      return `<span class="badge-doc-status badge-doc-completed" title="Hồ sơ đã hoàn thành"><i class="fa-solid fa-circle-check"></i> ${raw}</span>`;
+    }
+    if (s === 'accepted' || s === 'approved' || s === 'phê duyệt' || s === 'chấp thuận') {
+      return `<span class="badge-doc-status badge-doc-approved" title="Hồ sơ đã phê duyệt"><i class="fa-solid fa-check-double"></i> ${raw}</span>`;
+    }
+    if (s === 'checking' || s === 'underreview' || s === 'đang kiểm tra' || s === 'kiểm tra' || s === 'rà soát') {
+      return `<span class="badge-doc-status badge-doc-checking" title="Đang kiểm tra / Rà soát"><i class="fa-solid fa-magnifying-glass"></i> ${raw}</span>`;
+    }
+    if (s === 'pending' || s === 'chờ xử lý' || s === 'submitted' || s === 'đã nộp') {
+      return `<span class="badge-doc-status badge-doc-pending" title="Chờ xử lý"><i class="fa-regular fa-clock"></i> ${raw}</span>`;
+    }
+    if (s === 'draft' || s === 'dự thảo') {
+      return `<span class="badge-doc-status badge-doc-draft" title="Hồ sơ dự thảo"><i class="fa-regular fa-file-lines"></i> ${raw}</span>`;
+    }
+    if (s === 'rejected' || s === 'từ chối' || s === 'cancel' || s === 'hủy') {
+      return `<span class="badge-doc-status badge-doc-rejected" title="Hồ sơ bị từ chối / Hủy"><i class="fa-solid fa-ban"></i> ${raw}</span>`;
+    }
+    return `<span class="badge-doc-status badge-doc-default"><i class="fa-solid fa-file"></i> ${raw}</span>`;
+  }
+
   getPaymentRate(p) {
     const r = parseFloat(p?.exchange_rate);
     return !isNaN(r) && r > 0 ? r : 1.0;
@@ -2863,6 +2887,14 @@ export class ContractsManager {
     const acceptedRate = baseTarget > 0 ? Math.min(100, Math.round((stats.totalAccepted / baseTarget) * 1000) / 10) : 0;
     const advanceRate = baseTarget > 0 ? Math.min(100, Math.round((totalAdvance / baseTarget) * 1000) / 10) : 0;
 
+    // Danh sách phân loại hồ sơ duy nhất để lọc
+    const docCategories = [...new Set(docs.map((d) => (d.category || 'Hồ sơ').trim()).filter(Boolean))].sort();
+    const docCatCount = {};
+    docs.forEach((d) => {
+      const cat = (d.category || 'Hồ sơ').trim();
+      docCatCount[cat] = (docCatCount[cat] || 0) + 1;
+    });
+
     let modal = document.getElementById('contract-detail-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -2914,14 +2946,14 @@ export class ContractsManager {
           </div>
         </div>
 
-        <!-- 4 TABS NGHIỆP VỤ -->
-        <div class="modal-nav-wrap" style="flex-shrink: 0; padding: 0 20px; background: #fff; border-bottom: 1px solid var(--border-color);">
+        <!-- 4 TABS NGHIỆP VỤ & BỘ LỌC PHÂN LOẠI HỒ SƠ -->
+        <div class="modal-nav-wrap" style="flex-shrink: 0; padding: 0 20px; background: #fff; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; gap: 12px;">
           <div class="tab-nav" style="margin-bottom: 0;">
             <button class="tab-btn active modal-tab-btn" data-target="m-tab-info">
               <i class="fa-solid fa-circle-info"></i> 1. Thông tin ${isMain ? 'Hợp đồng' : 'Phụ lục'}
             </button>
             <button class="tab-btn modal-tab-btn" data-target="m-tab-docs">
-              <i class="fa-solid fa-folder-closed"></i> 2. Hồ sơ (${docs.length})
+              <i class="fa-solid fa-folder-closed"></i> 2. Hồ sơ (<span id="modal-tab-docs-count">${docs.length}</span>)
             </button>
             <button class="tab-btn modal-tab-btn" data-target="m-tab-ipc">
               <i class="fa-solid fa-money-bill-wave"></i> 3. Giải ngân (${realPayments.length} đợt)
@@ -2929,6 +2961,16 @@ export class ContractsManager {
             <button class="tab-btn modal-tab-btn" data-target="m-tab-dash">
               <i class="fa-solid fa-chart-pie"></i> 4. Dashboard & Báo cáo
             </button>
+          </div>
+          <!-- Bộ lọc phân loại hồ sơ (Hiển thị ngay vị trí user yêu cầu khi vào tab Hồ sơ) -->
+          <div id="docs-category-filter-wrap" style="display: none; align-items: center; gap: 6px; flex-shrink: 0;">
+            <label for="select-doc-category-filter" style="font-size: 0.78rem; font-weight: 600; color: #64748b; margin: 0; white-space: nowrap; display: flex; align-items: center; gap: 4px;">
+              <i class="fa-solid fa-filter" style="color: var(--primary);"></i> Phân loại:
+            </label>
+            <select id="select-doc-category-filter" class="form-control" style="font-size: 0.78rem; padding: 2px 8px; height: 30px; border-radius: 6px; min-width: 170px; background: #fff; cursor: pointer; border-color: #cbd5e1;">
+              <option value="">Tất cả phân loại (${docs.length})</option>
+              ${docCategories.map((cat) => `<option value="${cat}">${cat} (${docCatCount[cat] || 0})</option>`).join('')}
+            </select>
           </div>
         </div>
 
@@ -3047,7 +3089,7 @@ export class ContractsManager {
             <!-- Toolbar gọn gàng, bỏ vùng cây thư mục lớn -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 10px; flex-wrap: wrap;">
               <h3 style="font-size: 0.95rem; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-list-check" style="color: var(--primary);"></i> Danh mục Hồ sơ & Chứng từ (${docs.length})
+                <i class="fa-solid fa-list-check" style="color: var(--primary);"></i> Danh mục Hồ sơ & Chứng từ (<span id="doc-list-heading-count">${docs.length}</span>)
               </h3>
               <div style="display: flex; gap: 8px; align-items: center;">
                 <button id="btn-open-drive-folder" class="button button-outline" style="font-size: 0.8rem; padding: 5px 12px; color: #0284c7; border-color: #bae6fd; background: #f0f9ff; display: inline-flex; align-items: center; gap: 6px;" title="Mở thư mục Google Drive của hợp đồng / phụ lục này">
@@ -3080,13 +3122,13 @@ export class ContractsManager {
                       : docs
                           .map(
                             (d) => `
-                        <tr>
+                        <tr class="doc-item-row" data-doc-category="${(d.category || 'Hồ sơ').trim()}">
                           <td style="white-space: nowrap; font-family: monospace; font-size: 0.75rem; color: #334155;"><strong>${d.id}</strong></td>
                           <td style="white-space: nowrap; font-size: 0.78rem;">${d.doc_no || '—'}</td>
                           <td style="text-align: center; white-space: nowrap;"><span class="badge badge-primary" style="font-size: 0.7rem; padding: 1px 6px;">${d.category || 'Hồ sơ'}</span></td>
                           <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.title || ''}">${d.title || '—'}</td>
                           <td style="text-align: center; white-space: nowrap; font-size: 0.78rem;">${this.formatDate(d.received_date)}</td>
-                          <td style="text-align: center; white-space: nowrap;"><span class="badge badge-success" style="font-size: 0.7rem; padding: 1px 6px;">${d.status || 'Approved'}</span></td>
+                          <td style="text-align: center; white-space: nowrap;">${this.getDocumentStatusBadgeHtml(d.status)}</td>
                           <td style="width: 110px; max-width: 120px; padding: 4px 6px;">
                             <div style="display: flex; flex-direction: column; gap: 3px;">
                               <!-- Link Local thu gọn -->
@@ -3390,6 +3432,7 @@ export class ContractsManager {
 
     // Chuyển tab trong modal
     const modalTabBtns = modal.querySelectorAll('.modal-tab-btn');
+    const docFilterWrap = modal.querySelector('#docs-category-filter-wrap');
     modalTabBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
         modalTabBtns.forEach((b) => b.classList.remove('active'));
@@ -3399,8 +3442,50 @@ export class ContractsManager {
           if (pane.id === targetId) pane.classList.remove('hidden');
           else pane.classList.add('hidden');
         });
+        if (docFilterWrap) {
+          docFilterWrap.style.display = (targetId === 'm-tab-docs') ? 'flex' : 'none';
+        }
       });
     });
+
+    // Lắng nghe bộ lọc phân loại hồ sơ (Tab 2)
+    const categorySelect = modal.querySelector('#select-doc-category-filter');
+    if (categorySelect) {
+      categorySelect.addEventListener('change', () => {
+        const selectedCat = (categorySelect.value || '').trim().toLowerCase();
+        const tbody = modal.querySelector('#m-tab-docs tbody');
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr.doc-item-row');
+        let visibleCount = 0;
+        rows.forEach((row) => {
+          const rowCat = (row.getAttribute('data-doc-category') || '').trim().toLowerCase();
+          if (!selectedCat || rowCat === selectedCat) {
+            row.style.display = '';
+            visibleCount++;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        let emptyRow = tbody.querySelector('.doc-empty-filter-row');
+        if (visibleCount === 0 && rows.length > 0) {
+          if (!emptyRow) {
+            emptyRow = document.createElement('tr');
+            emptyRow.className = 'doc-empty-filter-row';
+            tbody.appendChild(emptyRow);
+          }
+          emptyRow.style.display = '';
+          emptyRow.innerHTML = `<td colspan="8" style="text-align: center; padding: 25px; color: #94a3b8;"><i class="fa-regular fa-folder-open" style="font-size: 1.5rem; display: block; margin-bottom: 6px;"></i>Không có hồ sơ nào thuộc phân loại "${categorySelect.value}".</td>`;
+        } else if (emptyRow) {
+          emptyRow.style.display = 'none';
+        }
+
+        const docCountHeader = modal.querySelector('#doc-list-heading-count');
+        if (docCountHeader) {
+          docCountHeader.textContent = selectedCat ? `${visibleCount}/${docs.length}` : `${docs.length}`;
+        }
+      });
+    }
 
     // Mở Drive Folder
     document.getElementById('btn-open-drive-folder')?.addEventListener('click', () => {
@@ -8375,8 +8460,8 @@ export class ContractsManager {
     modal.className = 'modal-overlay';
     modal.style.zIndex = '10005';
     modal.innerHTML = `
-      <div class="modal-container" style="max-width: 1100px; width: 95vw; background: #ffffff; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; cursor: default; display: flex; flex-direction: column; max-height: 92vh;">
-        <div class="modal-header" style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom: 1px solid #e2e8f0; padding: 12px 18px;">
+      <div class="modal-container" style="max-width: 1100px; width: 95vw; background: #ffffff; border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; cursor: default; display: flex; flex-direction: column; height: 88vh; max-height: 88vh;">
+        <div class="modal-header" style="flex-shrink: 0; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-bottom: 1px solid #e2e8f0; padding: 12px 18px;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <i class="fa-solid fa-table-list" style="color: var(--primary); font-size: 1.1rem;"></i>
             <h3 class="modal-title" style="font-size: 1.05rem; margin: 0; color: #0f172a;">
@@ -8387,9 +8472,9 @@ export class ContractsManager {
           <button class="button button-outline btn-close-submodal" style="padding: 4px 8px;"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
-        <div class="modal-body" style="padding: 16px 20px; background: #ffffff; overflow-y: auto; flex: 1;">
+        <div class="modal-body" style="padding: 16px 20px; background: #ffffff; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;">
           <!-- Banner đối tác & Thông tin Hợp đồng -->
-          <div style="background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="flex-shrink: 0; background: #f8fafc; padding: 8px 12px; border-radius: 6px; border: 1px solid #e2e8f0; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
               <i class="fa-solid fa-building" style="color: #64748b; font-size: 0.95rem;"></i>
               <span style="font-size: 0.78rem; color: #64748b; font-weight: 600;">${partnerRole}:</span>
@@ -8404,7 +8489,7 @@ export class ContractsManager {
           </div>
 
           <!-- Lưới 7 thẻ chỉ số KPI tài chính đồng đều -->
-          <div class="overview-modal-kpi-grid">
+          <div class="overview-modal-kpi-grid" style="flex-shrink: 0;">
             <div class="overview-kpi-card">
               <span class="overview-kpi-label">Giá trị HĐ</span>
               <span class="overview-kpi-value">${this.formatMoneyPlain(cValVnd)}</span>
@@ -8436,7 +8521,7 @@ export class ContractsManager {
           </div>
 
           <!-- Toolbar bên trên bảng -->
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <div style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <div style="font-size: 0.85rem; font-weight: 700; color: #1e293b;">
               <i class="fa-solid fa-list-check" style="color: #3b82f6; margin-right: 4px;"></i> Chi tiết tất cả các đợt giải ngân (${contractPayments.length} đợt)
             </div>
@@ -8451,7 +8536,7 @@ export class ContractsManager {
           </div>
 
           <!-- Bảng cuộn chi tiết -->
-          <div class="overview-detail-table-wrap">
+          <div class="overview-detail-table-wrap" style="flex: 1 1 0; min-height: 0; max-height: none; overflow-y: auto;">
             <table class="overview-detail-table">
               <thead>
                 <tr>
