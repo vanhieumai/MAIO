@@ -2934,12 +2934,12 @@ export class ContractsManager {
     modal.innerHTML = `
       <div class="modal-container contract-detail-dialog" style="height: 88vh; max-height: 88vh; display: flex; flex-direction: column;">
         <!-- Modal Header kèm Breadcrumb -->
-        <div class="modal-header" style="flex-shrink: 0;">
-          <div>
+        <div class="modal-header" style="flex-shrink: 0; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: nowrap; gap: 16px; padding: 14px 20px;">
+          <div style="flex: 1 1 auto; min-width: 0;">
             ${
               !isMain && parentContract
                 ? `
-              <div class="modal-breadcrumb">
+              <div class="modal-breadcrumb" style="margin-bottom: 4px;">
                 <span class="breadcrumb-link" id="btn-back-to-parent" data-parent-id="${parentContract.id}">
                   <i class="fa-solid fa-arrow-left"></i> ${parentContract.contract_no || parentContract.id} (${parentContract.parent_id ? 'Phụ lục cha' : 'Hợp đồng cha'})
                 </span>
@@ -2950,7 +2950,7 @@ export class ContractsManager {
                 : ''
             }
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <h2 style="font-size: 1.25rem; font-weight: 800;">
+              <h2 style="font-size: 1.25rem; font-weight: 800; margin: 0; color: #0f172a;">
                 ${isMain ? '' : '<span style="color: var(--primary);">[' + (directChildren.length > 0 ? 'Phụ lục cha' : 'Phụ lục / Gói con') + ']</span> '}
                 ${contract.contract_no || contract.id}
               </h2>
@@ -2958,19 +2958,19 @@ export class ContractsManager {
               ${contract.category ? `<span class="badge" style="background: #eef2ff; color: #4f46e5; border: 1px solid #c7d2fe; font-weight: 600;"><i class="fa-solid fa-tag"></i> ${contract.category}</span>` : ''}
               ${this.getContractStatusBadgeHtml(contract.status)}
             </div>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">${contract.scope_of_work || ''}</p>
+            ${contract.scope_of_work ? `<p style="font-size: 0.83rem; color: var(--text-muted); margin: 4px 0 0 0; line-height: 1.45; word-break: break-word;">${contract.scope_of_work}</p>` : ''}
           </div>
-          <div style="display: flex; gap: 8px;">
+          <div style="flex: 0 0 auto; flex-shrink: 0; display: flex; align-items: center; gap: 8px; margin-top: 2px;">
             <button id="btn-clone-current-contract" class="button button-outline" style="font-size: 0.85rem; padding: 6px 10px;" title="Sao chép hợp đồng này">
               <i class="fa-solid fa-copy" style="color: #6366f1;"></i>
             </button>
-            <button id="btn-edit-contract-info" class="button button-outline" style="font-size: 0.8rem; padding: 6px 12px;">
+            <button id="btn-edit-contract-info" class="button button-outline" style="font-size: 0.8rem; padding: 6px 12px; display: inline-flex; align-items: center; gap: 5px;">
               <i class="fa-solid fa-pen-to-square"></i> Sửa thông tin
             </button>
-            <button id="btn-delete-current-contract" class="button button-outline btn-delete-contract-action" title="Xóa Hợp đồng này">
+            <button id="btn-delete-current-contract" class="button button-outline btn-delete-contract-action" title="Xóa Hợp đồng này" style="padding: 6px 10px;">
               <i class="fa-solid fa-trash-can"></i>
             </button>
-            <button id="btn-close-modal" class="button button-outline" style="padding: 6px 12px;"><i class="fa-solid fa-xmark"></i></button>
+            <button id="btn-close-modal" class="button button-outline" style="padding: 6px 12px;" title="Đóng popup"><i class="fa-solid fa-xmark"></i></button>
           </div>
         </div>
 

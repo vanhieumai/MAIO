@@ -2386,6 +2386,28 @@ textarea.form-control:focus {
 #contract-detail-modal .modal-header,
 .contract-detail-dialog .modal-header {
   flex-shrink: 0 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: flex-start !important;
+  flex-wrap: nowrap !important;
+  gap: 16px !important;
+  padding: 14px 20px !important;
+}
+
+#contract-detail-modal .modal-header > div:first-child,
+.contract-detail-dialog .modal-header > div:first-child {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+
+#contract-detail-modal .modal-header > div:last-child,
+.contract-detail-dialog .modal-header > div:last-child {
+  flex: 0 0 auto !important;
+  flex-shrink: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 2px !important;
 }
 
 #contract-detail-modal .modal-nav-wrap,
