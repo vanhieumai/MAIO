@@ -7767,8 +7767,8 @@ export class ContractsManager {
           : '';
 
         contractRowsHtml += `
-          <tr class="disburse-contract-row ${isSelected ? 'selected-contract-row' : ''}${rowStatusClass}" data-disburse-cid="${c.id}" title="${c.display_no ? `[${c.display_no}] ` : ''}${(c.scope_of_work || 'Hợp đồng thực hiện dự án')} | ${partnerName} (${c.status || 'Active'}) — Nhấp đúp để mở popup tổng thể bảng thu chi">
-            <td style="white-space: nowrap; font-weight: 700; padding: 3px 6px; text-align: center; color: #475569; font-size: 0.77rem;">
+          <tr class="disburse-contract-row ${isSelected ? 'selected-contract-row' : ''}${rowStatusClass}" data-disburse-cid="${c.id}" title="${c.display_no ? `[${c.display_no}] ` : ''}${(c.scope_of_work || 'Hợp đồng thực hiện dự án')} | ${partnerName} (${c.status || 'Active'}) — Nhấp đúp vào ô STT để mở popup HĐ, hoặc nhấp đúp vào dòng để mở Tổng thể bảng thu chi">
+            <td class="col-disburse-stt" style="white-space: nowrap; font-weight: 700; padding: 3px 6px; text-align: center; color: #475569; font-size: 0.77rem; cursor: pointer; user-select: none;" title="Nhấp đúp để mở popup chi tiết Hợp đồng / Phụ lục này (giống bên tab Hợp đồng)">
               ${isCpb 
                 ? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-size: 0.68rem; padding: 1.5px 4px;"><i class="fa-solid fa-receipt"></i> CPB</span>` 
                 : `<span style="${isAppendix ? 'color: #0369a1; font-weight: 600;' : ''}">${itemStt}</span>`}
@@ -7866,7 +7866,17 @@ export class ContractsManager {
           this.renderDisburseDetailTable(cid);
         });
 
-        // Click đúp (dblclick) vào hợp đồng để mở popup tổng thể bảng thu chi
+        // Click đúp (dblclick) vào cột thứ tự (ô STT) để mở popup xem chi tiết hợp đồng (giống bên tab Hợp đồng)
+        const sttCell = row.querySelector('.col-disburse-stt');
+        sttCell?.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          const cid = row.getAttribute('data-disburse-cid');
+          if (cid) {
+            this.openContractDetail(cid);
+          }
+        });
+
+        // Click đúp (dblclick) vào hợp đồng (ngoài ô STT) để mở popup tổng thể bảng thu chi
         row.addEventListener('dblclick', () => {
           const cid = row.getAttribute('data-disburse-cid');
           const c = this.contracts.find((item) => item.id === cid);

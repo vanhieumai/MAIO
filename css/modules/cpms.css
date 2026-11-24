@@ -2382,6 +2382,19 @@ textarea.form-control:focus {
   gap: 3px;
 }
 
+/* Cột số thứ tự (STT) trong bảng Giải ngân - Hỗ trợ nhấp đúp mở Popup HĐ */
+.col-disburse-stt {
+  user-select: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.disburse-contract-row:hover .col-disburse-stt:hover {
+  background-color: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+
+
 
 
 
