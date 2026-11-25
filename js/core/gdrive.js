@@ -69,7 +69,10 @@ export class GoogleDriveService {
                   }
 
                   this.accessToken = tokenResponse.access_token;
+                  const expiresInSec = Number(tokenResponse.expires_in) || 3500;
+                  const expiresAt = Date.now() + Math.max(60, expiresInSec - 60) * 1000;
                   sessionStorage.setItem('maio_gdrive_token', this.accessToken);
+                  sessionStorage.setItem('maio_gdrive_token_exp', String(expiresAt));
                   await this.fetchUserInfo();
                   if (this.currentUser) {
                     localStorage.setItem('maio_gdrive_user', JSON.stringify(this.currentUser));
@@ -87,15 +90,36 @@ export class GoogleDriveService {
             // Khôi phục phiên người dùng nếu đã đăng nhập trước đó
             const savedUserJson = localStorage.getItem('maio_gdrive_user');
             const savedToken = sessionStorage.getItem('maio_gdrive_token');
+            const savedExp = Number(sessionStorage.getItem('maio_gdrive_token_exp') || 0);
+            const isTokenValid =
+              Boolean(savedToken) &&
+              savedToken !== 'saved_session' &&
+              savedToken !== 'offline_local_session' &&
+              (!savedExp || Date.now() < savedExp);
+
             if (savedUserJson) {
               try {
                 const savedUser = JSON.parse(savedUserJson);
                 if (savedUser && savedUser.email) {
                   this.currentUser = savedUser;
-                  this.accessToken = savedToken || 'saved_session';
+                  if (savedUser.isOffline) {
+                    this.accessToken = 'offline_local_session';
+                  } else {
+                    this.accessToken = isTokenValid ? savedToken : null;
+                    if (!isTokenValid) {
+                      sessionStorage.removeItem('maio_gdrive_token');
+                      sessionStorage.removeItem('maio_gdrive_token_exp');
+                    }
+                  }
                   this.notifyAuthChange(this.currentUser);
-                  if (!savedUser.isOffline && savedToken) {
-                    this.ensureAppFolder().catch(() => {});
+                  if (!savedUser.isOffline && this.accessToken) {
+                    this.ensureAppFolder().catch((err) => {
+                      if (String(err?.message || '').includes('[401]')) {
+                        this.accessToken = null;
+                        sessionStorage.removeItem('maio_gdrive_token');
+                        sessionStorage.removeItem('maio_gdrive_token_exp');
+                      }
+                    });
                   }
                 } else {
                   this.notifyAuthChange(null);
@@ -213,12 +237,24 @@ export class GoogleDriveService {
     this.currentUser = null;
     this.appFolderId = null;
     sessionStorage.removeItem('maio_gdrive_token');
+    sessionStorage.removeItem('maio_gdrive_token_exp');
     localStorage.removeItem('maio_gdrive_user');
     this.notifyAuthChange(null);
   }
 
   isSignedIn() {
-    return !!this.accessToken;
+    if (!this.accessToken || this.accessToken === 'saved_session' || this.accessToken === 'offline_local_session') {
+      return false;
+    }
+    if (this.currentUser?.isOffline) return false;
+    const savedExp = Number(sessionStorage.getItem('maio_gdrive_token_exp') || 0);
+    if (savedExp && Date.now() >= savedExp) {
+      this.accessToken = null;
+      sessionStorage.removeItem('maio_gdrive_token');
+      sessionStorage.removeItem('maio_gdrive_token_exp');
+      return false;
+    }
+    return true;
   }
 
   /**

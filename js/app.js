@@ -3,7 +3,7 @@
  * Quản lý khởi tạo IndexedDB, nạp dữ liệu hạt giống CHC1, điều hướng phân hệ và kết nối đồng bộ.
  */
 
-import { gdrive } from './core/gdrive.js?v=5.1';
+import { gdrive } from './core/gdrive.js?v=5.2';
 import { db } from './core/db.js?v=5.1';
 import { contractsManager } from './modules/cpms/contracts.js?v=7.3';
 
@@ -864,7 +864,27 @@ class App {
         }
       } catch (e) {
         if (statusBox) {
-          statusBox.innerHTML = `<span style="color: #dc2626;"><i class="fa-solid fa-circle-xmark"></i> Lỗi kiểm tra Drive: ${e.message}</span>`;
+          const msg = String(e?.message || '');
+          if (msg.includes('[401]')) {
+            gdrive.accessToken = null;
+            sessionStorage.removeItem('maio_gdrive_token');
+            sessionStorage.removeItem('maio_gdrive_token_exp');
+            statusBox.innerHTML = `
+              <div style="color: #dc2626; margin-bottom: 6px;">
+                <i class="fa-solid fa-circle-xmark"></i> Phiên đăng nhập Google Drive đã hết hạn (401).
+              </div>
+              <button type="button" id="btn-reauth-drive-in-modal" class="button button-primary button-sm">
+                <i class="fa-brands fa-google"></i> Đăng nhập lại Google Drive
+              </button>
+            `;
+            statusBox.querySelector('#btn-reauth-drive-in-modal')?.addEventListener('click', () => {
+              closeModal();
+              this.pendingSyncAction = 'to-drive';
+              gdrive.signIn();
+            });
+          } else {
+            statusBox.innerHTML = `<span style="color: #dc2626;"><i class="fa-solid fa-circle-xmark"></i> Lỗi kiểm tra Drive: ${msg}</span>`;
+          }
         }
       }
     })();
