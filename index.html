@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="css/main.css?v=5.0">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=8.9">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=9.0">
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -155,8 +155,11 @@
                 </select>
                 <span id="top-project-name" class="hidden">Chưa có dự án nào</span>
               </div>
-              <div class="top-project-meta">
+              <div class="top-project-meta" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                 <span><i class="fa-solid fa-location-dot" style="color: #ef4444;"></i> Địa điểm: <strong id="top-project-location">—</strong></span>
+                <span id="top-project-source-badge" class="project-source-badge source-browser" title="Nguồn dữ liệu dự án đang mở">
+                  <i class="fa-solid fa-database"></i> Bộ nhớ trình duyệt
+                </span>
               </div>
             </div>
           </div>
@@ -701,6 +704,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=9.9"></script>
+  <script type="module" src="js/app.js?v=10.0"></script>
 </body>
 </html>

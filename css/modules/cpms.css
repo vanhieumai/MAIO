@@ -3329,6 +3329,52 @@ select.reminder-category-select {
   border-color: #fca5a5 !important;
 }
 
+/* Badge hiển thị nguồn dữ liệu đang mở (Local vs Google Drive Online) */
+.project-source-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  white-space: nowrap;
+}
+.project-source-badge.source-local {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+.project-source-badge.source-drive {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.project-source-badge.source-hybrid {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+/* Progress bar cho modal đồng bộ Google Drive */
+.drive-sync-progress-wrap {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 8px 0 6px;
+}
+.drive-sync-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%);
+  transition: width 0.2s ease;
+}
+
 /* Hiệu ứng nhấp nháy dòng khi chuyển tới (Go to) từ Reminders */
 .row-highlight-active {
   animation: rowFlashPulse 1s ease-in-out infinite alternate;

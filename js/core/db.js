@@ -267,32 +267,46 @@ class DatabaseEngine {
   }
 
   /**
-   * Sao chép dữ liệu từ Cục bộ sang tài khoản Google khi người dùng vừa đăng nhập
+   * Hợp nhất dữ liệu từ Cục bộ (MAIO_LocalDB) sang tài khoản Google khi đăng nhập
+   * Đảm bảo dự án đang mở ở Local không bao giờ bị biến mất khi chuyển sang Google Drive
    */
-  async copyLocalDataIfEmpty(newUserEmail) {
+  async copyLocalDataIfEmpty(newUserEmail, preferredProjectId = null) {
     if (!newUserEmail) return;
     const clean = newUserEmail.toLowerCase().trim();
     if (clean === 'local_user@maio.local' || clean.startsWith('demo_user')) return;
 
     try {
-      // 1. Kiểm tra DB mới của user có dự án nào chưa
-      const curProjects = await this.getAll('projects');
-      if (curProjects && curProjects.length > 0) return;
-
-      // 2. Đọc từ MAIO_LocalDB
       const localProjects = await this.readAllFromNamedDb('MAIO_LocalDB', 'projects');
-      if (localProjects && localProjects.length > 0) {
-        const localContracts = await this.readAllFromNamedDb('MAIO_LocalDB', 'contracts');
-        const localPayments = await this.readAllFromNamedDb('MAIO_LocalDB', 'payments');
-        const localDocs = await this.readAllFromNamedDb('MAIO_LocalDB', 'documents');
+      if (!localProjects || localProjects.length === 0) return;
 
-        for (const p of localProjects) await this.save('projects', p);
-        for (const c of localContracts) await this.save('contracts', c);
-        for (const pay of localPayments) await this.save('payments', pay);
-        for (const d of localDocs) await this.save('documents', d);
+      const curProjects = await this.getAll('projects');
+      const existingPrjIds = new Set((curProjects || []).map((p) => p.id));
 
-        console.log(`Đã chuyển toàn bộ ${localProjects.length} dự án từ Cục bộ sang tài khoản Google: ${newUserEmail}`);
+      // Xác định các dự án cần chuyển sang: toàn bộ nếu DB user đang rỗng, hoặc dự án đang mở (preferredProjectId) nếu chưa có trong DB user
+      const projectsToCopy =
+        curProjects.length === 0
+          ? localProjects
+          : localProjects.filter((p) => !existingPrjIds.has(p.id) || (preferredProjectId && p.id === preferredProjectId));
+
+      if (projectsToCopy.length === 0) return;
+
+      const copyPrjIds = new Set(projectsToCopy.map((p) => p.id));
+      const localContracts = await this.readAllFromNamedDb('MAIO_LocalDB', 'contracts');
+      const localPayments = await this.readAllFromNamedDb('MAIO_LocalDB', 'payments');
+      const localDocs = await this.readAllFromNamedDb('MAIO_LocalDB', 'documents');
+
+      for (const p of projectsToCopy) await this.save('projects', p);
+      for (const c of localContracts) {
+        if (!c.project_id || copyPrjIds.has(c.project_id)) await this.save('contracts', c);
       }
+      for (const pay of localPayments) {
+        if (!pay.project_id || copyPrjIds.has(pay.project_id)) await this.save('payments', pay);
+      }
+      for (const d of localDocs) {
+        if (!d.project_id || copyPrjIds.has(d.project_id)) await this.save('documents', d);
+      }
+
+      console.log(`Đã đồng bộ ${projectsToCopy.length} dự án từ Cục bộ sang tài khoản Google: ${newUserEmail}`);
     } catch (e) {
       console.warn('Lỗi copy dữ liệu local sang user DB:', e);
     }

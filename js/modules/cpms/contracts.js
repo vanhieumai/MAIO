@@ -78,6 +78,13 @@ export class ContractsManager {
   }
 
   /**
+   * Tạo binary buffer file .cpms/.xlsx từ dữ liệu dự án hiện tại trong IndexedDB
+   */
+  async buildProjectCPMSBuffer(projectId = this.currentProjectId) {
+    return await CPMSImporterExporter.buildCPMSBinaryBuffer(projectId);
+  }
+
+  /**
    * Tự động lưu mọi thay đổi trực tiếp vào file máy tính đã liên kết
    */
   async syncToLocalFile(isManual = false) {
@@ -1548,6 +1555,10 @@ export class ContractsManager {
     const topProjLoc = document.getElementById('top-project-location');
     if (topProjName) topProjName.textContent = curPrj.name || curPrj.id;
     if (topProjLoc) topProjLoc.textContent = location;
+
+    if (typeof window.__MAIO_APP__?.updateProjectSourceBadge === 'function') {
+      window.__MAIO_APP__.updateProjectSourceBadge();
+    }
 
     // Cập nhật text trong dropdown dự án nếu cần
     const selOpt = document.querySelector(`#project-selector option[value="${curPrj.id}"]`);
