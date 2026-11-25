@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.2';
 import { db } from './core/db.js?v=5.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=7.6';
+import { contractsManager } from './modules/cpms/contracts.js?v=7.8';
 
 class App {
   constructor() {
@@ -330,7 +330,17 @@ class App {
     });
 
     document.getElementById('btn-profile-clear-cache')?.addEventListener('click', async () => {
-      if (confirm('LƯU Ý QUAN TRỌNG:\n\nThao tác này sẽ xóa sạch dữ liệu IndexedDB lưu tạm trên trình duyệt của tài khoản này.\n\nNếu bạn đã sao lưu lên file .cpms hoặc Google Drive, dữ liệu vẫn an toàn.\n\nBạn có chắc chắn muốn xóa không?')) {
+      const ok = await (window.maioConfirm
+        ? window.maioConfirm({
+            title: 'Xóa bộ nhớ tạm trình duyệt',
+            message: 'Thao tác này sẽ xóa sạch dữ liệu IndexedDB lưu tạm trên trình duyệt của tài khoản này.',
+            subMessage: 'Nếu bạn đã sao lưu lên file .cpms hoặc Google Drive, dữ liệu vẫn an toàn.',
+            confirmText: 'Xóa bộ nhớ tạm',
+            cancelText: 'Hủy bỏ',
+            confirmType: 'danger',
+          })
+        : Promise.resolve(confirm('Bạn có chắc chắn muốn xóa bộ nhớ tạm trình duyệt không?')));
+      if (ok) {
         await db.clear();
         alert('Đã xóa bộ nhớ tạm trình duyệt. Trang sẽ được tải lại.');
         window.location.reload();
@@ -338,8 +348,17 @@ class App {
     });
   }
 
-  handleLogout() {
-    if (confirm('Bạn có chắc muốn thoát phiên làm việc hiện tại không?')) {
+  async handleLogout() {
+    const ok = await (window.maioConfirm
+      ? window.maioConfirm({
+          title: 'Thoát phiên làm việc',
+          message: 'Bạn có chắc muốn thoát phiên làm việc hiện tại không?',
+          confirmText: 'Đăng xuất',
+          cancelText: 'Ở lại',
+          confirmType: 'primary',
+        })
+      : Promise.resolve(confirm('Bạn có chắc muốn thoát phiên làm việc hiện tại không?')));
+    if (ok) {
       gdrive.signOut();
     }
   }
@@ -488,8 +507,17 @@ class App {
       }, 150);
     });
 
-    logoutBtn?.addEventListener('click', () => {
-      if (confirm('Bạn có chắc muốn thoát phiên làm việc này không?')) {
+    logoutBtn?.addEventListener('click', async () => {
+      const ok = await (window.maioConfirm
+        ? window.maioConfirm({
+            title: 'Thoát phiên làm việc',
+            message: 'Bạn có chắc muốn thoát phiên làm việc này không?',
+            confirmText: 'Đăng xuất',
+            cancelText: 'Ở lại',
+            confirmType: 'primary',
+          })
+        : Promise.resolve(confirm('Bạn có chắc muốn thoát phiên làm việc này không?')));
+      if (ok) {
         gdrive.signOut();
       }
     });
@@ -508,9 +536,15 @@ class App {
     const syncToDriveBtn = document.getElementById('btn-sync-to-drive');
     syncToDriveBtn?.addEventListener('click', async () => {
       if (gdrive.currentUser?.isOffline || !gdrive.isSignedIn()) {
-        const wantLogin = confirm(
-          'Bạn đang ở chế độ làm việc Cục bộ (Offline).\n\nĐể sao lưu dữ liệu lên Google Drive, bạn cần kết nối tài khoản Google Drive của mình.\n\nBạn có muốn đăng nhập Google Drive ngay bây giờ không?'
-        );
+        const wantLogin = await (window.maioConfirm
+          ? window.maioConfirm({
+              title: 'Kết nối Google Drive',
+              message: 'Bạn đang ở chế độ làm việc Cục bộ (Offline). Để sao lưu dữ liệu lên Google Drive, bạn cần đăng nhập tài khoản Google Drive của mình.',
+              confirmText: 'Đăng nhập Google',
+              cancelText: 'Để sau',
+              confirmType: 'primary',
+            })
+          : Promise.resolve(confirm('Bạn có muốn đăng nhập Google Drive ngay bây giờ không?')));
         if (wantLogin) {
           this.pendingSyncAction = 'to-drive';
           handleLogin();
@@ -524,9 +558,15 @@ class App {
     const syncFromDriveBtn = document.getElementById('btn-sync-from-drive');
     syncFromDriveBtn?.addEventListener('click', async () => {
       if (gdrive.currentUser?.isOffline || !gdrive.isSignedIn()) {
-        const wantLogin = confirm(
-          'Bạn đang ở chế độ làm việc Cục bộ (Offline).\n\nĐể đồng bộ dữ liệu từ Google Drive về máy tính, bạn cần kết nối tài khoản Google Drive của mình.\n\nBạn có muốn đăng nhập Google Drive ngay bây giờ không?'
-        );
+        const wantLogin = await (window.maioConfirm
+          ? window.maioConfirm({
+              title: 'Kết nối Google Drive',
+              message: 'Bạn đang ở chế độ làm việc Cục bộ (Offline). Để đồng bộ dữ liệu từ Google Drive về máy tính, bạn cần đăng nhập tài khoản Google Drive của mình.',
+              confirmText: 'Đăng nhập Google',
+              cancelText: 'Để sau',
+              confirmType: 'primary',
+            })
+          : Promise.resolve(confirm('Bạn có muốn đăng nhập Google Drive ngay bây giờ không?')));
         if (wantLogin) {
           this.pendingSyncAction = 'from-drive';
           handleLogin();
@@ -1506,9 +1546,15 @@ class App {
       let selectedDirName = selectedDirHandle ? selectedDirHandle.name : '';
 
       if ('showDirectoryPicker' in window) {
-        const confirmPickDir = confirm(
-          `Bạn có muốn chọn thư mục trên máy tính để đồng bộ cây thư mục hồ sơ tài liệu về và cập nhật đường dẫn local không?\n\n- Bấm OK để chọn thư mục lưu trữ trên máy tính\n- Bấm Cancel để giữ nguyên dữ liệu local hiện tại`
-        );
+        const confirmPickDir = await (window.maioConfirm
+          ? window.maioConfirm({
+              title: 'Chọn thư mục lưu trữ trên máy tính',
+              message: 'Bạn có muốn chọn thư mục trên máy tính để tải cây thư mục hồ sơ từ Drive về và cập nhật lại đường dẫn Local trong CPMS không?',
+              confirmText: 'Chọn thư mục',
+              cancelText: 'Bỏ qua',
+              confirmType: 'primary',
+            })
+          : Promise.resolve(confirm('Bạn có muốn chọn thư mục trên máy tính để đồng bộ cây thư mục hồ sơ về không?')));
         if (confirmPickDir) {
           try {
             selectedDirHandle = await window.showDirectoryPicker();

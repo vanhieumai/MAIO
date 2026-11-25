@@ -39,6 +39,11 @@ export class ContractsManager {
     this.reminderEventsBound = false;
     this._driveAutoSaveTimer = null;
     this._driveFolderCache = new Map();
+    this._lastKnownFileModified = 0;
+    this._isSyncingLocalFile = false;
+    this._isCheckingFileChange = false;
+    this._localFileWatcherStarted = false;
+    window.maioConfirm = (opts) => this.confirmAsync(opts);
   }
 
   showLocalSaveStatus(message, isError = false) {
@@ -198,10 +203,18 @@ export class ContractsManager {
         }
       }
 
+      this._isSyncingLocalFile = true;
       const buffer = await CPMSImporterExporter.buildCPMSBinaryBuffer(this.currentProjectId);
       const writable = await this.activeFileHandle.createWritable();
       await writable.write(buffer);
       await writable.close();
+
+      try {
+        const updatedFile = await this.activeFileHandle.getFile();
+        this._lastKnownFileModified = updatedFile.lastModified || Date.now();
+      } catch (_) {
+        this._lastKnownFileModified = Date.now();
+      }
 
       const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
       if (curPrj) {
@@ -215,6 +228,59 @@ export class ContractsManager {
       console.warn('Lỗi lưu file local:', err);
       this.showLocalSaveStatus(`Không thể ghi file "${this.activeFileHandle.name}": ${err.message}`, true);
       return false;
+    } finally {
+      this._isSyncingLocalFile = false;
+    }
+  }
+
+  /**
+   * Theo dõi sự thay đổi của file .cpms trên máy tính (khi sửa từ trình duyệt khác hoặc Excel/CPMS Plus)
+   */
+  startLocalFileWatcher() {
+    if (this._localFileWatcherStarted) return;
+    this._localFileWatcherStarted = true;
+
+    window.addEventListener('focus', () => {
+      this.checkExternalLocalFileUpdate();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.checkExternalLocalFileUpdate();
+      }
+    });
+    setInterval(() => {
+      this.checkExternalLocalFileUpdate();
+    }, 4000);
+  }
+
+  async checkExternalLocalFileUpdate() {
+    if (!this.activeFileHandle || this._isSyncingLocalFile || this._isCheckingFileChange) return;
+    this._isCheckingFileChange = true;
+    try {
+      if (typeof this.activeFileHandle.queryPermission === 'function') {
+        const perm = await this.activeFileHandle.queryPermission({ mode: 'read' });
+        if (perm !== 'granted') return;
+      }
+      const file = await this.activeFileHandle.getFile();
+      if (!this._lastKnownFileModified) {
+        this._lastKnownFileModified = file.lastModified || 0;
+        return;
+      }
+      if (file.lastModified && file.lastModified > this._lastKnownFileModified + 500) {
+        this._lastKnownFileModified = file.lastModified;
+        const result = await CPMSImporterExporter.importCPMSFile(file);
+        this.currentProjectId = result.projectData.id;
+        await this.loadData();
+        this.render();
+        if (typeof window.__MAIO_APP__?.updateDashboardStats === 'function') {
+          await window.__MAIO_APP__.updateDashboardStats();
+        }
+        this.showLocalSaveStatus(`Phát hiện "${file.name}" vừa thay đổi từ bên ngoài — đã tự động cập nhật dữ liệu mới!`);
+      }
+    } catch (err) {
+      console.warn('Lỗi kiểm tra thay đổi file local:', err);
+    } finally {
+      this._isCheckingFileChange = false;
     }
   }
 
@@ -245,6 +311,8 @@ export class ContractsManager {
           }
           this.activeFileHandle = handle;
           const file = await handle.getFile();
+          this._lastKnownFileModified = file.lastModified || Date.now();
+          this.startLocalFileWatcher();
           const result = await CPMSImporterExporter.importCPMSFile(file);
           result.projectData.data_origin = 'local';
           await db.put('projects', result.projectData);
@@ -420,7 +488,19 @@ export class ContractsManager {
       const savedFileHandle = await db.getProjectFileHandle(this.currentProjectId);
       if (savedFileHandle) {
         this.activeFileHandle = savedFileHandle;
+        if (!this._lastKnownFileModified && typeof savedFileHandle.queryPermission === 'function') {
+          try {
+            const p = await savedFileHandle.queryPermission({ mode: 'read' });
+            if (p === 'granted') {
+              const f = await savedFileHandle.getFile();
+              this._lastKnownFileModified = f.lastModified || 0;
+            }
+          } catch (_) {}
+        }
       }
+    }
+    if (this.activeFileHandle) {
+      this.startLocalFileWatcher();
     }
 
     if (!this.currentProjectId) {
@@ -916,6 +996,8 @@ export class ContractsManager {
 
     if (!this.projects || this.projects.length === 0) {
       this.currentProjectId = null;
+      this.activeFileHandle = null;
+      this._lastKnownFileModified = 0;
       selector.innerHTML = `
         <option value="" disabled selected>-- Chưa có dự án nào --</option>
         <option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>
@@ -926,6 +1008,9 @@ export class ContractsManager {
       if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
       const topProjLoc = document.getElementById('top-project-location');
       if (topProjLoc) topProjLoc.textContent = '—';
+      if (typeof window.__MAIO_APP__?.updateProjectSourceBadge === 'function') {
+        window.__MAIO_APP__.updateProjectSourceBadge();
+      }
       return;
     }
 
@@ -1084,30 +1169,43 @@ export class ContractsManager {
       const curProject = this.projects.find((p) => p.id === this.currentProjectId) || { id: this.currentProjectId, name: this.currentProjectId };
       const prjName = curProject.name || curProject.id;
 
-      const confirmed = confirm(
-        `⚠️ CẢNH BÁO XÓA DỰ ÁN!\n\nBạn có chắc chắn muốn xóa vĩnh viễn dự án "${prjName}" (Mã: ${this.currentProjectId}) không?\n\nHành động này sẽ xóa vĩnh viễn:\n- Toàn bộ danh mục Hợp đồng & Phụ lục của dự án\n- Toàn bộ Sổ theo dõi thanh toán (IPC)\n- Toàn bộ Hồ sơ & Công văn liên quan\n\nDữ liệu sau khi xóa sẽ không thể phục hồi!`
-      );
+      const confirmed = await this.confirmAsync({
+        title: 'Cảnh báo xóa Dự án',
+        message: `Bạn có chắc chắn muốn xóa vĩnh viễn dự án "${prjName}" (Mã: ${this.currentProjectId}) không?`,
+        subMessage:
+          'Hành động này sẽ xóa vĩnh viễn toàn bộ Hợp đồng & Phụ lục, Sổ thanh toán (IPC) và Hồ sơ liên quan. Không thể phục hồi!',
+        confirmText: 'Xóa dự án',
+        cancelText: 'Hủy bỏ',
+        confirmType: 'danger',
+      });
 
       if (!confirmed) return;
 
+      const deletedPrjId = this.currentProjectId;
       if (typeof db.deleteProjectCascade === 'function') {
-        await db.deleteProjectCascade(this.currentProjectId);
+        await db.deleteProjectCascade(deletedPrjId);
       } else {
         // Fallback an toàn nếu trình duyệt chưa reload module db.js
-        await db.delete('projects', this.currentProjectId);
+        await db.delete('projects', deletedPrjId);
         const allContracts = await db.getAll('contracts');
         for (const c of allContracts) {
-          if (c.project_id === this.currentProjectId) await db.delete('contracts', c.id);
+          if (c.project_id === deletedPrjId) await db.delete('contracts', c.id);
         }
         const allPayments = await db.getAll('payments');
         for (const p of allPayments) {
-          if (p.project_id === this.currentProjectId) await db.delete('payments', p.id);
+          if (p.project_id === deletedPrjId) await db.delete('payments', p.id);
         }
         const allDocs = await db.getAll('documents');
         for (const d of allDocs) {
-          if (d.project_id === this.currentProjectId) await db.delete('documents', d.id);
+          if (d.project_id === deletedPrjId) await db.delete('documents', d.id);
         }
       }
+
+      if (typeof db.deleteProjectFileHandle === 'function') {
+        await db.deleteProjectFileHandle(deletedPrjId);
+      }
+      this.activeFileHandle = null;
+      this._lastKnownFileModified = 0;
 
       // Cập nhật lại danh sách dự án
       this.projects = await db.getAll('projects');
@@ -1121,6 +1219,9 @@ export class ContractsManager {
       await this.loadData();
       this.render();
       this.updateEmptyStateUI();
+      if (typeof window.__MAIO_APP__?.updateProjectSourceBadge === 'function') {
+        window.__MAIO_APP__.updateProjectSourceBadge();
+      }
       if (window.app) {
         await window.app.updateDashboardStats();
       }
@@ -4036,7 +4137,14 @@ export class ContractsManager {
     modal.querySelectorAll('.btn-delete-doc').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         const docId = btn.getAttribute('data-doc-id');
-        if (confirm(`Bạn có chắc muốn xóa hồ sơ ${docId} không?`)) {
+        const ok = await this.confirmAsync({
+          title: 'Xác nhận xóa hồ sơ',
+          message: `Bạn có chắc muốn xóa hồ sơ "${docId}" không?`,
+          confirmText: 'Xóa hồ sơ',
+          cancelText: 'Hủy bỏ',
+          confirmType: 'danger',
+        });
+        if (ok) {
           await db.delete('documents', docId);
           await this.loadData();
           await this.syncToLocalFile();
@@ -5116,17 +5224,18 @@ export class ContractsManager {
     const delPayments = (this.payments || []).filter((p) => allIds.includes(p.contract_id));
     const delDocs = (this.documents || []).filter((d) => allIds.includes(d.contract_id));
 
-    let confirmMsg = `Bạn có chắc chắn muốn xóa Hợp đồng "${contract.contract_no || contract.id}" không?`;
-    if (descendantIds.length > 0 || delPayments.length > 0 || delDocs.length > 0) {
-      confirmMsg = `CẢNH BÁO XÓA HỢP ĐỒNG!\n\n` +
-        `Bạn có chắc chắn muốn xóa "${contract.contract_no || contract.id}"?\n\n` +
-        `• ${descendantIds.length} Phụ lục / Gói con trực thuộc sẽ bị xóa theo.\n` +
-        `• ${delPayments.length} đợt thanh toán / giải ngân liên quan sẽ bị xóa.\n` +
-        `• ${delDocs.length} hồ sơ tài liệu chứng từ liên quan sẽ bị xóa.\n\n` +
-        `Dữ liệu sẽ được tự động đồng bộ sang file CPMS trên máy tính. Hành động này không thể hoàn tác!`;
-    }
-
-    if (!confirm(confirmMsg)) return;
+    const okDelete = await this.confirmAsync({
+      title: 'Xác nhận xóa Hợp đồng',
+      message: `Bạn có chắc chắn muốn xóa Hợp đồng "${contract.contract_no || contract.id}" không?`,
+      subMessage:
+        descendantIds.length > 0 || delPayments.length > 0 || delDocs.length > 0
+          ? `Sẽ xóa theo: ${descendantIds.length} Phụ lục/Gói con, ${delPayments.length} đợt thanh toán và ${delDocs.length} hồ sơ liên quan. Hành động này không thể hoàn tác!`
+          : 'Dữ liệu sẽ được tự động đồng bộ sang file CPMS. Hành động này không thể hoàn tác!',
+      confirmText: 'Xóa hợp đồng',
+      cancelText: 'Hủy bỏ',
+      confirmType: 'danger',
+    });
+    if (!okDelete) return;
 
     try {
       // Gỡ liên kết ở các hợp đồng khác đang trỏ tới hợp đồng bị xóa
@@ -7597,6 +7706,69 @@ export class ContractsManager {
     });
   }
 
+  /**
+   * Hiển thị hộp thoại xác nhận đồng bộ giao diện MAIO và trả về Promise<boolean>
+   */
+  confirmAsync(optionsOrMessage) {
+    const opts =
+      typeof optionsOrMessage === 'string'
+        ? { message: optionsOrMessage, confirmType: 'primary' }
+        : optionsOrMessage || {};
+    const {
+      title = 'Xác nhận thao tác',
+      message = 'Bạn có chắc chắn muốn thực hiện thao tác này không?',
+      subMessage = '',
+      confirmText = 'Xác nhận',
+      cancelText = 'Hủy bỏ',
+      confirmType = 'primary',
+    } = opts;
+
+    return new Promise((resolve) => {
+      const isDanger = confirmType === 'danger';
+      const formattedMsg = String(message).replace(/\n/g, '<br>');
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay custom-confirm-overlay';
+      modal.style.zIndex = '999999';
+      modal.innerHTML = `
+        <div class="modal-container custom-confirm-container" style="max-width: 440px; border-radius: 14px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.1); overflow: hidden; background: #ffffff;">
+          <div style="padding: 24px 24px 18px; text-align: center;">
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: ${isDanger ? '#fee2e2' : '#e0f2fe'}; color: ${isDanger ? '#dc2626' : '#0284c7'}; display: inline-flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 14px;">
+              <i class="fa-solid ${isDanger ? 'fa-triangle-exclamation' : 'fa-circle-question'}"></i>
+            </div>
+            <h4 style="margin: 0 0 8px; font-size: 1.1rem; font-weight: 800; color: #1e293b;">${title}</h4>
+            <p style="margin: 0; font-size: 0.88rem; color: #475569; line-height: 1.5;">${formattedMsg}</p>
+            ${subMessage ? `<div style="margin-top: 10px; font-size: 0.78rem; color: #94a3b8; line-height: 1.4;">${subMessage}</div>` : ''}
+          </div>
+          <div style="padding: 14px 24px; background: #f8fafc; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+            <button type="button" class="button button-outline button-sm btn-confirm-cancel" style="padding: 6px 14px;">${cancelText}</button>
+            <button type="button" class="button button-sm btn-confirm-ok" style="${isDanger ? 'background: #dc2626; color: #fff; border-color: #b91c1c;' : 'background: var(--primary); color: #fff;'}; font-weight: 600; padding: 6px 16px;">
+              ${confirmText}
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      let settled = false;
+      const finish = (val) => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', onKey);
+        modal.remove();
+        resolve(val);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Escape') finish(false);
+      };
+      document.addEventListener('keydown', onKey);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) finish(false);
+      });
+      modal.querySelector('.btn-confirm-cancel')?.addEventListener('click', () => finish(false));
+      modal.querySelector('.btn-confirm-ok')?.addEventListener('click', () => finish(true));
+    });
+  }
+
   showToast(message, type = 'info') {
     let container = document.getElementById('maio-toast-container');
     if (!container) {
@@ -9740,13 +9912,15 @@ export class ContractsManager {
     document.getElementById('btn-reminder-delete-orphan')?.addEventListener('click', async () => {
       if (!selectedDoc) return;
       const docLabel = selectedDoc.doc_no || selectedDoc.title || selectedDoc.name || selectedDoc.id;
-      if (
-        !confirm(
-          `Bạn có chắc chắn muốn xóa vĩnh viễn tài liệu chưa gắn hợp đồng này?\n\n• Số / Tên: ${docLabel}\n• ID: ${selectedDoc.id}`
-        )
-      ) {
-        return;
-      }
+      const ok = await this.confirmAsync({
+        title: 'Xóa tài liệu chưa gắn hợp đồng',
+        message: `Bạn có chắc chắn muốn xóa vĩnh viễn tài liệu "${docLabel}" không?`,
+        subMessage: `Mã nội bộ: ${selectedDoc.id}. Thao tác này không thể hoàn tác!`,
+        confirmText: 'Xóa tài liệu',
+        cancelText: 'Hủy bỏ',
+        confirmType: 'danger',
+      });
+      if (!ok) return;
 
       await db.delete('documents', selectedDoc.id);
       this.selectedReminderDocId = null;

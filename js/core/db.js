@@ -482,6 +482,41 @@ class DatabaseEngine {
       req.onerror = () => resolve(null);
     });
   }
+
+  /**
+   * Xóa FileSystemFileHandle đã lưu khi xóa dự án
+   */
+  async deleteProjectFileHandle(projectId) {
+    if (!projectId) return false;
+    return new Promise((resolve) => {
+      const req = indexedDB.open('MAIO_HandlesDB', 1);
+      req.onupgradeneeded = (e) => {
+        const hdb = e.target.result;
+        if (!hdb.objectStoreNames.contains('dir_handles')) {
+          hdb.createObjectStore('dir_handles', { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = (e) => {
+        const hdb = e.target.result;
+        try {
+          const tx = hdb.transaction(['dir_handles'], 'readwrite');
+          tx.objectStore('dir_handles').delete(`cpms_file_${projectId}`);
+          tx.oncomplete = () => {
+            hdb.close();
+            resolve(true);
+          };
+          tx.onerror = () => {
+            hdb.close();
+            resolve(false);
+          };
+        } catch (_) {
+          hdb.close();
+          resolve(false);
+        }
+      };
+      req.onerror = () => resolve(false);
+    });
+  }
 }
 
 if (!window.__MAIO_DB_ENGINE__) {
