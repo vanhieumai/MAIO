@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.2';
 import { db } from './core/db.js?v=5.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=8.0';
+import { contractsManager } from './modules/cpms/contracts.js?v=8.1';
 
 class App {
   constructor() {

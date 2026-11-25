@@ -304,11 +304,6 @@ export class ContractsManager {
         });
 
         if (handle) {
-          if (typeof handle.requestPermission === 'function') {
-            try {
-              await handle.requestPermission({ mode: 'readwrite' });
-            } catch (_) {}
-          }
           this.activeFileHandle = handle;
           const file = await handle.getFile();
           this._lastKnownFileModified = file.lastModified || Date.now();
