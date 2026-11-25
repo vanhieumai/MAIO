@@ -166,15 +166,15 @@
 
           <!-- Vùng PHẢI: Cụm Nút Thao tác Dự án (Icon Only) + Khối Đồng bộ Google Drive -->
           <div class="top-header-actions-group">
-            <!-- Cụm Icon Thao tác Dự án (Sao chép, Nhập file, Xuất CPMS, Xóa) luôn hiện trên cả 3 tab -->
+            <!-- Cụm Icon Thao tác Dự án (Nhập file, Mở thư mục, Xuất CPMS, Xóa) luôn hiện trên cả 4 tab -->
             <div class="project-action-icons">
-              <button id="btn-clone-project" class="button button-outline btn-banner-action" title="Sao chép toàn bộ dự án hiện tại thành dự án mới">
-                <i class="fa-solid fa-copy" style="color: #6366f1;"></i>
-              </button>
               <button id="btn-import-project" class="button button-outline btn-banner-action" title="Nhập dữ liệu CPMS (Dẫn file Local từ máy tính)">
                 <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i>
               </button>
-              <button id="btn-export-cpms" class="button button-outline btn-banner-action" title="Xuất toàn bộ dữ liệu dự án ra file .xlsx / .cpms">
+              <button id="btn-open-cpms-folder" class="button button-outline btn-banner-action" title="Mở thư mục chứa file CPMS đang liên kết">
+                <i class="fa-solid fa-folder-open" style="color: #d97706;"></i>
+              </button>
+              <button id="btn-export-cpms" class="button button-outline btn-banner-action" title="Xuất file .cpms vào thư mục đang gắn link">
                 <i class="fa-solid fa-file-excel" style="color: #10b981;"></i>
               </button>
               <button id="btn-delete-project" class="button button-outline btn-banner-action" style="color: var(--danger); border-color: #fca5a5;" title="Xóa toàn bộ dữ liệu của dự án hiện tại">
@@ -704,6 +704,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=11.1"></script>
+  <script type="module" src="js/app.js?v=11.2"></script>
 </body>
 </html>

@@ -389,11 +389,11 @@ export class ContractsManager {
       // Hiển thị khung Empty State
       emptyContainer?.classList.remove('hidden');
 
-      // Ẩn các nút thao tác dự án không cần thiết (sao chép, xuất file, xóa), chỉ giữ icon dẫn file local
-      const btnClone = document.getElementById('btn-clone-project');
+      // Ẩn các nút thao tác dự án không cần thiết (mở thư mục, xuất file, xóa), chỉ giữ icon dẫn file local
+      const btnOpenFolder = document.getElementById('btn-open-cpms-folder');
       const btnExport = document.getElementById('btn-export-cpms');
       const btnDelete = document.getElementById('btn-delete-project');
-      if (btnClone) btnClone.style.display = 'none';
+      if (btnOpenFolder) btnOpenFolder.style.display = 'none';
       if (btnExport) btnExport.style.display = 'none';
       if (btnDelete) btnDelete.style.display = 'none';
     } else {
@@ -421,10 +421,10 @@ export class ContractsManager {
       }
 
       // Hiện lại các nút thao tác dự án
-      const btnClone = document.getElementById('btn-clone-project');
+      const btnOpenFolder = document.getElementById('btn-open-cpms-folder');
       const btnExport = document.getElementById('btn-export-cpms');
       const btnDelete = document.getElementById('btn-delete-project');
-      if (btnClone) btnClone.style.display = '';
+      if (btnOpenFolder) btnOpenFolder.style.display = '';
       if (btnExport) btnExport.style.display = '';
       if (btnDelete) btnDelete.style.display = '';
     }
@@ -1121,24 +1121,111 @@ export class ContractsManager {
       }
     });
 
-    // Nút Sao chép Dự án
-    document.getElementById('btn-clone-project')?.addEventListener('click', () => {
-      this.openCloneProjectModal();
+    // Nút Mở thư mục chứa file CPMS đang liên kết
+    document.getElementById('btn-open-cpms-folder')?.addEventListener('click', async () => {
+      if (!this.activeFileHandle && this.currentProjectId) {
+        const saved = await db.getProjectFileHandle(this.currentProjectId);
+        if (saved) this.activeFileHandle = saved;
+      }
+      const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
+      const fullPath = curPrj?.source_full_path || '';
+
+      if (fullPath) {
+        await this.openLocalPath(fullPath, false, 'select');
+        return;
+      }
+
+      if (this.activeFileHandle && 'showOpenFilePicker' in window) {
+        try {
+          const [picked] = await window.showOpenFilePicker({
+            startIn: this.activeFileHandle,
+            types: [
+              {
+                description: 'Tệp dữ liệu CPMS (*.cpms, *.xlsx, *.xlsb)',
+                accept: {
+                  'application/octet-stream': ['.cpms', '.xlsb'],
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+                },
+              },
+            ],
+            multiple: false,
+          });
+          if (picked && picked.name !== this.activeFileHandle.name) {
+            this.activeFileHandle = picked;
+            const file = await picked.getFile();
+            this._lastKnownFileModified = file.lastModified || Date.now();
+            const result = await CPMSImporterExporter.importCPMSFile(file);
+            result.projectData.data_origin = 'local';
+            await db.put('projects', result.projectData);
+            await db.saveProjectFileHandle(result.projectData.id, picked);
+            this.currentProjectId = result.projectData.id;
+            await this.loadData();
+            this.render();
+          }
+          return;
+        } catch (e) {
+          if (e.name === 'AbortError') return;
+        }
+      }
+
+      alert('Chưa có file CPMS Local nào đang được liên kết cho dự án này. Vui lòng bấm "Dẫn file Local từ máy tính" trước.');
     });
 
-    // Nút Xuất CPMS (Tạo file .cpms chuẩn để Import vào CPMS Plus)
+    // Nút Xuất CPMS (Lưu file .cpms vào thư mục đang được gắn link)
     document.getElementById('btn-export-cpms')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-export-cpms');
+      const origText = btn ? btn.innerHTML : '';
       try {
-        const btn = document.getElementById('btn-export-cpms');
-        const origText = btn.innerHTML;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xuất...';
+        if (btn) {
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+        }
+
+        if (!this.activeFileHandle && this.currentProjectId) {
+          const saved = await db.getProjectFileHandle(this.currentProjectId);
+          if (saved) this.activeFileHandle = saved;
+        }
+
+        const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        const prjCode = String(curPrj?.code || this.currentProjectId || 'MAIO').replace(/[\/\\?%*:|"<>]/g, '_');
+        const suggestedName = `${prjCode}_${ts}.cpms`;
+
+        if ('showSaveFilePicker' in window) {
+          try {
+            const saveHandle = await window.showSaveFilePicker({
+              suggestedName,
+              startIn: this.activeFileHandle || 'documents',
+              types: [
+                {
+                  description: 'Tệp dữ liệu CPMS (*.cpms)',
+                  accept: { 'application/octet-stream': ['.cpms'] },
+                },
+              ],
+            });
+            const buffer = await CPMSImporterExporter.buildCPMSBinaryBuffer(this.currentProjectId);
+            const writable = await saveHandle.createWritable();
+            await writable.write(buffer);
+            await writable.close();
+            this.showLocalSaveStatus(`Đã xuất file "${saveHandle.name}" thành công!`);
+            return;
+          } catch (pickerErr) {
+            if (pickerErr.name === 'AbortError') return;
+            console.warn('Fallback sang tải xuống trình duyệt:', pickerErr);
+          }
+        }
+
         const exportedFile = await CPMSImporterExporter.exportToCPMSFormat(this.currentProjectId, 'cpms');
-        btn.disabled = false;
-        btn.innerHTML = origText;
-        alert(`Đã xuất thành công file "${exportedFile}"!\n\nFile này tương thích 100% với tính năng Import của CPMS Plus, đồng thời chứa đầy đủ các cột và công thức tính toán.`);
+        this.showLocalSaveStatus(`Đã xuất file "${exportedFile}" thành công!`);
       } catch (err) {
         alert('Lỗi xuất file CPMS: ' + err.message);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
       }
     });
 
