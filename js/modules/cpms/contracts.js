@@ -10,8 +10,8 @@
  * 2. Giải ngân & Thanh toán: CHỈ cộng các dòng giao dịch thực tế (is_header !== true), tuyệt đối không cộng dòng Header tổng hợp.
  */
 
-import { db } from '../../core/db.js?v=5.0';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.0';
+import { db } from '../../core/db.js?v=5.1';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.1';
 
 export class ContractsManager {
   constructor() {
@@ -1473,35 +1473,45 @@ export class ContractsManager {
     }
   }
 
+  /**
+   * Xác định thư mục con chuẩn trên Google Drive cho một hồ sơ:
+   * - HopDong_PL: Hợp đồng, Phụ lục (CON, APP, PL...)
+   * - ThanhToan: Hồ sơ thanh toán, tạm ứng (IPC, TT, ADV...)
+   * - HoSo: Các hồ sơ còn lại (VO, RFA, BB, TK, CV, NOTE, CMT, TRN, OTHER...)
+   */
+  getDriveSubfolderKeyForDoc(doc) {
+    if (!doc) return 'HoSo';
+    const cat = String(doc.category || '').trim().toUpperCase();
+    const title = String(doc.title || doc.name || '').toLowerCase();
+    const docNo = String(doc.doc_no || '').toUpperCase();
+
+    if (
+      ['CON', 'APP', 'PL', 'HD', 'HĐ'].includes(cat) ||
+      title.includes('hợp đồng') ||
+      title.includes('phụ lục') ||
+      title.includes('contract') ||
+      title.includes('appendix')
+    ) {
+      return 'HopDong_PL';
+    }
+
+    if (
+      ['IPC', 'TT', 'ADV', 'PAY'].includes(cat) ||
+      docNo.includes('.IPC.') ||
+      title.includes('interim payment') ||
+      title.includes('thanh toán') ||
+      title.includes('tạm ứng')
+    ) {
+      return 'ThanhToan';
+    }
+
+    return 'HoSo';
+  }
+
   getDriveDocPathForContract(contract) {
     const curPrjId = this.currentProjectId || 'CHC1';
-    const isMain = !contract.parent_id;
-    const parent = !isMain ? this.contracts.find((c) => c.id === contract.parent_id) : null;
-    const cleanNo = (no) => String(no || '').replace(/[\/\\?%*:|"<>]/g, '_');
-
-    const groupFolder = contract.group === 'A' ? '01_Nhom_A_ChuDauTu' : '02_Nhom_B_ThauPhu_NCC';
-
-    if (contract.group === 'A') {
-      const mainNo = isMain ? cleanNo(contract.contract_no) : (parent ? cleanNo(parent.contract_no) : cleanNo(contract.parent_id));
-      return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${mainNo} / Doc /`;
-    } else {
-      const validCategories = [
-        'Construction', 'Procurement', 'Consultancy', 'Design',
-        'Equipment', 'Service', 'Maintenance', 'Rental'
-      ];
-      let cat = contract.category || 'Construction';
-      const matched = validCategories.find((c) => c.toLowerCase() === cat.toLowerCase());
-      cat = matched || 'Construction';
-
-      if (isMain) {
-        const partnerName = cleanNo(contract.company_b || 'NCC');
-        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${cleanNo(contract.contract_no)}_${partnerName} / Doc /`;
-      } else {
-        const rootMain = parent && parent.parent_id ? this.contracts.find((c) => c.id === parent.parent_id) || parent : parent;
-        const parentNo = rootMain ? cleanNo(rootMain.contract_no) : cleanNo(contract.parent_id);
-        return `📁 MAIO_Data / 01_QuanLy_DuAn / DuAn_${curPrjId} / ${groupFolder} / ${cat} / ${parentNo} / Doc /`;
-      }
-    }
+    const safePrjId = String(curPrjId).replace(/[\/\\?%*:|"<>]/g, '_');
+    return `MAIO_Data / 01_QuanLy_DuAn / DuAn_${safePrjId} / HoSo /`;
   }
 
   renderProjectInfo() {

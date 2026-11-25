@@ -298,12 +298,34 @@ export class GoogleDriveService {
   }
 
   /**
+   * Liệt kê các thư mục con trực tiếp trong một thư mục cha
+   */
+  async findFoldersInParent(parentFolderId) {
+    if (!this.accessToken) return [];
+    const parentId = parentFolderId || this.appFolderId;
+    if (!parentId) return [];
+    const query = `mimeType='application/vnd.google-apps.folder' and '${parentId}' in parents and trashed=false`;
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)&orderBy=modifiedTime desc`,
+        { headers: { Authorization: `Bearer ${this.accessToken}` } }
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.files || [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /**
    * Tìm một thư mục con theo tên trong thư mục cha
    */
   async findFolder(folderName, parentFolderId) {
     if (!this.accessToken) return null;
     const parentId = parentFolderId || this.appFolderId;
-    const query = `mimeType='application/vnd.google-apps.folder' and name='${folderName}' and '${parentId}' in parents and trashed=false`;
+    const safeName = String(folderName || '').replace(/'/g, "\\'");
+    const query = `mimeType='application/vnd.google-apps.folder' and name='${safeName}' and '${parentId}' in parents and trashed=false`;
     try {
       const res = await fetch(
         `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
@@ -479,6 +501,71 @@ export class GoogleDriveService {
       throw new Error(`Lỗi lưu file lên Google Drive [${res.status}]: ${errDetail || res.statusText}`);
     }
     return await res.json();
+  }
+
+  /**
+   * Upload hoặc ghi đè file nhị phân (PDF, Word, Excel, Ảnh, .cpms...) lên thư mục targetFolderId
+   * Trả về { id, name, webViewLink }
+   */
+  async uploadBinaryFile(fileName, blobOrBuffer, mimeType = 'application/octet-stream', targetFolderId = null) {
+    await this.ensureAppFolder();
+    const parentId = targetFolderId || this.appFolderId;
+    const existingFiles = await this.listProjectFiles(parentId);
+    const existingFile = existingFiles.find((f) => f.name === fileName);
+
+    const metadata = {
+      name: fileName,
+      mimeType: mimeType || 'application/octet-stream',
+      ...(!existingFile && { parents: [parentId] }),
+    };
+
+    const boundary = '-------314159265358979323846';
+    const delimiter = `\r\n--${boundary}\r\n`;
+    const closeDelimiter = `\r\n--${boundary}--`;
+
+    const metaPart = new Blob([
+      delimiter +
+        'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+        JSON.stringify(metadata) +
+        delimiter +
+        `Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`,
+    ]);
+    const endPart = new Blob([closeDelimiter]);
+    const multipartBlob = new Blob([metaPart, blobOrBuffer, endPart], {
+      type: `multipart/related; boundary=${boundary}`,
+    });
+
+    let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink';
+    let method = 'POST';
+    if (existingFile) {
+      url = `https://www.googleapis.com/upload/drive/v3/files/${existingFile.id}?uploadType=multipart&fields=id,name,webViewLink`;
+      method = 'PATCH';
+    }
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+      },
+      body: multipartBlob,
+    });
+
+    if (!res.ok) {
+      let errDetail = '';
+      try {
+        const errJson = await res.json();
+        errDetail = errJson?.error?.message || JSON.stringify(errJson);
+      } catch (_) {
+        errDetail = await res.text();
+      }
+      throw new Error(`Lỗi upload file "${fileName}" lên Drive [${res.status}]: ${errDetail || res.statusText}`);
+    }
+
+    const data = await res.json();
+    if (!data.webViewLink && data.id) {
+      data.webViewLink = `https://drive.google.com/file/d/${data.id}/view`;
+    }
+    return data;
   }
 
   /**

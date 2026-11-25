@@ -3,9 +3,9 @@
  * Quản lý khởi tạo IndexedDB, nạp dữ liệu hạt giống CHC1, điều hướng phân hệ và kết nối đồng bộ.
  */
 
-import { gdrive } from './core/gdrive.js?v=5.0';
-import { db } from './core/db.js?v=5.0';
-import { contractsManager } from './modules/cpms/contracts.js?v=7.1';
+import { gdrive } from './core/gdrive.js?v=5.1';
+import { db } from './core/db.js?v=5.1';
+import { contractsManager } from './modules/cpms/contracts.js?v=7.3';
 
 class App {
   constructor() {
@@ -543,7 +543,72 @@ class App {
   }
 
   /**
-   * Đồng bộ dữ liệu hiện tại từ máy tính lên Google Drive
+   * Lập chỉ mục các file trong thư mục Local (FileSystemDirectoryHandle) để đối chiếu nhanh theo tên/đường dẫn
+   */
+  async indexLocalFiles(dirHandle, currentRelPath = '', fileIndex = null) {
+    const index = fileIndex || { byRelPath: new Map(), byFileName: new Map() };
+    try {
+      for await (const [name, handle] of dirHandle.entries()) {
+        const relPath = currentRelPath ? `${currentRelPath}/${name}` : name;
+        if (handle.kind === 'file') {
+          const normRel = relPath.replace(/\\/g, '/').toLowerCase();
+          index.byRelPath.set(normRel, handle);
+          const lowerName = name.toLowerCase();
+          if (!index.byFileName.has(lowerName)) {
+            index.byFileName.set(lowerName, []);
+          }
+          index.byFileName.get(lowerName).push({ relPath: normRel, handle });
+        } else if (handle.kind === 'directory') {
+          await this.indexLocalFiles(handle, relPath, index);
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi duyệt thư mục local:', e);
+    }
+    return index;
+  }
+
+  /**
+   * Tìm FileHandle khớp với đường dẫn local_link trong chỉ mục đã quét
+   */
+  matchLocalFileHandle(localLink, index) {
+    if (!localLink || !index) return null;
+    const normLink = String(localLink).replace(/\\/g, '/').trim().toLowerCase();
+    const parts = normLink.split('/').filter(Boolean);
+    const fileName = parts[parts.length - 1];
+    if (!fileName) return null;
+
+    // 1. Ưu tiên khớp phần đuôi đường dẫn tương đối dài nhất
+    const candidates = index.byFileName.get(fileName) || [];
+    if (candidates.length === 1) return candidates[0].handle;
+    if (candidates.length > 1) {
+      let bestMatch = candidates[0].handle;
+      let bestScore = 0;
+      for (const cand of candidates) {
+        const candParts = cand.relPath.split('/');
+        let score = 0;
+        let i = parts.length - 1;
+        let j = candParts.length - 1;
+        while (i >= 0 && j >= 0 && parts[i] === candParts[j]) {
+          score++;
+          i--;
+          j--;
+        }
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = cand.handle;
+        }
+      }
+      return bestMatch;
+    }
+    return null;
+  }
+
+  /**
+   * Đồng bộ dữ liệu hiện tại từ máy tính lên Google Drive:
+   * - Đảm bảo chỉ tạo 1 thư mục dự án duy nhất; hỏi ghi đè nếu dự án đã tồn tại trên Drive
+   * - Tạo cấu trúc chuẩn: CPMS_Data, HoSo, HopDong_PL, ThanhToan
+   * - Upload file từ Link Local lên đúng thư mục Drive, cập nhật drive_link vào Tab Hồ sơ & file CPMS
    */
   async handleSyncToDrive() {
     const btn = document.getElementById('btn-sync-to-drive');
@@ -554,52 +619,166 @@ class App {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
       }
 
-      const curPrjId = contractsManager.currentProjectId || 'CHC1';
-      await db.syncToGoogleDrive();
+      const curPrjId = contractsManager.currentProjectId || db.activeProjectId || 'CHC1';
+      db.activeProjectId = curPrjId;
+      const curPrj = (contractsManager.projects || []).find((p) => p.id === curPrjId);
+      const safePrjId = String(curPrjId).replace(/[\/\\?%*:|"<>]/g, '_');
+      const defaultFolderName = `DuAn_${safePrjId}`;
 
-      // Nếu đang mở file CPMS cục bộ, tự động ghi lưu và sao lưu bản sao lên Drive
+      // 1. Kiểm tra thư mục dự án trên Google Drive để tránh tạo trùng
+      const quanLyDuAnId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn']);
+      const existingFolders = await gdrive.findFoldersInParent(quanLyDuAnId);
+      const prjNameLower = String(curPrj?.name || '').trim().toLowerCase();
+      const matchedFolder = existingFolders.find((f) => {
+        const fname = String(f.name || '').toLowerCase();
+        return (
+          fname === defaultFolderName.toLowerCase() ||
+          fname.includes(safePrjId.toLowerCase()) ||
+          (prjNameLower && fname.includes(prjNameLower))
+        );
+      });
+
+      let targetProjectFolderId = null;
+      let targetFolderName = defaultFolderName;
+
+      if (matchedFolder) {
+        const overwrite = confirm(
+          `Phát hiện dự án "${curPrj?.name || curPrjId}" đã tồn tại trên Google Drive trong thư mục "${matchedFolder.name}".\n\n` +
+            `• Bấm OK để GHI ĐÈ (cập nhật) vào thư mục "${matchedFolder.name}".\n` +
+            `• Bấm Cancel để tạo thư mục mới hoặc hủy thao tác.`
+        );
+        if (overwrite) {
+          targetProjectFolderId = matchedFolder.id;
+          targetFolderName = matchedFolder.name;
+        } else {
+          const createNew = confirm(
+            `Bạn có muốn tạo một thư mục bản sao mới cho dự án "${curPrjId}" trên Google Drive không?\n\n` +
+              `• Bấm OK để tạo thư mục mới\n` +
+              `• Bấm Cancel để Hủy đồng bộ`
+          );
+          if (!createNew) return;
+          const stamp = new Date().toISOString().slice(0, 10);
+          targetFolderName = `${defaultFolderName}_${stamp}`;
+          targetProjectFolderId = await gdrive.createFolder(targetFolderName, quanLyDuAnId);
+        }
+      } else {
+        targetProjectFolderId = await gdrive.createFolder(defaultFolderName, quanLyDuAnId);
+      }
+
+      // 2. Tạo/Đảm bảo 4 thư mục con chuẩn bên trong thư mục dự án
+      const cpmsFolderId = await gdrive.ensureFolderPath(['CPMS_Data'], targetProjectFolderId);
+      const hoSoFolderId = await gdrive.ensureFolderPath(['HoSo'], targetProjectFolderId);
+      const hopDongFolderId = await gdrive.ensureFolderPath(['HopDong_PL'], targetProjectFolderId);
+      const thanhToanFolderId = await gdrive.ensureFolderPath(['ThanhToan'], targetProjectFolderId);
+      const subFolderIds = {
+        HoSo: hoSoFolderId,
+        HopDong_PL: hopDongFolderId,
+        ThanhToan: thanhToanFolderId,
+      };
+
+      // 3. Đồng bộ các tài liệu từ Link Local lên Google Drive & cập nhật Link Drive
+      const projectDocs = (contractsManager.documents || []).filter(
+        (d) => (!d.project_id || d.project_id === curPrjId) && d.local_link && !String(d.local_link).startsWith('http')
+      );
+
+      let uploadedDocsCount = 0;
+      let missingLocalCount = 0;
+
+      if (projectDocs.length > 0) {
+        if (!this.localDirectoryHandle && 'showDirectoryPicker' in window) {
+          const wantPick = confirm(
+            `Tìm thấy ${projectDocs.length} hồ sơ có đường dẫn file trên máy tính (Link Local).\n\n` +
+              `Bạn có muốn chọn thư mục gốc trên máy tính chứa các tài liệu này để tự động tải lên Google Drive (HoSo / HopDong_PL / ThanhToan) và cập nhật Link Drive vào Tab Hồ sơ không?\n\n` +
+              `• Bấm OK để chọn thư mục chứa tài liệu trên máy tính\n` +
+              `• Bấm Cancel để chỉ đồng bộ dữ liệu CPMS (bỏ qua file đính kèm)`
+          );
+          if (wantPick) {
+            try {
+              this.localDirectoryHandle = await window.showDirectoryPicker();
+            } catch (e) {
+              if (e.name !== 'AbortError') console.warn('Lỗi chọn thư mục local:', e);
+            }
+          }
+        }
+
+        if (this.localDirectoryHandle) {
+          if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang quét & tải hồ sơ...';
+          const localIndex = await this.indexLocalFiles(this.localDirectoryHandle);
+
+          for (let i = 0; i < projectDocs.length; i++) {
+            const doc = projectDocs[i];
+            const fileHandle = this.matchLocalFileHandle(doc.local_link, localIndex);
+            if (!fileHandle) {
+              missingLocalCount++;
+              continue;
+            }
+
+            try {
+              if (btn) {
+                btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang tải (${i + 1}/${projectDocs.length})...`;
+              }
+              const fileObj = await fileHandle.getFile();
+              const subKey = contractsManager.getDriveSubfolderKeyForDoc(doc);
+              const targetFolder = subFolderIds[subKey] || hoSoFolderId;
+              const uploaded = await gdrive.uploadBinaryFile(
+                fileObj.name,
+                fileObj,
+                fileObj.type || 'application/octet-stream',
+                targetFolder
+              );
+
+              if (uploaded && uploaded.webViewLink) {
+                doc.drive_link = uploaded.webViewLink;
+                doc.drive_file_id = uploaded.id;
+                doc.updated_at = new Date().toISOString();
+                await db.put('documents', doc);
+                uploadedDocsCount++;
+              }
+            } catch (uploadErr) {
+              console.warn(`Lỗi tải tài liệu "${doc.doc_no || doc.id}" lên Drive:`, uploadErr);
+            }
+          }
+        }
+      }
+
+      // 4. Cập nhật lại giao diện Tab Hồ sơ & file data CPMS trên máy (nếu có file local đang mở)
+      if (uploadedDocsCount > 0) {
+        await contractsManager.loadData();
+        contractsManager.render();
+        if (contractsManager.activeFileHandle) {
+          await contractsManager.syncToLocalFile();
+        }
+      }
+
+      // 5. Lưu snapshot JSON mới nhất (đã gồm toàn bộ drive_link) vào CPMS_Data
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang lưu CPMS Data...';
+      await db.syncToGoogleDrive({
+        projectId: curPrjId,
+        targetProjectFolderId,
+        cpmsFolderId,
+      });
+
+      // 6. Nếu đang mở file CPMS cục bộ, upload bản mới nhất (đã cập nhật drive_link) vào CPMS_Data
       if (contractsManager.activeFileHandle) {
         try {
           const file = await contractsManager.activeFileHandle.getFile();
-          const arrayBuffer = await file.arrayBuffer();
-          const cpmsFolderId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'CPMS_Data']);
-          const fileName = file.name || `MAIO_Data_${curPrjId}.cpms`;
-          
-          // Ghi đè file CPMS lên Drive
-          const existingFiles = await gdrive.listProjectFiles(cpmsFolderId);
-          const exist = existingFiles.find((f) => f.name === fileName);
-
-          const metadata = {
-            name: fileName,
-            mimeType: 'application/octet-stream',
-            ...(!exist && { parents: [cpmsFolderId] }),
-          };
-
-          const boundary = '-------314159265358979323846';
-          const delimiter = `\r\n--${boundary}\r\n`;
-          const closeDelimiter = `\r\n--${boundary}--`;
-          const metaBlob = new Blob([delimiter + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) + delimiter + 'Content-Type: application/octet-stream\r\n\r\n']);
-          const endBlob = new Blob([closeDelimiter]);
-          const multipartBlob = new Blob([metaBlob, arrayBuffer, endBlob], { type: `multipart/related; boundary=${boundary}` });
-
-          let url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-          let method = 'POST';
-          if (exist) {
-            url = `https://www.googleapis.com/upload/drive/v3/files/${exist.id}?uploadType=multipart`;
-            method = 'PATCH';
-          }
-
-          await fetch(url, {
-            method,
-            headers: { Authorization: `Bearer ${gdrive.accessToken}` },
-            body: multipartBlob,
-          });
+          const fileName = file.name || `MAIO_Data_${safePrjId}.cpms`;
+          await gdrive.uploadBinaryFile(fileName, file, 'application/octet-stream', cpmsFolderId);
         } catch (e) {
           console.warn('Lỗi tải kèm file nhị phân CPMS lên Drive:', e);
         }
       }
 
-      alert(`Đã đồng bộ thành công toàn bộ dữ liệu dự án "${curPrjId}" lên Google Drive!`);
+      let summaryMsg = `Đã đồng bộ thành công dự án "${curPrj?.name || curPrjId}" lên Google Drive!\n\n`;
+      summaryMsg += `• Thư mục Drive: MAIO_Data / 01_QuanLy_DuAn / ${targetFolderName}\n`;
+      summaryMsg += `• Cấu trúc: CPMS_Data, HoSo, HopDong_PL, ThanhToan\n`;
+      if (uploadedDocsCount > 0) {
+        summaryMsg += `• Đã tải lên & cập nhật Link Drive cho ${uploadedDocsCount} tài liệu hồ sơ.\n`;
+      }
+      if (missingLocalCount > 0) {
+        summaryMsg += `• Có ${missingLocalCount} tài liệu không tìm thấy file trong thư mục máy tính đã chọn.\n`;
+      }
+      alert(summaryMsg);
     } catch (err) {
       alert('Lỗi đồng bộ lên Google Drive: ' + err.message);
     } finally {

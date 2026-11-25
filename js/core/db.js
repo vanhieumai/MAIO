@@ -3,7 +3,7 @@
  * Quản lý kho dữ liệu Local-first (IndexedDB) và liên kết đồng bộ Google Drive.
  */
 
-import { gdrive } from './gdrive.js?v=4.1';
+import { gdrive } from './gdrive.js?v=5.1';
 
 const DB_VERSION = 1;
 
@@ -219,24 +219,33 @@ class DatabaseEngine {
   }
 
   /**
-   * Đồng bộ lên Google Drive theo cấu trúc thư mục chuẩn
+   * Đồng bộ lên Google Drive theo cấu trúc thư mục chuẩn:
+   * MAIO_Data / 01_QuanLy_DuAn / DuAn_<id> / { CPMS_Data, HoSo, HopDong_PL, ThanhToan }
    */
-  async syncToGoogleDrive() {
+  async syncToGoogleDrive(options = {}) {
     if (!gdrive.isSignedIn()) {
       throw new Error('Vui lòng kết nối Google Drive trước khi đồng bộ.');
     }
+    const curPrjId = options.projectId || this.activeProjectId || 'CHC1';
+    this.activeProjectId = curPrjId;
+
     const snapshot = await this.exportSnapshot();
-    const curPrjId = this.activeProjectId || 'CHC1';
+    snapshot.active_project = curPrjId;
 
-    let cpmsFolderId = null;
+    let cpmsFolderId = options.cpmsFolderId || null;
+    let projectFolderId = options.targetProjectFolderId || null;
+
     try {
-      // 1. Đảm bảo cấu trúc thư mục dự án và data CPMS
-      cpmsFolderId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'CPMS_Data']);
+      if (!projectFolderId) {
+        projectFolderId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`]);
+      }
 
-      // 2. Tạo sẵn 3 thư mục phân loại hồ sơ scan theo chuẩn
-      await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'HopDong_PhuLuc']);
-      await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'Doc']);
-      await gdrive.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${curPrjId}`, 'ThanhToan']);
+      if (!cpmsFolderId && projectFolderId) {
+        cpmsFolderId = await gdrive.ensureFolderPath(['CPMS_Data'], projectFolderId);
+        await gdrive.ensureFolderPath(['HoSo'], projectFolderId);
+        await gdrive.ensureFolderPath(['HopDong_PL'], projectFolderId);
+        await gdrive.ensureFolderPath(['ThanhToan'], projectFolderId);
+      }
     } catch (e) {
       console.warn('Lỗi tạo cấu trúc thư mục phân cấp, lưu tại thư mục gốc MAIO_Data:', e);
     }
