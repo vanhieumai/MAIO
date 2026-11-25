@@ -3329,19 +3329,20 @@ select.reminder-category-select {
   border-color: #fca5a5 !important;
 }
 
-/* Badge hiển thị nguồn dữ liệu đang mở (Local vs Google Drive Online) */
+/* Badge hiển thị nguồn dữ liệu đang mở (Local vs Online) ngay bên cạnh tên dự án */
 .project-source-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   font-size: 0.74rem;
-  font-weight: 600;
-  padding: 2px 9px;
+  font-weight: 700;
+  padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid #cbd5e1;
   background: #f8fafc;
   color: #475569;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .project-source-badge.source-local {
   background: #f0fdf4;

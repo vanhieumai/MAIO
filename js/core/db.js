@@ -412,6 +412,76 @@ class DatabaseEngine {
       req.onerror = () => resolve(null);
     });
   }
+
+  /**
+   * Lưu FileSystemFileHandle (file .cpms local) theo dự án vào MAIO_HandlesDB
+   */
+  async saveProjectFileHandle(projectId, fileHandle) {
+    if (!projectId || !fileHandle) return false;
+    return new Promise((resolve) => {
+      const req = indexedDB.open('MAIO_HandlesDB', 1);
+      req.onupgradeneeded = (e) => {
+        const hdb = e.target.result;
+        if (!hdb.objectStoreNames.contains('dir_handles')) {
+          hdb.createObjectStore('dir_handles', { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = (e) => {
+        const hdb = e.target.result;
+        try {
+          const tx = hdb.transaction(['dir_handles'], 'readwrite');
+          tx.objectStore('dir_handles').put({ key: `cpms_file_${projectId}`, handle: fileHandle, updated_at: Date.now() });
+          tx.oncomplete = () => {
+            hdb.close();
+            resolve(true);
+          };
+          tx.onerror = () => {
+            hdb.close();
+            resolve(false);
+          };
+        } catch (_) {
+          hdb.close();
+          resolve(false);
+        }
+      };
+      req.onerror = () => resolve(false);
+    });
+  }
+
+  /**
+   * Lấy FileSystemFileHandle (file .cpms local) đã lưu cho dự án
+   */
+  async getProjectFileHandle(projectId) {
+    if (!projectId) return null;
+    return new Promise((resolve) => {
+      const req = indexedDB.open('MAIO_HandlesDB', 1);
+      req.onupgradeneeded = (e) => {
+        const hdb = e.target.result;
+        if (!hdb.objectStoreNames.contains('dir_handles')) {
+          hdb.createObjectStore('dir_handles', { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = (e) => {
+        const hdb = e.target.result;
+        try {
+          const tx = hdb.transaction(['dir_handles'], 'readonly');
+          const getReq = tx.objectStore('dir_handles').get(`cpms_file_${projectId}`);
+          getReq.onsuccess = () => {
+            hdb.close();
+            resolve(getReq.result?.handle || null);
+          };
+          getReq.onerror = () => {
+            hdb.close();
+            resolve(null);
+          };
+        } catch (_) {
+          hdb.close();
+          resolve(null);
+        }
+      };
+      req.onerror = () => resolve(null);
+    });
+  }
 }
 
 if (!window.__MAIO_DB_ENGINE__) {

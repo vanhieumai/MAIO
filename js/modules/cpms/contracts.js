@@ -37,6 +37,8 @@ export class ContractsManager {
     this.reminderSearchTerm = '';
     this.selectedReminderDocId = null;
     this.reminderEventsBound = false;
+    this._driveAutoSaveTimer = null;
+    this._driveFolderCache = new Map();
   }
 
   showLocalSaveStatus(message, isError = false) {
@@ -85,17 +87,117 @@ export class ContractsManager {
   }
 
   /**
-   * Tự động lưu mọi thay đổi trực tiếp vào file máy tính đã liên kết
+   * Lên lịch tự động lưu file .cpms và snapshot JSON lên Google Drive mỗi khi có thay đổi
+   */
+  scheduleAutoSaveToDrive(immediate = false) {
+    const gdriveSvc = window.__MAIO_GDRIVE_SERVICE__;
+    if (!gdriveSvc || !gdriveSvc.isSignedIn()) return;
+
+    clearTimeout(this._driveAutoSaveTimer);
+    this._driveAutoSaveTimer = setTimeout(() => {
+      this.saveProjectCPMSOnline().catch((err) => {
+        console.warn('Lỗi tự động lưu file CPMS lên Google Drive:', err);
+      });
+    }, immediate ? 50 : 800);
+  }
+
+  /**
+   * Tự động lưu file .cpms nhị phân và snapshot JSON vào CPMS_Data trên Google Drive
+   */
+  async saveProjectCPMSOnline() {
+    const gdriveSvc = window.__MAIO_GDRIVE_SERVICE__;
+    if (!gdriveSvc || !gdriveSvc.isSignedIn() || !this.currentProjectId) return false;
+
+    const curPrjId = this.currentProjectId;
+    const curPrj = (this.projects || []).find((p) => p.id === curPrjId);
+    const safePrjId = String(curPrjId).replace(/[\/\\?%*:|"<>]/g, '_');
+    const defaultFolderName = `DuAn_${safePrjId}`;
+
+    let cached = this._driveFolderCache.get(curPrjId);
+    if (!cached) {
+      const quanLyDuAnId = await gdriveSvc.ensureFolderPath(['01_QuanLy_DuAn']);
+      const existingFolders = await gdriveSvc.findFoldersInParent(quanLyDuAnId);
+      const prjNameLower = String(curPrj?.name || '').trim().toLowerCase();
+      const nameTokens = prjNameLower
+        .replace(/dự án|nhà ở|chung cư|cao tầng|khu đô thị/gi, '')
+        .trim()
+        .split(/\s+/)
+        .filter((w) => w.length >= 3);
+
+      let matched = existingFolders.find((f) => {
+        const fname = String(f.name || '').toLowerCase();
+        if (fname === defaultFolderName.toLowerCase() || fname.includes(safePrjId.toLowerCase())) return true;
+        if (prjNameLower && fname.includes(prjNameLower)) return true;
+        if (nameTokens.length >= 2 && nameTokens.every((t) => fname.includes(t))) return true;
+        return false;
+      });
+      if (!matched && existingFolders.length === 1 && prjNameLower.includes('westlake') && existingFolders[0].name === 'DuAn_CHC1') {
+        matched = existingFolders[0];
+      }
+
+      const projectFolderId = matched
+        ? matched.id
+        : await gdriveSvc.createFolder(defaultFolderName, quanLyDuAnId);
+      const cpmsFolderId = await gdriveSvc.ensureFolderPath(['CPMS_Data'], projectFolderId);
+      await gdriveSvc.ensureFolderPath(['HoSo'], projectFolderId);
+      await gdriveSvc.ensureFolderPath(['HopDong_PL'], projectFolderId);
+      await gdriveSvc.ensureFolderPath(['ThanhToan'], projectFolderId);
+
+      cached = { projectFolderId, cpmsFolderId };
+      this._driveFolderCache.set(curPrjId, cached);
+    }
+
+    await db.syncToGoogleDrive({
+      projectId: curPrjId,
+      targetProjectFolderId: cached.projectFolderId,
+      cpmsFolderId: cached.cpmsFolderId,
+    });
+
+    const cpmsBuffer = await this.buildProjectCPMSBuffer(curPrjId);
+    const cpmsFileName = this.activeFileHandle?.name || curPrj?.source_filename || `MAIO_Data_${safePrjId}.cpms`;
+    await gdriveSvc.uploadBinaryFile(cpmsFileName, cpmsBuffer, 'application/octet-stream', cached.cpmsFolderId);
+
+    this.showLocalSaveStatus(`Đã tự động lưu thay đổi lên Google Drive (${cpmsFileName})!`);
+    return true;
+  }
+
+  /**
+   * Tự động lưu mọi thay đổi trực tiếp vào file máy tính đã liên kết (và Google Drive nếu đang Online)
    */
   async syncToLocalFile(isManual = false) {
+    const gdriveSvc = window.__MAIO_GDRIVE_SERVICE__;
+    const isDriveOnline = Boolean(gdriveSvc && gdriveSvc.isSignedIn());
+
+    if (isDriveOnline) {
+      this.scheduleAutoSaveToDrive(isManual);
+    }
+
+    if (!this.activeFileHandle && this.currentProjectId) {
+      const savedHandle = await db.getProjectFileHandle(this.currentProjectId);
+      if (savedHandle) {
+        this.activeFileHandle = savedHandle;
+      }
+    }
+
     if (!this.activeFileHandle) {
-      if (isManual) {
+      if (isManual && !isDriveOnline) {
         alert('Chưa có liên kết tệp trực tiếp trên máy tính. Hãy bấm "Nhập dữ liệu CPMS (Dẫn file Local)" để chọn tệp trên máy tính trước.');
       }
-      return false;
+      return isDriveOnline;
     }
 
     try {
+      if (typeof this.activeFileHandle.queryPermission === 'function') {
+        let perm = await this.activeFileHandle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') {
+          perm = await this.activeFileHandle.requestPermission({ mode: 'readwrite' });
+        }
+        if (perm !== 'granted') {
+          this.showLocalSaveStatus(`Chưa được cấp quyền ghi vào file "${this.activeFileHandle.name}".`, true);
+          return false;
+        }
+      }
+
       const buffer = await CPMSImporterExporter.buildCPMSBinaryBuffer(this.currentProjectId);
       const writable = await this.activeFileHandle.createWritable();
       await writable.write(buffer);
@@ -136,9 +238,17 @@ export class ContractsManager {
         });
 
         if (handle) {
+          if (typeof handle.requestPermission === 'function') {
+            try {
+              await handle.requestPermission({ mode: 'readwrite' });
+            } catch (_) {}
+          }
           this.activeFileHandle = handle;
           const file = await handle.getFile();
           const result = await CPMSImporterExporter.importCPMSFile(file);
+          result.projectData.data_origin = 'local';
+          await db.put('projects', result.projectData);
+          await db.saveProjectFileHandle(result.projectData.id, handle);
           this.currentProjectId = result.projectData.id;
           await this.loadData();
           this.render();
@@ -305,6 +415,13 @@ export class ContractsManager {
     }
 
     this.updateProjectSelectorUI();
+
+    if (this.currentProjectId && !this.activeFileHandle) {
+      const savedFileHandle = await db.getProjectFileHandle(this.currentProjectId);
+      if (savedFileHandle) {
+        this.activeFileHandle = savedFileHandle;
+      }
+    }
 
     if (!this.currentProjectId) {
       this.contracts = [];
@@ -765,6 +882,34 @@ export class ContractsManager {
     return '';
   }
 
+  /**
+   * Xác định nguồn của dự án ('local' hoặc 'online') để hiển thị rõ trong danh sách & cạnh tên dự án
+   */
+  getProjectOriginMode(project) {
+    if (!project) return 'local';
+    if (project.id === this.currentProjectId && this.activeFileHandle) {
+      return 'local';
+    }
+    if (project.data_origin === 'local') return 'local';
+    if (project.data_origin === 'online' || project.source === 'drive_sync') return 'online';
+
+    const gdriveSvc = window.__MAIO_GDRIVE_SERVICE__;
+    if (gdriveSvc && typeof gdriveSvc.isSignedIn === 'function' && gdriveSvc.isSignedIn()) {
+      return 'online';
+    }
+    return 'local';
+  }
+
+  /**
+   * Format tên hiển thị của dự án trong dropdown danh sách dự án với nhãn [Local] / [Online] ở phía trước
+   */
+  formatProjectOptionLabel(project) {
+    if (!project) return '';
+    const mode = this.getProjectOriginMode(project);
+    const prefix = mode === 'online' ? '☁️ [Online]' : '💻 [Local]';
+    return `${prefix} ${project.name || project.id}`;
+  }
+
   updateProjectSelectorUI() {
     const selector = document.getElementById('project-selector');
     if (!selector) return;
@@ -792,7 +937,7 @@ export class ContractsManager {
 
     this.projects.forEach((p) => {
       const isSel = p.id === this.currentProjectId ? 'selected' : '';
-      optionsHtml += `<option value="${p.id}" ${isSel}>📁 ${p.name || p.id}</option>`;
+      optionsHtml += `<option value="${p.id}" ${isSel}>${this.formatProjectOptionLabel(p)}</option>`;
     });
 
     optionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
@@ -1563,7 +1708,7 @@ export class ContractsManager {
     // Cập nhật text trong dropdown dự án nếu cần
     const selOpt = document.querySelector(`#project-selector option[value="${curPrj.id}"]`);
     if (selOpt) {
-      selOpt.textContent = `📁 ${curPrj.name || curPrj.id}`;
+      selOpt.textContent = this.formatProjectOptionLabel(curPrj);
     }
 
     // 2. Thống kê chi tiết Hợp đồng & Phụ lục nhóm A (loại trừ hợp đồng Cancel)

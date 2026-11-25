@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.2';
 import { db } from './core/db.js?v=5.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=7.3';
+import { contractsManager } from './modules/cpms/contracts.js?v=7.6';
 
 class App {
   constructor() {
@@ -618,39 +618,39 @@ class App {
   }
 
   /**
-   * Cập nhật badge hiển thị rõ nguồn dữ liệu dự án đang mở (Local vs Google Drive Online)
+   * Cập nhật badge hiển thị rõ nguồn dữ liệu dự án đang mở (Local vs Online) ngay bên cạnh tên dự án
    */
   updateProjectSourceBadge() {
     const badge = document.getElementById('top-project-source-badge');
     if (!badge) return;
 
-    const isDriveOnline = Boolean(gdrive.isSignedIn() && !gdrive.currentUser?.isOffline);
-    const localFileName = contractsManager?.activeFileHandle?.name || '';
-    const hasLocalFile = Boolean(localFileName);
     const curPrj = (contractsManager?.projects || []).find((p) => p.id === contractsManager?.currentProjectId);
+    if (!curPrj) {
+      badge.style.display = 'none';
+      return;
+    }
+    badge.style.display = 'inline-flex';
+
+    const mode = contractsManager?.getProjectOriginMode ? contractsManager.getProjectOriginMode(curPrj) : 'local';
+    const localFileName = contractsManager?.activeFileHandle?.name || '';
+    const isDriveOnline = Boolean(gdrive.isSignedIn() && !gdrive.currentUser?.isOffline);
 
     badge.classList.remove('source-local', 'source-drive', 'source-hybrid', 'source-browser');
 
-    if (isDriveOnline && hasLocalFile) {
-      badge.classList.add('source-hybrid');
-      badge.innerHTML = `<i class="fa-brands fa-google-drive"></i> Drive Online + <i class="fa-solid fa-laptop-file"></i> Local (${localFileName})`;
-      badge.title = `Đang mở file Local "${localFileName}" và kết nối Google Drive (${gdrive.currentUser?.email || ''})`;
-    } else if (isDriveOnline) {
+    if (mode === 'online') {
       badge.classList.add('source-drive');
-      badge.innerHTML = `<i class="fa-brands fa-google-drive"></i> Google Drive Online`;
-      badge.title = `Đang làm việc đồng bộ với tài khoản Google Drive: ${gdrive.currentUser?.email || ''}`;
-    } else if (hasLocalFile) {
-      badge.classList.add('source-local');
-      badge.innerHTML = `<i class="fa-solid fa-laptop-file"></i> Local (${localFileName})`;
-      badge.title = `Đang mở trực tiếp tệp máy tính "${localFileName}" (Chế độ Offline)`;
-    } else if (curPrj?.source === 'drive_sync') {
-      badge.classList.add('source-drive');
-      badge.innerHTML = `<i class="fa-brands fa-google-drive"></i> Đã đồng bộ từ Drive`;
-      badge.title = 'Dữ liệu dự án được tải từ Google Drive';
+      badge.innerHTML = `<i class="fa-brands fa-google-drive"></i> Online`;
+      badge.title = isDriveOnline
+        ? `Đang làm việc với dữ liệu Online trên Google Drive (${gdrive.currentUser?.email || ''})`
+        : 'Dự án đồng bộ từ Google Drive Online';
     } else {
-      badge.classList.add('source-browser');
-      badge.innerHTML = `<i class="fa-solid fa-database"></i> Bộ nhớ trình duyệt (Offline)`;
-      badge.title = 'Dữ liệu đang lưu tạm trong bộ nhớ IndexedDB của trình duyệt';
+      badge.classList.add('source-local');
+      badge.innerHTML = localFileName
+        ? `<i class="fa-solid fa-laptop-file"></i> Local (${localFileName})`
+        : `<i class="fa-solid fa-laptop-file"></i> Local`;
+      badge.title = localFileName
+        ? `Đang làm việc với file CPMS Local trên máy tính: ${localFileName}`
+        : 'Đang làm việc với dữ liệu Local trên máy tính';
     }
   }
 
