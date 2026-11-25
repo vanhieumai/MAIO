@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.2';
 import { db } from './core/db.js?v=5.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=8.2';
+import { contractsManager } from './modules/cpms/contracts.js?v=8.3';
 
 class App {
   constructor() {
@@ -342,7 +342,7 @@ class App {
         : Promise.resolve(confirm('Bạn có chắc chắn muốn xóa bộ nhớ tạm trình duyệt không?')));
       if (ok) {
         await db.clear();
-        alert('Đã xóa bộ nhớ tạm trình duyệt. Trang sẽ được tải lại.');
+        await (window.maioAlert ? window.maioAlert('Đã xóa bộ nhớ tạm trình duyệt. Trang sẽ được tải lại.') : Promise.resolve());
         window.location.reload();
       }
     });

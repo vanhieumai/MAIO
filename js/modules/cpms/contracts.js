@@ -44,6 +44,8 @@ export class ContractsManager {
     this._isCheckingFileChange = false;
     this._localFileWatcherStarted = false;
     window.maioConfirm = (opts) => this.confirmAsync(opts);
+    window.maioAlert = (opts) => this.alertAsync(opts);
+    window.alert = (msg) => window.maioAlert(msg);
   }
 
   showLocalSaveStatus(message, isError = false) {
@@ -7851,6 +7853,89 @@ export class ContractsManager {
     });
   }
 
+  /**
+   * Hiển thị hộp thoại thông báo đồng bộ giao diện MAIO (thay thế window.alert mặc định)
+   */
+  alertAsync(optionsOrMessage) {
+    const opts =
+      typeof optionsOrMessage === 'string'
+        ? { message: optionsOrMessage }
+        : optionsOrMessage || {};
+
+    const rawMsg = String(opts.message ?? '');
+    const lower = rawMsg.toLowerCase();
+
+    let autoType = 'info';
+    if (lower.includes('lỗi') || lower.includes('không thể') || lower.includes('chưa thể') || lower.includes('cảnh báo')) {
+      autoType = 'danger';
+    } else if (lower.includes('thành công') || lower.includes('đã sao chép') || lower.includes('đã xóa') || lower.includes('đã lưu') || lower.includes('đã tạo') || lower.includes('đã cập nhật') || lower.includes('đã nạp') || lower.includes('đã xuất') || lower.includes('đã đồng bộ')) {
+      autoType = 'success';
+    } else if (lower.includes('chưa ') || lower.includes('vui lòng') || lower.includes('lưu ý')) {
+      autoType = 'warning';
+    }
+
+    const type = opts.type || autoType;
+    const defaultTitle =
+      type === 'danger' ? 'Thông báo lỗi' : type === 'success' ? 'Thành công' : type === 'warning' ? 'Lưu ý' : 'Thông báo';
+    const title = opts.title || defaultTitle;
+    const okText = opts.okText || 'Đã hiểu';
+
+    const iconMap = {
+      danger: { bg: '#fee2e2', color: '#dc2626', icon: 'fa-circle-exclamation' },
+      success: { bg: '#dcfce7', color: '#16a34a', icon: 'fa-circle-check' },
+      warning: { bg: '#fef3c7', color: '#d97706', icon: 'fa-triangle-exclamation' },
+      info: { bg: '#e0f2fe', color: '#0284c7', icon: 'fa-circle-info' },
+    };
+    const palette = iconMap[type] || iconMap.info;
+
+    return new Promise((resolve) => {
+      const formattedMsg = rawMsg
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\n/g, '<br>');
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay custom-confirm-overlay';
+      modal.style.zIndex = '999999';
+      modal.innerHTML = `
+        <div class="modal-container custom-confirm-container" style="max-width: 440px; border-radius: 14px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2), 0 10px 10px -5px rgba(0,0,0,0.1); overflow: hidden; background: #ffffff;">
+          <div style="padding: 24px 24px 18px; text-align: center;">
+            <div style="width: 52px; height: 52px; border-radius: 50%; background: ${palette.bg}; color: ${palette.color}; display: inline-flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 14px;">
+              <i class="fa-solid ${palette.icon}"></i>
+            </div>
+            <h4 style="margin: 0 0 8px; font-size: 1.1rem; font-weight: 800; color: #1e293b;">${title}</h4>
+            <p style="margin: 0; font-size: 0.88rem; color: #475569; line-height: 1.5; word-break: break-word;">${formattedMsg}</p>
+          </div>
+          <div style="padding: 12px 24px; background: #f8fafc; border-top: 1px solid var(--border-color); display: flex; justify-content: center;">
+            <button type="button" class="button button-primary button-sm btn-alert-ok" style="min-width: 110px; font-weight: 600; padding: 7px 20px;">
+              ${okText}
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener('keydown', onKey);
+        modal.remove();
+        resolve(true);
+      };
+      const onKey = (e) => {
+        if (e.key === 'Escape' || e.key === 'Enter') finish();
+      };
+      document.addEventListener('keydown', onKey);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) finish();
+      });
+      modal.querySelector('.btn-alert-ok')?.addEventListener('click', finish);
+      modal.querySelector('.btn-alert-ok')?.focus();
+    });
+  }
+
   showToast(message, type = 'info') {
     let container = document.getElementById('maio-toast-container');
     if (!container) {
@@ -10041,12 +10126,17 @@ export class ContractsManager {
     });
 
     // 7. Nút Mở thư mục Drive
-    document.getElementById('btn-reminder-open-folder-drive')?.addEventListener('click', () => {
+    document.getElementById('btn-reminder-open-folder-drive')?.addEventListener('click', async () => {
       if (drvLink && drvLink.includes('/folders/')) {
         window.open(drvLink, '_blank');
       } else {
         const path = driveDocPath || (targetContract ? this.getDriveDocPathForContract(targetContract) : '');
-        alert(`Thư mục lưu trữ trên Google Drive:\n\n${path || 'Cấu trúc MAIO_Data / 01_QuanLy_DuAn / Doc'}\n\n(Bấm OK để truy cập Google Drive của bạn)`);
+        await this.alertAsync({
+          title: 'Thư mục Google Drive',
+          message: `Thư mục lưu trữ trên Google Drive:\n\n${path || 'Cấu trúc MAIO_Data / 01_QuanLy_DuAn / Doc'}\n\n(Bấm "Mở Drive" để truy cập Google Drive của bạn)`,
+          okText: 'Mở Drive',
+          type: 'info',
+        });
         window.open('https://drive.google.com', '_blank');
       }
     });
