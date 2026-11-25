@@ -10,7 +10,7 @@
  * 2. Giải ngân & Thanh toán: CHỈ cộng các dòng giao dịch thực tế (is_header !== true), tuyệt đối không cộng dòng Header tổng hợp.
  */
 
-import { db } from '../../core/db.js?v=5.2';
+import { db } from '../../core/db.js?v=5.3';
 import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.4';
 
 export class ContractsManager {
@@ -146,9 +146,6 @@ export class ContractsManager {
         ? matched.id
         : await gdriveSvc.createFolder(defaultFolderName, quanLyDuAnId);
       const cpmsFolderId = await gdriveSvc.ensureFolderPath(['CPMS_Data'], projectFolderId);
-      await gdriveSvc.ensureFolderPath(['HoSo'], projectFolderId);
-      await gdriveSvc.ensureFolderPath(['HopDong_PL'], projectFolderId);
-      await gdriveSvc.ensureFolderPath(['ThanhToan'], projectFolderId);
 
       cached = { projectFolderId, cpmsFolderId };
       this._driveFolderCache.set(curPrjId, cached);

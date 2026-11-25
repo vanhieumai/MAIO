@@ -4,8 +4,8 @@
  */
 
 import { gdrive } from './core/gdrive.js?v=5.3';
-import { db } from './core/db.js?v=5.2';
-import { contractsManager } from './modules/cpms/contracts.js?v=8.5';
+import { db } from './core/db.js?v=5.3';
+import { contractsManager } from './modules/cpms/contracts.js?v=8.6';
 
 class App {
   constructor() {
@@ -833,7 +833,7 @@ class App {
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
             <div><strong>Dự án:</strong> ${curPrj.name || curPrjId} (<code>${curPrjId}</code>)</div>
             <div style="color: #64748b; font-size: 0.78rem; margin-top: 3px;">
-              Cấu trúc Drive: <code>MAIO_Data / 01_QuanLy_DuAn / &lt;Thư mục dự án&gt; / { CPMS_Data, HoSo, HopDong_PL, ThanhToan }</code>
+              Cấu trúc Drive: <code>MAIO_Data / 01_QuanLy_DuAn / &lt;Thư mục dự án&gt; / { CPMS_Data, 01_Nhom_A_ChuDauTu, 02_Nhom_B_ThauPhu_NCC }</code>
             </div>
           </div>
 

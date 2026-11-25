@@ -281,9 +281,6 @@ class DatabaseEngine {
 
       if (!cpmsFolderId && projectFolderId) {
         cpmsFolderId = await gdrive.ensureFolderPath(['CPMS_Data'], projectFolderId);
-        await gdrive.ensureFolderPath(['HoSo'], projectFolderId);
-        await gdrive.ensureFolderPath(['HopDong_PL'], projectFolderId);
-        await gdrive.ensureFolderPath(['ThanhToan'], projectFolderId);
       }
     } catch (e) {
       console.warn('Lỗi tạo cấu trúc thư mục phân cấp, lưu tại thư mục gốc MAIO_Data:', e);
