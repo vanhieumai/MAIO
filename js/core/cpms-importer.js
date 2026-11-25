@@ -384,6 +384,9 @@ export class CPMSImporterExporter {
           is_additive: r[30] !== undefined && r[30] !== null && String(r[30]).trim() !== ''
             ? (String(r[30]).trim() === '1' || String(r[30]).trim().toLowerCase() === 'true')
             : (!hierarchy.parentId),
+          is_provisional_val: r[31] !== undefined && r[31] !== null && String(r[31]).trim() !== ''
+            ? (String(r[31]).trim() === '1' || String(r[31]).trim().toLowerCase() === 'true')
+            : false,
         });
       }
     }
@@ -620,7 +623,7 @@ export class CPMSImporterExporter {
       'Company1', 'Company2', 'Company3', 'RepB2', 'ScopeOfWork', 'temp2', 'ExchangeRate',
       'EstimatedValue', 'ContractValue', 'RepA', 'RepB', 'Categories', 'Payee', 'BankAccountNo.',
       'BankName', 'ContactPersonB', 'CreatedDate', 'DisplayNo', 'SortOrder',
-      'CompanyCode', 'TaxCode', 'LinkedContractID', 'TaxCodeA', 'TaxCodeB2', 'IsAdditive'
+      'CompanyCode', 'TaxCode', 'LinkedContractID', 'TaxCodeA', 'TaxCodeB2', 'IsAdditive', 'IsProvisionalVal'
     ];
     const contractRows = [contractHeaders];
 
@@ -648,7 +651,8 @@ export class CPMSImporterExporter {
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
         c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
         formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || '', c.tax_code_a || '', c.tax_code_b2 || '',
-        (c.is_additive === true || c.is_additive === 1 || c.is_additive === '1' || (!c.parent_id && c.is_additive !== false)) ? '1' : '0'
+        (c.is_additive === true || c.is_additive === 1 || c.is_additive === '1' || (!c.parent_id && c.is_additive !== false)) ? '1' : '0',
+        (c.is_provisional_val === true || c.is_provisional_val === 1 || c.is_provisional_val === '1') ? '1' : '0'
       ]);
     });
 
@@ -662,7 +666,8 @@ export class CPMSImporterExporter {
         c.estimated_val || 0, c.contract_val || 0, c.rep_a || '', c.rep_b || '', c.category || '', c.payee || '',
         c.bank_account || '', c.bank_name || '', c.contact_person_b || '', c.created_at || '', c.display_no || '', c.sort_order || 0,
         formatCompanyCodeCell(c), c.tax_code || '', c.linked_contract_id || '', c.tax_code_a || '', c.tax_code_b2 || '',
-        (c.is_additive === true || c.is_additive === 1 || c.is_additive === '1' || (!c.parent_id && c.is_additive !== false)) ? '1' : '0'
+        (c.is_additive === true || c.is_additive === 1 || c.is_additive === '1' || (!c.parent_id && c.is_additive !== false)) ? '1' : '0',
+        (c.is_provisional_val === true || c.is_provisional_val === 1 || c.is_provisional_val === '1') ? '1' : '0'
       ]);
     });
 

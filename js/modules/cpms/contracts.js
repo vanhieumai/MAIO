@@ -11,7 +11,7 @@
  */
 
 import { db } from '../../core/db.js?v=5.1';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.1';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.2';
 
 export class ContractsManager {
   constructor() {
