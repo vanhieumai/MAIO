@@ -1201,6 +1201,65 @@ export class ContractsManager {
     return `<span class="badge-doc-status badge-doc-default"><i class="fa-solid fa-file"></i> ${raw}</span>`;
   }
 
+  /**
+   * Lấy badge phân loại hồ sơ có màu sắc riêng biệt cho từng loại (IPC, VO, CON, APP, TT, RFA...)
+   */
+  getDocumentCategoryBadgeHtml(category) {
+    const raw = String(category || 'IPC').trim();
+    const cat = raw.toUpperCase();
+
+    // 1. IPC - Interim Payment Certificate
+    if (cat.includes('IPC')) {
+      return `<span class="badge-doc-type badge-type-ipc" title="Interim Payment Certificate - Hồ sơ thanh toán đợt">IPC</span>`;
+    }
+    // 2. VO - Variation Orders (Phát sinh / Thay đổi)
+    if (cat.includes('VO') || cat.includes('PHÁT SINH') || cat.includes('VARIATION')) {
+      return `<span class="badge-doc-type badge-type-vo" title="Variation Orders - Hồ sơ phát sinh / Bổ sung">VO</span>`;
+    }
+    // 3. CON / CONTRACT / HỢP ĐỒNG GỐC
+    if (cat === 'CON' || cat.includes('CONTRACT') || cat.includes('HỢP ĐỒNG') || cat === 'HD') {
+      return `<span class="badge-doc-type badge-type-con" title="Contract - Hợp đồng chính">${raw}</span>`;
+    }
+    // 4. APP / PHỤ LỤC / APPENDIX
+    if (cat === 'APP' || cat.includes('PHỤ LỤC') || cat.includes('APPENDIX') || cat === 'PLHD' || cat === 'PL') {
+      return `<span class="badge-doc-type badge-type-app" title="Appendix - Phụ lục hợp đồng">${raw}</span>`;
+    }
+    // 5. TT / THANH TOÁN KHỐI LƯỢNG / TẠM ỨNG
+    if (cat === 'TT' || cat.includes('THANH TOÁN') || cat.includes('PAYMENT')) {
+      return `<span class="badge-doc-type badge-type-tt" title="Thanh toán / Đề nghị thanh toán">${raw}</span>`;
+    }
+    // 6. RFA / RFI / ĐỆ TRÌNH DUYỆT
+    if (cat.includes('RFA') || cat.includes('RFI') || cat.includes('TRÌNH') || cat.includes('SUBMIT')) {
+      return `<span class="badge-doc-type badge-type-rfa" title="Request for Approval - Đệ trình phê duyệt">${raw}</span>`;
+    }
+    // 7. BB / BBNT / BIÊN BẢN NGHIỆM THU
+    if (cat.includes('BB') || cat.includes('NGHIỆM THU') || cat.includes('ACCEPTANCE')) {
+      return `<span class="badge-doc-type badge-type-bb" title="Biên bản nghiệm thu / Bàn giao">${raw}</span>`;
+    }
+    // 8. TK / BẢN VẼ / THIẾT KẾ
+    if (cat.includes('TK') || cat.includes('DESIGN') || cat.includes('BẢN VẼ')) {
+      return `<span class="badge-doc-type badge-type-tk" title="Hồ sơ thiết kế / Bản vẽ kỹ thuật">${raw}</span>`;
+    }
+    // 9. CV / CÔNG VĂN / THƯ TỪ
+    if (cat === 'CV' || cat.includes('CÔNG VĂN') || cat.includes('LETTER') || cat.includes('OFFICIAL')) {
+      return `<span class="badge-doc-type badge-type-cv" title="Công văn / Thư từ">${raw}</span>`;
+    }
+    // 10. NOTE / GHI CHÚ / MEMO
+    if (cat === 'NOTE' || cat.includes('GHI CHÚ') || cat.includes('MEMO')) {
+      return `<span class="badge-doc-type badge-type-note" title="Ghi chú / Thông báo nội bộ">${raw}</span>`;
+    }
+    // 11. CMT / Ý KIẾN / BÌNH LUẬN
+    if (cat === 'CMT' || cat.includes('COMMENT') || cat.includes('Ý KIẾN')) {
+      return `<span class="badge-doc-type badge-type-cmt" title="Ý kiến góp ý / Review comment">${raw}</span>`;
+    }
+    // 12. TRN / TRANSMITTAL / PHIẾU CHUYỂN
+    if (cat === 'TRN' || cat.includes('TRANSMITTAL') || cat.includes('CHUYỂN')) {
+      return `<span class="badge-doc-type badge-type-trn" title="Phiếu chuyển tài liệu / Transmittal">${raw}</span>`;
+    }
+    // 13. OTHER / Khác
+    return `<span class="badge-doc-type badge-type-other" title="${raw}">${raw}</span>`;
+  }
+
   getPaymentRate(p) {
     const r = parseFloat(p?.exchange_rate);
     return !isNaN(r) && r > 0 ? r : 1.0;
@@ -3268,7 +3327,7 @@ export class ContractsManager {
                         <tr class="doc-item-row" data-doc-category="${(d.category || 'Hồ sơ').trim()}" data-received-time="${this.parsePaymentDateObj(d.received_date)?.getTime() || 0}">
                           <td style="white-space: nowrap; font-family: monospace; font-weight: 600; color: #334155; text-align: center;">${d.id}</td>
                           <td style="white-space: nowrap;">${d.doc_no || '—'}</td>
-                          <td style="text-align: center; white-space: nowrap;"><span class="badge badge-primary" style="font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;">${d.category || 'Hồ sơ'}</span></td>
+                          <td style="text-align: center; white-space: nowrap;">${this.getDocumentCategoryBadgeHtml(d.category)}</td>
                           <td style="max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${d.title || ''}">${d.title || '—'}</td>
                           <td style="text-align: center; white-space: nowrap;">${this.formatDate(d.received_date)}</td>
                           <td style="text-align: center; white-space: nowrap;">${this.getDocumentStatusBadgeHtml(d.status)}</td>
@@ -8876,12 +8935,27 @@ export class ContractsManager {
   // ==========================================
 
   /**
-   * Kiểm tra hồ sơ đã hoàn thành hay chưa
+   * Kiểm tra hồ sơ đã hoàn thành / kết thúc hay chưa (gồm cả Canceled, Returned)
    */
   isDocCompleted(doc) {
     if (!doc) return false;
     const raw = String(doc.status || '').trim().toLowerCase();
-    const completedList = ['completed', 'hoàn thành', 'closed', 'done', 'accepted', 'approved', 'phê duyệt', 'chấp thuận'];
+    const completedList = [
+      'completed',
+      'hoàn thành',
+      'closed',
+      'done',
+      'accepted',
+      'approved',
+      'phê duyệt',
+      'chấp thuận',
+      'canceled',
+      'cancelled',
+      'hủy',
+      'đã hủy',
+      'returned',
+      'trả lại'
+    ];
     return completedList.includes(raw);
   }
 
@@ -9052,6 +9126,7 @@ export class ContractsManager {
 
     const selectedDoc = (allDocs.find((d) => d.id === this.selectedReminderDocId)) || filteredDocs[0] || null;
     const targetContract = selectedDoc ? this.contracts.find((c) => c.id === selectedDoc.contract_id) : null;
+    const isOrphanDoc = Boolean(selectedDoc && !targetContract);
 
     // Render danh sách các dòng hồ sơ (Cột trái)
     const rowsHtml =
@@ -9063,21 +9138,26 @@ export class ContractsManager {
         : filteredDocs
             .map((d) => {
               const c = this.contracts.find((item) => item.id === d.contract_id);
-              const partyB = c?.company_b || c?.company_a || '—';
+              const isRowOrphan = !c;
+              const partyBText = c?.company_b || c?.company_a || '[Chưa gắn hợp đồng]';
+              const partyBHtml = isRowOrphan
+                ? `<span style="color: #dc2626; font-weight: 600;">[Chưa gắn hợp đồng]</span>`
+                : partyBText;
+              const contractSub = c?.contract_no || (d.contract_id ? `Mã cũ: ${d.contract_id}` : 'Không có mã HĐ');
               const shortSeq = this.getDocShortSequence(d);
               const recDate = this.formatDate(d.received_date || this.getDocReceivedDate(d, c));
               const isSelected = d.id === this.selectedReminderDocId;
 
               return `
                 <tr class="reminder-table-row ${isSelected ? 'selected' : ''}" data-doc-id="${d.id}" style="cursor: pointer;">
-                  <td class="reminder-col-party" title="${partyB}">
+                  <td class="reminder-col-party" title="${partyBText}">
                     <div class="reminder-party-cell">
-                      <span class="reminder-party-name">${partyB}</span>
-                      <span class="reminder-contract-sub">${c?.contract_no || d.contract_id}</span>
+                      <span class="reminder-party-name">${partyBHtml}</span>
+                      <span class="reminder-contract-sub">${contractSub}</span>
                     </div>
                   </td>
                   <td style="text-align: center; white-space: nowrap;">
-                    <span class="badge badge-primary reminder-type-badge">${d.category || 'IPC'}</span>
+                    ${this.getDocumentCategoryBadgeHtml(d.category)}
                   </td>
                   <td style="text-align: center; white-space: nowrap; font-family: monospace; font-weight: 700; color: #334155;">
                     ${shortSeq}
@@ -9093,84 +9173,112 @@ export class ContractsManager {
             })
             .join('');
 
-    // Chuẩn bị đường link cho cột chi tiết
-    let docLinkHtml = '<span style="color: #94a3b8;">—</span>';
-    if (selectedDoc) {
-      const locLink = selectedDoc.local_link || (!String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link);
-      const drvLink = selectedDoc.drive_link || (String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link);
+    // Chuẩn bị đường link Local & link Drive cho cột chi tiết
+    let locLink = '';
+    let drvLink = '';
+    let driveDocPath = '';
 
-      if (locLink || drvLink) {
-        docLinkHtml = `
-          <div style="display: flex; flex-direction: column; gap: 4px; word-break: break-all;">
-            ${
-              locLink
-                ? `<div style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
-                    <i class="fa-solid fa-laptop" style="color: #64748b; flex-shrink: 0;"></i>
-                    <span class="font-mono text-muted" style="font-size: 0.78rem;">${locLink}</span>
-                    <button type="button" class="button button-outline btn-copy-doc-local" data-path="${encodeURIComponent(locLink)}" style="padding: 1px 5px; font-size: 0.65rem; height: 20px;" title="Sao chép đường dẫn">
-                      <i class="fa-regular fa-copy"></i>
-                    </button>
-                  </div>`
-                : ''
-            }
-            ${
-              drvLink
-                ? `<div>
-                    <a href="${drvLink}" target="_blank" style="padding: 2px 8px; font-size: 0.75rem; color: #0284c7; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; text-decoration: none;">
-                      <i class="fa-brands fa-google-drive"></i> Mở trên Google Drive
-                    </a>
-                  </div>`
-                : ''
-            }
-          </div>
-        `;
-      }
+    if (selectedDoc) {
+      locLink = selectedDoc.local_link || (!String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link) || '';
+      drvLink = selectedDoc.drive_link || (String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link) || '';
+      driveDocPath = targetContract ? this.getDriveDocPathForContract(targetContract) : '';
     }
+
+    // 1. HTML cho Link Local + nút mở file/thư mục Local inline
+    const localLinkHtml = `
+      <div class="reminder-link-row-flex">
+        <div class="reminder-link-text">
+          ${locLink
+            ? `<span class="font-mono text-muted" style="font-size: 0.78rem; word-break: break-all;" title="${locLink}">${locLink}</span>`
+            : '<span style="color: #94a3b8;">—</span>'}
+        </div>
+        <div class="reminder-link-btn-group">
+          ${locLink
+            ? `<button type="button" class="button button-outline btn-reminder-inline-icon btn-copy-doc-local" data-path="${encodeURIComponent(locLink)}" title="Sao chép đường dẫn máy tính">
+                 <i class="fa-regular fa-copy"></i>
+               </button>`
+            : ''}
+          <button type="button" id="btn-reminder-open-file-local" class="button button-outline btn-reminder-inline-icon btn-action-local" title="Mở file trên máy tính">
+            <i class="fa-solid fa-file-lines"></i>
+          </button>
+          <button type="button" id="btn-reminder-open-folder-local" class="button button-outline btn-reminder-inline-icon btn-action-local-folder" title="Mở thư mục trên máy tính">
+            <i class="fa-solid fa-folder-open"></i>
+          </button>
+        </div>
+      </div>
+    `;
+
+    // 2. HTML cho Link Drive + nút mở file/thư mục Drive inline
+    const driveLinkHtml = `
+      <div class="reminder-link-row-flex">
+        <div class="reminder-link-text">
+          ${drvLink
+            ? `<a href="${drvLink}" target="_blank" class="font-mono" style="font-size: 0.78rem; color: #0284c7; word-break: break-all; text-decoration: none;" title="${drvLink}">${driveDocPath || drvLink}</a>`
+            : driveDocPath
+              ? `<span class="font-mono" style="font-size: 0.78rem; color: #0369a1; word-break: break-all;" title="${driveDocPath}">${driveDocPath}</span>`
+              : '<span style="color: #94a3b8;">—</span>'}
+        </div>
+        <div class="reminder-link-btn-group">
+          <button type="button" id="btn-reminder-open-file-drive" class="button button-outline btn-reminder-inline-icon btn-action-drive-file" title="Mở file trên Google Drive">
+            <i class="fa-solid fa-file-lines"></i>
+          </button>
+          <button type="button" id="btn-reminder-open-folder-drive" class="button button-outline btn-reminder-inline-icon btn-action-drive-folder" title="Mở thư mục trên Google Drive">
+            <i class="fa-solid fa-folder-open"></i>
+          </button>
+        </div>
+      </div>
+    `;
 
     // Render toàn bộ layout 2 cột
     container.innerHTML = `
       <div class="reminder-main-grid">
         <!-- CỘT TRÁI: DANH SÁCH HỒ SƠ & BỘ LỌC -->
         <div class="reminder-left-col">
-          <!-- BỘ LỌC (FILTER CARD) -->
+          <!-- BỘ LỌC (FILTER CARD) GỌN GÀNG, CÂN ĐỐI -->
           <div class="card reminder-filter-card">
-            <div class="reminder-filter-row-top">
-              <label class="reminder-checkbox-wrap" title="Tích chọn để hiển thị cả các hồ sơ đã hoàn tất (Approved, Accepted, Completed)">
-                <input type="checkbox" id="reminder-filter-show-completed" ${this.reminderShowCompleted ? 'checked' : ''}>
-                <span>Show Completed</span>
-              </label>
-
-              <div class="reminder-radio-group">
-                <label class="reminder-radio-label">
-                  <input type="radio" name="reminder-doc-type-radio" value="ALL" ${this.reminderDocType === 'ALL' ? 'checked' : ''}>
-                  <span>All Documents</span>
-                </label>
-                <label class="reminder-radio-label">
-                  <input type="radio" name="reminder-doc-type-radio" value="IPC" ${this.reminderDocType === 'IPC' ? 'checked' : ''}>
-                  <span>Interim Payment Certificate</span>
-                </label>
-                <label class="reminder-radio-label">
-                  <input type="radio" name="reminder-doc-type-radio" value="OTHER" ${this.reminderDocType === 'OTHER' ? 'checked' : ''}>
-                  <span>Other Documents</span>
-                </label>
-              </div>
-
-              <div class="reminder-category-select-wrap">
-                <select id="reminder-filter-category" class="form-control" title="Chọn loại hồ sơ cụ thể">
-                  <option value="ALL">Tất cả loại (IPC, CON, VO...)</option>
-                  ${categoriesOptionsHtml}
-                </select>
-              </div>
-            </div>
-
-            <div class="reminder-filter-row-bottom">
+            <div class="reminder-filter-inner">
+              <!-- 1. Ô tìm kiếm bên TRÁI -->
               <div class="search-input-wrap reminder-search-wrap">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="reminder-search-input" class="search-input" placeholder="Tìm kiếm đối tác, số công văn, hợp đồng, nội dung..." value="${this.reminderSearchTerm || ''}">
+                <input type="text" id="reminder-search-input" class="search-input" placeholder="Tìm kiếm..." value="${this.reminderSearchTerm || ''}">
                 <button type="button" id="btn-clear-reminder-search" class="btn-clear-search ${this.reminderSearchTerm ? '' : 'hidden'}" title="Xóa từ khóa">
                   <i class="fa-solid fa-xmark"></i>
                 </button>
               </div>
+
+              <span class="reminder-filter-vdivider"></span>
+
+              <!-- 2. Checkbox Show Completed -->
+              <label class="reminder-checkbox-wrap" title="Tích chọn để hiển thị cả các hồ sơ đã hoàn tất / kết thúc (Approved, Accepted, Completed, Canceled, Returned)">
+                <input type="checkbox" id="reminder-filter-show-completed" ${this.reminderShowCompleted ? 'checked' : ''}>
+                <span>Show Completed</span>
+              </label>
+
+              <span class="reminder-filter-vdivider"></span>
+
+              <!-- 3. Radio Buttons -->
+              <div class="reminder-radio-group">
+                <label class="reminder-radio-label" title="Tất cả hồ sơ (All Documents)">
+                  <input type="radio" name="reminder-doc-type-radio" value="ALL" ${this.reminderDocType === 'ALL' ? 'checked' : ''}>
+                  <span>Tất cả</span>
+                </label>
+                <label class="reminder-radio-label" title="Chỉ hồ sơ thanh toán đợt (Interim Payment Certificate)">
+                  <input type="radio" name="reminder-doc-type-radio" value="IPC" ${this.reminderDocType === 'IPC' ? 'checked' : ''}>
+                  <span>IPC</span>
+                </label>
+                <label class="reminder-radio-label" title="Các loại tài liệu khác (Other Documents)">
+                  <input type="radio" name="reminder-doc-type-radio" value="OTHER" ${this.reminderDocType === 'OTHER' ? 'checked' : ''}>
+                  <span>Khác</span>
+                </label>
+              </div>
+
+              <span class="reminder-filter-vdivider"></span>
+
+              <!-- 4. Dropdown chọn Loại bên PHẢI -->
+              <select id="reminder-filter-category" class="form-control reminder-category-select" title="Lọc theo loại hồ sơ">
+                <option value="ALL">Tất cả loại</option>
+                ${categoriesOptionsHtml}
+              </select>
             </div>
           </div>
 
@@ -9212,11 +9320,20 @@ export class ContractsManager {
             <!-- HEADER CHI TIẾT -->
             <div class="reminder-detail-header">
               <div class="reminder-detail-title-box">
-                <span class="badge ${targetContract?.group === 'B' ? 'badge-warning' : 'badge-primary'}">
-                  GROUP ${targetContract?.group || 'A'}
-                </span>
+                ${
+                  isOrphanDoc
+                    ? `<span class="badge" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;">CHƯA GÁN HĐ</span>`
+                    : `<span class="badge ${targetContract?.group === 'B' ? 'badge-warning' : 'badge-primary'}">GROUP ${targetContract?.group || 'A'}</span>`
+                }
                 <span class="reminder-detail-contract-no">
-                  ${targetContract?.contract_no || selectedDoc?.contract_id || 'Chưa chọn hồ sơ'}
+                  ${
+                    targetContract?.contract_no ||
+                    (selectedDoc
+                      ? selectedDoc.contract_id
+                        ? `Mã tham chiếu: ${selectedDoc.contract_id}`
+                        : 'Chưa gắn hợp đồng / phụ lục'
+                      : 'Chưa chọn hồ sơ')
+                  }
                 </span>
               </div>
               <div>${selectedDoc ? this.getDocumentStatusBadgeHtml(selectedDoc.status) : ''}</div>
@@ -9240,7 +9357,7 @@ export class ContractsManager {
                 <div class="reminder-field-row">
                   <div class="reminder-field-label">Type</div>
                   <div class="reminder-field-value">
-                    <span class="badge badge-primary" style="font-weight: 700; font-size: 0.78rem;">${selectedDoc.category || 'IPC'}</span>
+                    ${this.getDocumentCategoryBadgeHtml(selectedDoc.category)}
                   </div>
                 </div>
 
@@ -9279,28 +9396,39 @@ export class ContractsManager {
                   <div class="reminder-field-value reminder-field-note">${selectedDoc.note || '—'}</div>
                 </div>
 
+                <!-- LINK LOCAL (MÁY TÍNH) -->
                 <div class="reminder-field-row">
-                  <div class="reminder-field-label">Link</div>
-                  <div class="reminder-field-value reminder-field-link">${docLinkHtml}</div>
+                  <div class="reminder-field-label">
+                    <i class="fa-solid fa-laptop" style="color: #475569; margin-right: 2px;"></i> Link Local
+                  </div>
+                  <div class="reminder-field-value reminder-field-link">${localLinkHtml}</div>
+                </div>
+
+                <!-- LINK GOOGLE DRIVE -->
+                <div class="reminder-field-row">
+                  <div class="reminder-field-label">
+                    <i class="fa-brands fa-google-drive" style="color: #0284c7; margin-right: 2px;"></i> Link Drive
+                  </div>
+                  <div class="reminder-field-value reminder-field-link">${driveLinkHtml}</div>
                 </div>
               </div>
 
               <!-- FOOTER THAO TÁC (ACTIONS) -->
-              <div class="reminder-detail-actions">
+              <div class="reminder-detail-actions ${isOrphanDoc ? 'is-orphan-actions' : ''}">
                 <button type="button" id="btn-reminder-refresh" class="button button-outline" title="Làm mới danh sách dữ liệu">
-                  <i class="fa-solid fa-rotate-right"></i> Refresh
+                  <i class="fa-solid fa-rotate-right"></i> Làm mới
                 </button>
-                <button type="button" id="btn-reminder-goto" class="button button-primary" title="Mở chi tiết Hợp đồng và trỏ đến hồ sơ này">
-                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Go to
+                <button type="button" id="btn-reminder-goto" class="button button-primary" ${isOrphanDoc ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} title="${isOrphanDoc ? 'Tài liệu chưa gắn hợp đồng, vui lòng gán hợp đồng trước' : 'Mở chi tiết Hợp đồng và trỏ đến hồ sơ này'}">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở HĐ
                 </button>
                 ${
-                  (selectedDoc.local_link || selectedDoc.file_link || selectedDoc.drive_link)
+                  isOrphanDoc
                     ? `
-                  <button type="button" id="btn-reminder-open-file" class="button button-outline" style="color: #0284c7; border-color: #bae6fd; background: #f0f9ff;" title="Mở tệp tin">
-                    <i class="fa-solid fa-file-arrow-up"></i> Mở file
+                  <button type="button" id="btn-reminder-assign-contract" class="button button-outline btn-reminder-assign-contract" title="Gán tài liệu này vào một Hợp đồng hoặc Phụ lục hiện có">
+                    <i class="fa-solid fa-link"></i> Gán HĐ
                   </button>
-                  <button type="button" id="btn-reminder-open-folder" class="button button-outline" style="color: #d97706; border-color: #fde68a; background: #fffbeb;" title="Mở thư mục chứa file">
-                    <i class="fa-solid fa-folder-open"></i> Mở thư mục
+                  <button type="button" id="btn-reminder-delete-orphan" class="button button-outline btn-reminder-delete-orphan" title="Xóa vĩnh viễn tài liệu chưa gắn hợp đồng này">
+                    <i class="fa-solid fa-trash-can"></i> Xóa
                   </button>
                 `
                     : ''
@@ -9320,13 +9448,13 @@ export class ContractsManager {
     `;
 
     // Gắn sự kiện cho các thành phần điều khiển
-    this.bindReminderEvents(filteredDocs, selectedDoc, targetContract);
+    this.bindReminderEvents(filteredDocs, selectedDoc, targetContract, locLink, drvLink, driveDocPath);
   }
 
   /**
    * Gắn sự kiện tương tác cho Tab Reminders
    */
-  bindReminderEvents(filteredDocs, selectedDoc, targetContract) {
+  bindReminderEvents(filteredDocs, selectedDoc, targetContract, locLink = '', drvLink = '', driveDocPath = '') {
     const container = document.getElementById('reminder-layout-container');
     if (!container) return;
 
@@ -9362,22 +9490,74 @@ export class ContractsManager {
 
     // 3. Nút Go to
     document.getElementById('btn-reminder-goto')?.addEventListener('click', () => {
-      if (selectedDoc) {
+      if (selectedDoc && targetContract) {
         this.handleReminderGoTo(selectedDoc);
       }
     });
 
-    // 4. Nút Mở file
-    document.getElementById('btn-reminder-open-file')?.addEventListener('click', () => {
+    // 3b. Nút Gán hợp đồng (chỉ hiện với tài liệu chưa gắn hợp đồng/phụ lục)
+    document.getElementById('btn-reminder-assign-contract')?.addEventListener('click', () => {
+      if (selectedDoc) {
+        this.openAssignContractModal(selectedDoc);
+      }
+    });
+
+    // 3c. Nút Delete orphan (chỉ hiện với tài liệu chưa gắn hợp đồng/phụ lục)
+    document.getElementById('btn-reminder-delete-orphan')?.addEventListener('click', async () => {
+      if (!selectedDoc) return;
+      const docLabel = selectedDoc.doc_no || selectedDoc.title || selectedDoc.name || selectedDoc.id;
+      if (
+        !confirm(
+          `Bạn có chắc chắn muốn xóa vĩnh viễn tài liệu chưa gắn hợp đồng này?\n\n• Số / Tên: ${docLabel}\n• ID: ${selectedDoc.id}`
+        )
+      ) {
+        return;
+      }
+
+      await db.delete('documents', selectedDoc.id);
+      this.selectedReminderDocId = null;
+      await this.loadData();
+      await this.syncToLocalFile();
+      this.updateReminderBadge();
+      this.renderRemindersTab();
+      this.showLocalSaveStatus('Đã xóa tài liệu chưa gắn hợp đồng!');
+    });
+
+    // 4. Nút Mở file Local
+    document.getElementById('btn-reminder-open-file-local')?.addEventListener('click', () => {
       if (selectedDoc) {
         this.handleOpenDocFile(selectedDoc);
       }
     });
 
-    // 5. Nút Mở thư mục
-    document.getElementById('btn-reminder-open-folder')?.addEventListener('click', () => {
+    // 5. Nút Mở thư mục Local
+    document.getElementById('btn-reminder-open-folder-local')?.addEventListener('click', () => {
       if (selectedDoc) {
         this.handleOpenDocFolder(selectedDoc, targetContract);
+      }
+    });
+
+    // 6. Nút Mở file Drive
+    document.getElementById('btn-reminder-open-file-drive')?.addEventListener('click', () => {
+      if (drvLink) {
+        window.open(drvLink, '_blank');
+      } else if (selectedDoc?.drive_link) {
+        window.open(selectedDoc.drive_link, '_blank');
+      } else {
+        const q = selectedDoc?.doc_no || selectedDoc?.title || selectedDoc?.id || '';
+        const searchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(q)}`;
+        window.open(searchUrl, '_blank');
+      }
+    });
+
+    // 7. Nút Mở thư mục Drive
+    document.getElementById('btn-reminder-open-folder-drive')?.addEventListener('click', () => {
+      if (drvLink && drvLink.includes('/folders/')) {
+        window.open(drvLink, '_blank');
+      } else {
+        const path = driveDocPath || (targetContract ? this.getDriveDocPathForContract(targetContract) : '');
+        alert(`Thư mục lưu trữ trên Google Drive:\n\n${path || 'Cấu trúc MAIO_Data / 01_QuanLy_DuAn / Doc'}\n\n(Bấm OK để truy cập Google Drive của bạn)`);
+        window.open('https://drive.google.com', '_blank');
       }
     });
 
@@ -9444,6 +9624,164 @@ export class ContractsManager {
       clearBtn.classList.add('hidden');
       this.renderRemindersTab();
     });
+  }
+
+  /**
+   * Mở modal cho phép gán một tài liệu chưa gắn hợp đồng (orphan) vào Hợp đồng hoặc Phụ lục hiện có
+   */
+  openAssignContractModal(doc) {
+    if (!doc) return;
+    document.getElementById('reminder-assign-contract-modal')?.remove();
+
+    const projectContracts = (this.contracts || []).filter(
+      (c) => !this.currentProjectId || c.project_id === this.currentProjectId
+    );
+
+    // Sắp xếp: Nhóm A trước -> Nhóm B, Hợp đồng cha trước -> Phụ lục con
+    const parents = projectContracts.filter((c) => !c.parent_id);
+    const orderedContracts = [];
+    parents.sort((a, b) => {
+      const gCmp = String(a.group || '').localeCompare(String(b.group || ''));
+      if (gCmp !== 0) return gCmp;
+      return String(a.contract_no || '').localeCompare(String(b.contract_no || ''));
+    });
+
+    parents.forEach((p) => {
+      orderedContracts.push({ contract: p, isChild: false });
+      const children = projectContracts
+        .filter((c) => c.parent_id === p.id)
+        .sort((a, b) => String(a.contract_no || '').localeCompare(String(b.contract_no || '')));
+      children.forEach((ch) => orderedContracts.push({ contract: ch, isChild: true }));
+    });
+
+    // Thêm các phụ lục mồ côi cha (nếu có)
+    const addedIds = new Set(orderedContracts.map((item) => item.contract.id));
+    projectContracts.forEach((c) => {
+      if (!addedIds.has(c.id)) {
+        orderedContracts.push({ contract: c, isChild: Boolean(c.parent_id) });
+      }
+    });
+
+    const buildOptionsHtml = (keyword = '') => {
+      const q = keyword.trim().toLowerCase();
+      const matched = orderedContracts.filter(({ contract }) => {
+        if (!q) return true;
+        const text = `${contract.group || ''} ${contract.contract_no || ''} ${contract.company_b || ''} ${contract.company_a || ''} ${contract.scope_of_work || ''}`.toLowerCase();
+        return text.includes(q);
+      });
+
+      if (matched.length === 0) {
+        return '<option value="" disabled>Không tìm thấy hợp đồng / phụ lục phù hợp</option>';
+      }
+
+      return matched
+        .map(({ contract, isChild }) => {
+          const prefix = isChild ? '↳ [Phụ lục] ' : `[Nhóm ${contract.group || 'A'}] `;
+          const partner = contract.company_b || contract.company_a || '';
+          const scope = contract.scope_of_work ? ` — ${contract.scope_of_work}` : '';
+          const label = `${prefix}${contract.contract_no || contract.id}${partner ? ` | ${partner}` : ''}${scope}`;
+          return `<option value="${contract.id}">${label}</option>`;
+        })
+        .join('');
+    };
+
+    const modal = document.createElement('div');
+    modal.id = 'reminder-assign-contract-modal';
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-container" style="max-width: 580px;">
+        <div class="modal-header">
+          <h2 style="font-size: 1.08rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid fa-link" style="color: #4338ca;"></i>
+            Gán tài liệu vào Hợp đồng / Phụ lục
+          </h2>
+          <button type="button" id="btn-close-assign-contract" class="button button-outline" style="padding: 4px 10px;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="modal-body" style="padding: 16px 20px;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; font-size: 0.82rem;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+              ${this.getDocumentCategoryBadgeHtml(doc.category)}
+              <strong style="color: #0f172a;">${doc.doc_no || doc.id}</strong>
+            </div>
+            <div style="color: #334155;">${doc.title || doc.name || '—'}</div>
+            ${doc.contract_id ? `<div style="color: #dc2626; font-size: 0.76rem; margin-top: 4px;">Mã HĐ cũ không tồn tại: <code>${doc.contract_id}</code></div>` : ''}
+          </div>
+
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Tìm nhanh Hợp đồng / Phụ lục</label>
+            <input type="text" id="assign-contract-search" class="form-control" placeholder="Nhập số hợp đồng, tên đối tác, phạm vi...">
+          </div>
+
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Chọn Hợp đồng / Phụ lục đích <span style="color: var(--danger);">*</span></label>
+            <select id="assign-contract-select" class="form-control" size="8" style="height: auto !important; padding: 6px !important; font-size: 0.82rem;">
+              ${buildOptionsHtml()}
+            </select>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 8px;">
+            <button type="button" id="btn-cancel-assign-contract" class="button button-outline">Hủy</button>
+            <button type="button" id="btn-confirm-assign-contract" class="button button-primary">
+              <i class="fa-solid fa-check"></i> Xác nhận gán
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => modal.remove();
+    modal.querySelector('#btn-close-assign-contract')?.addEventListener('click', closeModal);
+    modal.querySelector('#btn-cancel-assign-contract')?.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    const searchInput = modal.querySelector('#assign-contract-search');
+    const selectEl = modal.querySelector('#assign-contract-select');
+
+    searchInput?.addEventListener('input', (e) => {
+      if (selectEl) {
+        selectEl.innerHTML = buildOptionsHtml(e.target.value);
+        if (selectEl.options.length > 0 && !selectEl.options[0].disabled) {
+          selectEl.selectedIndex = 0;
+        }
+      }
+    });
+
+    if (selectEl && selectEl.options.length > 0 && !selectEl.options[0].disabled) {
+      selectEl.selectedIndex = 0;
+    }
+
+    const doAssign = async () => {
+      const targetId = selectEl?.value;
+      if (!targetId) {
+        alert('Vui lòng chọn một Hợp đồng hoặc Phụ lục để gán!');
+        return;
+      }
+
+      const updatedDoc = {
+        ...doc,
+        contract_id: targetId,
+        project_id: doc.project_id || this.currentProjectId,
+        updated_at: new Date().toISOString()
+      };
+
+      await db.put('documents', updatedDoc);
+      closeModal();
+      this.selectedReminderDocId = updatedDoc.id;
+      await this.loadData();
+      await this.syncToLocalFile();
+      this.updateReminderBadge();
+      this.renderRemindersTab();
+      this.showLocalSaveStatus('Đã gán tài liệu vào hợp đồng thành công!');
+    };
+
+    modal.querySelector('#btn-confirm-assign-contract')?.addEventListener('click', doAssign);
+    selectEl?.addEventListener('dblclick', doAssign);
   }
 
   /**

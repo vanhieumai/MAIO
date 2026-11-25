@@ -2765,42 +2765,60 @@ textarea.form-control:focus {
 .reminder-left-col {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+}
+
+.reminder-filter-card,
+.reminder-table-card,
+.reminder-detail-card {
+  margin-bottom: 0 !important;
 }
 
 .reminder-filter-card {
-  padding: 14px 16px;
+  padding: 6px 10px;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-.reminder-filter-row-top {
+.reminder-filter-inner {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: nowrap;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.reminder-filter-vdivider {
+  width: 1px;
+  height: 16px;
+  background: #cbd5e1;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .reminder-checkbox-wrap {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
+  gap: 5px;
+  font-size: 0.82rem;
   font-weight: 600;
   color: #1e293b;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .reminder-checkbox-wrap input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  margin: 0;
   cursor: pointer;
   accent-color: var(--primary);
 }
@@ -2808,14 +2826,15 @@ textarea.form-control:focus {
 .reminder-radio-group {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
+  gap: 10px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
 }
 
 .reminder-radio-label {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 0.82rem;
   font-weight: 500;
   color: #334155;
@@ -2825,32 +2844,64 @@ textarea.form-control:focus {
 }
 
 .reminder-radio-label input[type="radio"] {
+  margin: 0;
   cursor: pointer;
   accent-color: var(--primary);
 }
 
-.reminder-category-select-wrap {
-  margin-left: auto;
-}
-
-#reminder-filter-category {
-  height: 32px;
-  padding: 4px 10px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  border-radius: var(--radius-sm);
+#reminder-filter-category,
+select.reminder-category-select {
+  height: 30px !important;
+  line-height: 28px !important;
+  padding: 0 20px 0 8px !important;
+  font-size: 0.78rem !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  text-align-last: center !important;
+  border-radius: var(--radius-sm) !important;
   cursor: pointer;
-  min-width: 150px;
-}
-
-.reminder-filter-row-bottom {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  width: 125px !important;
+  max-width: 130px !important;
+  min-width: 110px !important;
+  flex: 0 0 125px !important;
+  box-sizing: border-box !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 .reminder-search-wrap {
-  flex: 1;
+  flex: 1 1 150px !important;
+  max-width: 190px !important;
+  min-width: 120px !important;
+  height: 30px !important;
+  box-sizing: border-box !important;
+  position: relative;
+}
+
+.reminder-search-wrap .search-input {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 30px !important;
+  line-height: 28px !important;
+  font-size: 0.78rem !important;
+  padding: 0 22px 0 26px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+.reminder-search-wrap .search-icon {
+  font-size: 0.72rem;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.reminder-search-wrap .btn-clear-search {
+  width: 18px;
+  height: 18px;
+  right: 5px;
 }
 
 /* Card Bảng danh sách hồ sơ */
@@ -2864,8 +2915,8 @@ textarea.form-control:focus {
 }
 
 .reminder-table-scroll-wrap {
-  max-height: calc(88vh - 230px);
-  min-height: 350px;
+  max-height: calc(88vh - 165px);
+  min-height: 420px;
   overflow-y: auto;
   overflow-x: auto;
   position: relative;
@@ -2937,11 +2988,108 @@ textarea.form-control:focus {
   font-family: monospace;
 }
 
-.reminder-type-badge {
+/* Badge phân loại hồ sơ (Type Badges) - Tô màu riêng biệt cho từng loại */
+.badge-doc-type {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.72rem;
+  font-weight: 700;
   padding: 2px 7px;
   border-radius: 4px;
-  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* 1. IPC - Xanh dương thanh lịch */
+.badge-type-ipc {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+/* 2. VO - Cam hổ phách / Amber (Hồ sơ phát sinh / Bổ sung) */
+.badge-type-vo {
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+
+/* 3. CON - Tím violet (Hợp đồng chính) */
+.badge-type-con {
+  background: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+/* 4. APP - Xanh ngọc Cyan (Phụ lục hợp đồng) */
+.badge-type-app {
+  background: #ecfeff;
+  color: #0891b2;
+  border: 1px solid #a5f3fc;
+}
+
+/* 5. TT - Xanh lá lục Emerald (Thanh toán / Tạm ứng) */
+.badge-type-tt {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+/* 6. RFA / RFI - Đỏ hồng Rose (Đệ trình phê duyệt) */
+.badge-type-rfa {
+  background: #fdf2f8;
+  color: #be185d;
+  border: 1px solid #fbcfe8;
+}
+
+/* 7. BB - Vàng nâu Amber (Biên bản nghiệm thu / Bàn giao) */
+.badge-type-bb {
+  background: #fefce8;
+  color: #a16207;
+  border: 1px solid #fef08a;
+}
+
+/* 8. TK - Xanh thép Indigo (Hồ sơ thiết kế / Bản vẽ) */
+.badge-type-tk {
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+/* 9. CV - Xanh lam Sky (Công văn / Thư từ) */
+.badge-type-cv {
+  background: #f0f9ff;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+/* 10. NOTE - Vàng chanh Brown (Ghi chú / Memo) */
+.badge-type-note {
+  background: #fefce8;
+  color: #a16207;
+  border: 1px solid #fef08a;
+}
+
+/* 11. CMT - Tím hồng Fuchsia (Ý kiến / Comment) */
+.badge-type-cmt {
+  background: #fdf4ff;
+  color: #a21caf;
+  border: 1px solid #f5d0fe;
+}
+
+/* 12. TRN - Xanh ngọc mòng két Teal (Transmittal / Phiếu chuyển) */
+.badge-type-trn {
+  background: #f0fdfa;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+}
+
+/* 13. OTHER - Xám Slate */
+.badge-type-other {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
 }
 
 /* Footer danh sách hồ sơ */
@@ -2949,7 +3097,7 @@ textarea.form-control:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 16px;
+  padding: 8px 14px;
   background: #f8fafc;
   border-top: 1px solid #e2e8f0;
   font-size: 0.82rem;
@@ -2977,23 +3125,23 @@ textarea.form-control:focus {
 }
 
 .reminder-detail-card {
-  padding: 18px 20px;
+  padding: 12px 14px;
   background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
 .reminder-detail-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-bottom: 12px;
+  padding-bottom: 6px;
   border-bottom: 1px solid #e2e8f0;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -3005,7 +3153,7 @@ textarea.form-control:focus {
 }
 
 .reminder-detail-contract-no {
-  font-size: 1.05rem;
+  font-size: 1rem;
   font-weight: 700;
   color: #0f172a;
   word-break: break-all;
@@ -3014,16 +3162,16 @@ textarea.form-control:focus {
 .reminder-detail-fields {
   display: flex;
   flex-direction: column;
-  gap: 9px;
-  font-size: 0.85rem;
+  gap: 5px;
+  font-size: 0.82rem;
 }
 
 .reminder-field-row {
   display: grid;
-  grid-template-columns: 140px 1fr;
-  gap: 12px;
+  grid-template-columns: 130px 1fr;
+  gap: 8px;
   align-items: start;
-  padding-bottom: 6px;
+  padding-bottom: 3px;
   border-bottom: 1px dashed #f1f5f9;
 }
 
@@ -3032,31 +3180,153 @@ textarea.form-control:focus {
 }
 
 .reminder-field-label {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #64748b;
   user-select: none;
+  display: flex;
+  align-items: center;
 }
 
 .reminder-field-value {
   color: #1e293b;
   word-break: break-word;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .reminder-field-name {
   color: #0284c7;
-  font-size: 0.9rem;
+  font-size: 0.86rem;
 }
 
 .reminder-detail-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  padding-top: 14px;
-  margin-top: 6px;
+  flex-wrap: nowrap;
+  padding-top: 8px;
+  margin-top: 2px;
   border-top: 1px solid #e2e8f0;
+}
+
+.reminder-detail-actions .button {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.reminder-detail-actions.is-orphan-actions {
+  gap: 6px;
+}
+
+.reminder-detail-actions.is-orphan-actions .button {
+  flex: 1 1 0;
+  padding: 0 8px;
+  min-width: 0;
+}
+
+/* Hàng Link Local & Link Drive kèm nút icon gọn gàng */
+.reminder-link-row-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.reminder-link-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.reminder-link-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-reminder-inline-icon {
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.76rem !important;
+  border-radius: 5px !important;
+}
+
+/* Nút hành động phân biệt rõ ràng giữa Local (Máy tính) và Google Drive (Cloud) */
+.btn-action-local {
+  color: #166534 !important;
+  border-color: #bbf7d0 !important;
+  background: #f0fdf4 !important;
+  font-weight: 600 !important;
+}
+.btn-action-local:hover {
+  background: #dcfce7 !important;
+  border-color: #86efac !important;
+}
+
+.btn-action-local-folder {
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+  background: #fffbeb !important;
+  font-weight: 600 !important;
+}
+.btn-action-local-folder:hover {
+  background: #fef3c7 !important;
+  border-color: #fcd34d !important;
+}
+
+.btn-action-drive-file {
+  color: #0284c7 !important;
+  border-color: #bae6fd !important;
+  background: #f0f9ff !important;
+  font-weight: 600 !important;
+}
+.btn-action-drive-file:hover {
+  background: #e0f2fe !important;
+  border-color: #7dd3fc !important;
+}
+
+.btn-action-drive-folder {
+  color: #1d4ed8 !important;
+  border-color: #bfdbfe !important;
+  background: #eff6ff !important;
+  font-weight: 600 !important;
+}
+.btn-action-drive-folder:hover {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+}
+
+.btn-reminder-assign-contract {
+  color: #4338ca !important;
+  border-color: #c7d2fe !important;
+  background: #eef2ff !important;
+  font-weight: 600 !important;
+}
+.btn-reminder-assign-contract:hover {
+  background: #e0e7ff !important;
+  border-color: #a5b4fc !important;
+}
+
+.btn-reminder-delete-orphan {
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+  background: #fef2f2 !important;
+  font-weight: 600 !important;
+}
+.btn-reminder-delete-orphan:hover {
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
 }
 
 /* Hiệu ứng nhấp nháy dòng khi chuyển tới (Go to) từ Reminders */
