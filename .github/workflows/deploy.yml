@@ -29,12 +29,15 @@ jobs:
 
       - name: Exclude heavy legacy files
         run: |
-          rm -rf legacy check_*.py test_*.py .git
+          rm -rf legacy check_*.py test_*.py .git .agents
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: '.'
+
+      - name: Wait for artifact indexing
+        run: sleep 8
 
       - name: Deploy to GitHub Pages
         id: deployment
