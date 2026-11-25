@@ -8,8 +8,18 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/main.css?v=5.0">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=9.2">
+  <link rel="stylesheet" href="css/main.css?v=5.5">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=9.3">
+  <script>
+    (function () {
+      try {
+        var savedTheme = localStorage.getItem('maio_theme');
+        if (savedTheme === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
   <!-- Thư viện SheetJS để đọc và xuất file .cpms, .xlsb, .xlsx -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -141,6 +151,10 @@
           </button>
           <button class="cpms-subtab-btn" data-cpms-tab="reminder" id="tab-btn-reminder">
             <i class="fa-solid fa-bell"></i> Reminder <span class="badge-reminder-count" id="reminder-tab-badge">0</span>
+          </button>
+          <button type="button" id="btn-theme-toggle" class="btn-theme-toggle" title="Chuyển giao diện Sáng / Tối">
+            <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+            <span id="theme-toggle-label">Tối</span>
           </button>
         </div>
 
@@ -708,6 +722,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=11.6"></script>
+  <script type="module" src="js/app.js?v=11.7"></script>
 </body>
 </html>

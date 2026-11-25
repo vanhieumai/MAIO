@@ -17,6 +17,9 @@ class App {
   async init() {
     console.log('Khởi động MAIO Application...');
 
+    // 0. Khởi tạo Giao diện Sáng / Tối
+    this.initTheme();
+
     // 1. Thiết lập điều hướng (Navigation)
     this.bindNavigation();
 
@@ -28,6 +31,40 @@ class App {
 
     // 4. Cập nhật cấu hình lên màn hình Settings
     this.renderSettingsInfo();
+  }
+
+  /**
+   * Khởi tạo & chuyển đổi giao diện Sáng / Tối (Light / Dark Mode)
+   */
+  initTheme() {
+    let saved = 'light';
+    try {
+      saved = localStorage.getItem('maio_theme') || 'light';
+    } catch (_) {}
+    this.applyTheme(saved);
+
+    document.getElementById('btn-theme-toggle')?.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      const next = current === 'dark' ? 'light' : 'dark';
+      this.applyTheme(next);
+      try {
+        localStorage.setItem('maio_theme', next);
+      } catch (_) {}
+    });
+  }
+
+  applyTheme(theme) {
+    const isDark = theme === 'dark';
+    if (isDark) {
+      document.documentElement.setAttribute('data-theme', 'dark');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+
+    const icon = document.getElementById('theme-toggle-icon');
+    const label = document.getElementById('theme-toggle-label');
+    if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+    if (label) label.textContent = isDark ? 'Sáng' : 'Tối';
   }
 
   async handleUserAuthChange(user) {
