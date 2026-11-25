@@ -1660,10 +1660,78 @@ export class ContractsManager {
     return 'HoSo';
   }
 
+  /**
+   * Trả về mảng các thư mục con (tương đối bên trong DuAn_<MaDA>) theo cây 3 trụ cột chuẩn của MAIO:
+   * - Nhóm A: 01_Nhom_A_ChuDauTu / {SoHieuHD} / {HopDong_PhuLuc/HopDong_Goc | HopDong_PhuLuc/PhuLuc_{SoPL} | ThanhToan | Doc}
+   * - Nhóm B: 02_Nhom_B_ThauPhu_NCC / {8 nhom CPMS} / {SoHieuHD}_{TenNhaThau} / {HopDong_PhuLuc/... | ThanhToan | Doc}
+   * - Hồ sơ chưa gắn HĐ: 00_Chua_Gan_HopDong
+   */
+  getDrivePathSegmentsForDoc(doc) {
+    if (!doc) return ['00_Chua_Gan_HopDong'];
+    const contract = (this.contracts || []).find((c) => c.id === doc.contract_id);
+    if (!contract) return ['00_Chua_Gan_HopDong'];
+
+    const cleanName = (str, maxLen = 70) => {
+      const cleaned = String(str || '')
+        .replace(/[\/\\?%*:|"<>]/g, '_')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return (cleaned.length > maxLen ? cleaned.slice(0, maxLen).trim() : cleaned) || 'Khong_Ten';
+    };
+
+    // Tìm Hợp đồng gốc (Root Level 0)
+    let rootMain = contract;
+    if (contract.parent_id) {
+      const parent = (this.contracts || []).find((c) => c.id === contract.parent_id);
+      if (parent) {
+        if (parent.parent_id) {
+          rootMain = (this.contracts || []).find((c) => c.id === parent.parent_id) || parent;
+        } else {
+          rootMain = parent;
+        }
+      }
+    }
+
+    const group = contract.group || rootMain.group || 'B';
+    let baseSegments = [];
+
+    if (group === 'A') {
+      const mainNo = cleanName(rootMain.contract_no || rootMain.id, 60);
+      baseSegments = ['01_Nhom_A_ChuDauTu', mainNo];
+    } else {
+      const validCategories = [
+        'Construction', 'Procurement', 'Consultancy', 'Design',
+        'Equipment', 'Service', 'Maintenance', 'Rental'
+      ];
+      const rawCat = contract.category || rootMain.category || 'Construction';
+      const matchedCat = validCategories.find((c) => c.toLowerCase() === String(rawCat).toLowerCase()) || 'Construction';
+      const mainNo = cleanName(rootMain.contract_no || rootMain.id, 35);
+      const partner = cleanName(rootMain.company_b || 'NCC', 45);
+      baseSegments = ['02_Nhom_B_ThauPhu_NCC', matchedCat, `${mainNo}_${partner}`];
+    }
+
+    const subKey = this.getDriveSubfolderKeyForDoc(doc);
+    if (subKey === 'HopDong_PL') {
+      if (!contract.parent_id) {
+        return [...baseSegments, 'HopDong_PhuLuc', 'HopDong_Goc'];
+      }
+      const plNo = cleanName(contract.contract_no || contract.id, 45);
+      return [...baseSegments, 'HopDong_PhuLuc', `PhuLuc_${plNo}`];
+    }
+    if (subKey === 'ThanhToan') {
+      return [...baseSegments, 'ThanhToan'];
+    }
+    return [...baseSegments, 'Doc'];
+  }
+
   getDriveDocPathForContract(contract) {
     const curPrjId = this.currentProjectId || 'CHC1';
     const safePrjId = String(curPrjId).replace(/[\/\\?%*:|"<>]/g, '_');
-    return `MAIO_Data / 01_QuanLy_DuAn / DuAn_${safePrjId} / HoSo /`;
+    if (!contract) {
+      return `MAIO_Data / 01_QuanLy_DuAn / DuAn_${safePrjId} /`;
+    }
+    const segs = this.getDrivePathSegmentsForDoc({ contract_id: contract.id, category: 'DOC' });
+    return `MAIO_Data / 01_QuanLy_DuAn / DuAn_${safePrjId} / ${segs.join(' / ')} /`;
   }
 
   renderProjectInfo() {

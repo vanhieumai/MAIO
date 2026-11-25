@@ -781,7 +781,7 @@ class App {
             </div>
           </div>
 
-          <!-- BƯỚC 1: KIỂM TRA TRÙNG THƯ MỤC TRÊN DRIVE -->
+      <!-- BƯỚC 1: KIỂM TRA TRÙNG THƯ MỤC TRÊN DRIVE -->
           <div style="margin-bottom: 14px;">
             <div style="font-weight: 600; margin-bottom: 6px; color: #0f172a;">1. Thư mục Dự án trên Google Drive</div>
             <div id="drive-folder-check-status" style="padding: 8px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; color: #1e40af; font-size: 0.82rem;">
@@ -799,8 +799,8 @@ class App {
                 ? `<div style="font-size: 0.76rem; color: #475569; margin-bottom: 6px;">Thư mục gốc trong CPMS: <code class="font-mono">${commonRootHint}</code></div>`
                 : ''
             }
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <span id="sync-local-dir-match-info" style="font-size: 0.8rem; color: #475569; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+              <span id="sync-local-dir-match-info" style="font-size: 0.8rem; color: #475569; flex: 1; min-width: 180px;">
                 ${
                   this.localDirectoryHandle
                     ? `<span style="color: #166534; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> Đã liên kết thư mục gốc: "${this.localDirectoryHandle.name}"</span>`
@@ -810,24 +810,26 @@ class App {
                 }
               </span>
               <button type="button" id="btn-pick-sync-local-dir" class="button button-outline button-sm" ${projectDocs.length === 0 ? 'disabled' : ''}>
-                <i class="fa-solid fa-folder-open" style="color: #d97706;"></i> ${this.localDirectoryHandle ? 'Đổi thư mục' : 'Cấp quyền thư mục gốc (1 lần)'}
+                <i class="fa-solid fa-folder-open" style="color: #d97706;"></i> ${this.localDirectoryHandle ? 'Đổi thư mục gốc' : 'Cấp quyền thư mục gốc (1 lần)'}
+              </button>
+              <button type="button" id="btn-add-sync-local-dir" class="button button-outline button-sm" title="Quét gộp thêm thư mục khác nếu có file lưu rải rác" ${projectDocs.length === 0 ? 'disabled' : ''}>
+                <i class="fa-solid fa-folder-plus" style="color: #2563eb;"></i> Quét thêm thư mục
               </button>
               <input type="file" id="input-fallback-local-dir" webkitdirectory multiple style="display: none;">
             </div>
-          </div>
 
-          <!-- TIẾN TRÌNH ĐỒNG BỘ -->
-          <div id="drive-sync-progress-section" style="display: none; margin-bottom: 12px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
-            <div id="drive-sync-progress-label" style="font-size: 0.8rem; font-weight: 600; color: #1e293b;">Đang chuẩn bị...</div>
-            <div class="drive-sync-progress-wrap">
-              <div id="drive-sync-progress-bar" class="drive-sync-progress-bar"></div>
-            </div>
+            <div id="sync-missing-docs-preview" style="display: none;"></div>
+
+            <label style="display: flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.8rem; color: #334155; cursor: pointer;">
+              <input type="checkbox" id="chk-skip-existing-drive-link" checked>
+              <span>Bỏ qua các hồ sơ đã có Link Drive (tiếp tục tải các hồ sơ còn thiếu)</span>
+            </label>
           </div>
 
           <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 8px; border-top: 1px solid #e2e8f0;">
             <button type="button" id="btn-cancel-drive-sync" class="button button-outline">Đóng</button>
             <button type="button" id="btn-start-drive-sync" class="button button-primary">
-              <i class="fa-solid fa-cloud-arrow-up"></i> Bắt đầu Đồng bộ lên Drive
+              <i class="fa-solid fa-cloud-arrow-up"></i> Bắt đầu Đồng bộ ngầm lên Drive
             </button>
           </div>
         </div>
@@ -843,6 +845,59 @@ class App {
     let quanLyDuAnId = null;
     let matchedFolder = null;
     let activeLocalIndex = null;
+    const manualPickedFiles = new Map(); // docId -> FileSystemFileHandle | File
+
+    const renderMissingDocsPreview = (missingDocs) => {
+      const box = modal.querySelector('#sync-missing-docs-preview');
+      if (!box) return;
+      if (!missingDocs || missingDocs.length === 0) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+      }
+      box.style.display = 'block';
+      box.innerHTML = `
+        <div style="font-size: 0.78rem; font-weight: 600; color: #b45309; margin-top: 8px;">
+          <i class="fa-solid fa-triangle-exclamation"></i> Còn ${missingDocs.length} hồ sơ chưa tìm thấy file (bạn có thể bấm "Quét thêm thư mục" hoặc "Chọn file lẻ"):
+        </div>
+        <div class="missing-doc-list">
+          ${missingDocs
+            .slice(0, 20)
+            .map(
+              (d) => `
+            <div class="missing-doc-item">
+              <div class="missing-doc-info">
+                <div><strong>${d.doc_no || d.id}</strong> — ${d.title || d.name || ''}</div>
+                <div class="missing-doc-path">${d.local_link}</div>
+              </div>
+              <button type="button" class="button button-outline button-sm btn-pick-single-missing" data-doc-id="${d.id}" style="flex-shrink: 0; font-size: 0.72rem; padding: 3px 8px;">
+                <i class="fa-solid fa-file-arrow-up"></i> Chọn file lẻ
+              </button>
+            </div>
+          `
+            )
+            .join('')}
+          ${missingDocs.length > 20 ? `<div style="font-size: 0.74rem; color: #64748b;">...và ${missingDocs.length - 20} hồ sơ khác.</div>` : ''}
+        </div>
+      `;
+
+      box.querySelectorAll('.btn-pick-single-missing').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const docId = btn.getAttribute('data-doc-id');
+          if ('showOpenFilePicker' in window) {
+            try {
+              const [fh] = await window.showOpenFilePicker({ multiple: false });
+              if (fh) {
+                manualPickedFiles.set(docId, fh);
+                await refreshMatchInfo(false);
+              }
+            } catch (e) {
+              if (e.name !== 'AbortError') console.warn(e);
+            }
+          }
+        });
+      });
+    };
 
     const refreshMatchInfo = async (allowPromptPermission = false) => {
       const infoEl = modal.querySelector('#sync-local-dir-match-info');
@@ -858,7 +913,7 @@ class App {
             infoEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang quét thư mục "${this.localDirectoryHandle.name}"...`;
             activeLocalIndex = await this.indexLocalFiles(this.localDirectoryHandle);
           } else {
-            infoEl.innerHTML = `<span style="color: #b45309;"><i class="fa-solid fa-lock"></i> Đã nhớ thư mục "${this.localDirectoryHandle.name}" (sẽ xin quyền đọc khi bấm Bắt đầu Đồng bộ)</span>`;
+            infoEl.innerHTML = `<span style="color: #b45309;"><i class="fa-solid fa-lock"></i> Đã nhớ thư mục "${this.localDirectoryHandle.name}" (sẽ xin quyền đọc khi bấm Bắt đầu)</span>`;
             return;
           }
         } catch (err) {
@@ -869,11 +924,17 @@ class App {
 
       if (activeLocalIndex) {
         let matched = 0;
+        const missingDocs = [];
         for (const d of projectDocs) {
-          if (this.matchLocalFileEntry(d.local_link, activeLocalIndex)) matched++;
+          if (manualPickedFiles.has(d.id) || this.matchLocalFileEntry(d.local_link, activeLocalIndex)) {
+            matched++;
+          } else {
+            missingDocs.push(d);
+          }
         }
         const dirLabel = this.localDirectoryHandle?.name || 'Thư mục đã chọn';
         infoEl.innerHTML = `<span style="color: #166534; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> "${dirLabel}": Tìm thấy ${matched}/${projectDocs.length} file khớp</span>`;
+        renderMissingDocsPreview(missingDocs);
       }
     };
 
@@ -960,8 +1021,9 @@ class App {
       }
     })();
 
-    // Nút cấp quyền / đổi thư mục gốc Local (lưu nhớ vào IndexedDB để lần sau không cần chọn lại)
+    // Nút cấp quyền / đổi thư mục gốc Local & Quét thêm thư mục
     const pickLocalBtn = modal.querySelector('#btn-pick-sync-local-dir');
+    const addLocalBtn = modal.querySelector('#btn-add-sync-local-dir');
     const fallbackInput = modal.querySelector('#input-fallback-local-dir');
 
     pickLocalBtn?.addEventListener('click', async () => {
@@ -971,7 +1033,7 @@ class App {
           this.localDirectoryHandle = handle;
           await db.saveProjectDirHandle(curPrjId, handle);
           activeLocalIndex = null;
-          pickLocalBtn.innerHTML = '<i class="fa-solid fa-folder-open" style="color: #d97706;"></i> Đổi thư mục';
+          pickLocalBtn.innerHTML = '<i class="fa-solid fa-folder-open" style="color: #d97706;"></i> Đổi thư mục gốc';
           await refreshMatchInfo(true);
         } catch (e) {
           if (e.name !== 'AbortError') {
@@ -983,152 +1045,424 @@ class App {
       }
     });
 
+    addLocalBtn?.addEventListener('click', async () => {
+      if ('showDirectoryPicker' in window) {
+        try {
+          const extraHandle = await window.showDirectoryPicker();
+          if (extraHandle) {
+            const infoEl = modal.querySelector('#sync-local-dir-match-info');
+            if (infoEl) infoEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang quét gộp thêm "${extraHandle.name}"...`;
+            activeLocalIndex = await this.indexLocalFiles(extraHandle, extraHandle.name, activeLocalIndex);
+            await refreshMatchInfo(false);
+          }
+        } catch (e) {
+          if (e.name !== 'AbortError') alert('Không thể mở thư mục bổ sung: ' + e.message);
+        }
+      } else {
+        fallbackInput?.click();
+      }
+    });
+
     fallbackInput?.addEventListener('change', async (e) => {
       if (e.target.files && e.target.files.length > 0) {
-        activeLocalIndex = this.indexFileList(e.target.files);
+        const extraIdx = this.indexFileList(e.target.files);
+        if (!activeLocalIndex) {
+          activeLocalIndex = extraIdx;
+        } else {
+          for (const [k, v] of extraIdx.byRelPath.entries()) activeLocalIndex.byRelPath.set(k, v);
+          for (const [k, list] of extraIdx.byFileName.entries()) {
+            const cur = activeLocalIndex.byFileName.get(k) || [];
+            activeLocalIndex.byFileName.set(k, cur.concat(list));
+          }
+        }
         await refreshMatchInfo(false);
       }
     });
 
-    // Nút Bắt đầu đồng bộ
+    // Nút Bắt đầu đồng bộ ngầm
     const startBtn = modal.querySelector('#btn-start-drive-sync');
     startBtn?.addEventListener('click', async () => {
-      const progressSec = modal.querySelector('#drive-sync-progress-section');
-      const progressBar = modal.querySelector('#drive-sync-progress-bar');
-      const progressLabel = modal.querySelector('#drive-sync-progress-label');
-      const setProgress = (pct, text) => {
-        if (progressSec) progressSec.style.display = 'block';
-        if (progressBar) progressBar.style.width = `${Math.min(100, Math.max(0, pct))}%`;
-        if (progressLabel) progressLabel.textContent = text;
+      if (!activeLocalIndex && this.localDirectoryHandle && projectDocs.length > 0) {
+        await refreshMatchInfo(true);
+      }
+
+      const mode = modal.querySelector('input[name="drive-folder-mode"]:checked')?.value || 'overwrite';
+      const skipExisting = Boolean(modal.querySelector('#chk-skip-existing-drive-link')?.checked);
+
+      closeModal();
+      this.runBackgroundDriveSync({
+        curPrjId,
+        curPrj,
+        safePrjId,
+        defaultFolderName,
+        quanLyDuAnId,
+        matchedFolder,
+        mode,
+        skipExisting,
+        projectDocs,
+        activeLocalIndex,
+        manualPickedFiles,
+      });
+    });
+  }
+
+  /**
+   * Thực thi đồng bộ lên Google Drive ở chế độ chạy ngầm (concurrency = 3),
+   * phân loại đúng cây thư mục 3 trụ cột và hiển thị Báo cáo khi hoàn tất
+   */
+  async runBackgroundDriveSync(ctx) {
+    const {
+      curPrjId,
+      curPrj,
+      safePrjId,
+      defaultFolderName,
+      matchedFolder,
+      mode,
+      skipExisting,
+      projectDocs,
+      activeLocalIndex,
+      manualPickedFiles,
+    } = ctx;
+
+    document.getElementById('drive-bg-sync-toast')?.remove();
+    const toast = document.createElement('div');
+    toast.id = 'drive-bg-sync-toast';
+    toast.className = 'drive-bg-sync-toast';
+    toast.innerHTML = `
+      <div class="drive-bg-sync-header">
+        <span><i class="fa-solid fa-cloud-arrow-up fa-beat-fade" style="color: #2563eb;"></i> Đang đồng bộ ngầm lên Drive</span>
+        <span id="bg-sync-pct" style="font-size: 0.78rem; color: #2563eb;">0%</span>
+      </div>
+      <div id="bg-sync-sub" class="drive-bg-sync-sub">Đang chuẩn bị cấu trúc thư mục...</div>
+      <div class="drive-sync-progress-wrap" style="margin: 2px 0 0;">
+        <div id="bg-sync-bar" class="drive-sync-progress-bar"></div>
+      </div>
+    `;
+    document.body.appendChild(toast);
+
+    const setBgProgress = (pct, text) => {
+      const pctEl = document.getElementById('bg-sync-pct');
+      const subEl = document.getElementById('bg-sync-sub');
+      const barEl = document.getElementById('bg-sync-bar');
+      if (pctEl) pctEl.textContent = `${Math.min(100, Math.max(0, Math.round(pct)))}%`;
+      if (subEl) subEl.textContent = text;
+      if (barEl) barEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+    };
+
+    try {
+      let quanLyDuAnId = ctx.quanLyDuAnId || (await gdrive.ensureFolderPath(['01_QuanLy_DuAn']));
+      let targetProjectFolderId = null;
+      let targetFolderName = defaultFolderName;
+
+      if (matchedFolder && mode === 'overwrite') {
+        targetProjectFolderId = matchedFolder.id;
+        targetFolderName = matchedFolder.name;
+      } else if (matchedFolder && mode === 'create_new') {
+        targetFolderName = `${defaultFolderName}_${new Date().toISOString().slice(0, 10)}`;
+        targetProjectFolderId = await gdrive.createFolder(targetFolderName, quanLyDuAnId);
+      } else {
+        targetProjectFolderId = await gdrive.createFolder(defaultFolderName, quanLyDuAnId);
+      }
+
+      const pathCache = new Map();
+      const inFlightMap = new Map();
+      const folderFilesCache = new Map();
+
+      setBgProgress(5, 'Đang chuẩn bị thư mục CPMS_Data...');
+      const cpmsFolderId = await gdrive.ensureFolderPath(['CPMS_Data'], targetProjectFolderId, pathCache, inFlightMap);
+
+      let uploadedDocsCount = 0;
+      let skippedAlreadySynced = 0;
+      const missingDocs = [];
+      const failedDocs = [];
+      let authExpiredDuringSync = false;
+
+      const docsToUpload = [];
+      for (const doc of projectDocs) {
+        if (skipExisting && doc.drive_link && String(doc.drive_link).includes('drive.google.com')) {
+          skippedAlreadySynced++;
+          continue;
+        }
+        const entry =
+          (manualPickedFiles && manualPickedFiles.get(doc.id)) ||
+          (activeLocalIndex ? this.matchLocalFileEntry(doc.local_link, activeLocalIndex) : null);
+
+        if (!entry) {
+          missingDocs.push(doc);
+        } else {
+          docsToUpload.push({ doc, entry });
+        }
+      }
+
+      const totalToUpload = docsToUpload.length;
+      let processedCount = 0;
+      let nextIdx = 0;
+      const CONCURRENCY = 3;
+
+      const getCachedFolderFiles = async (folderId) => {
+        if (!folderFilesCache.has(folderId)) {
+          const files = await gdrive.listProjectFiles(folderId);
+          folderFilesCache.set(folderId, files);
+        }
+        return folderFilesCache.get(folderId);
       };
 
-      try {
-        startBtn.disabled = true;
-        startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
+      const worker = async () => {
+        while (nextIdx < totalToUpload && !authExpiredDuringSync) {
+          const currentIndex = nextIdx++;
+          const { doc, entry } = docsToUpload[currentIndex];
+          try {
+            const fileObj = typeof entry.getFile === 'function' ? await entry.getFile() : entry;
+            const pathSegs = contractsManager.getDrivePathSegmentsForDoc(doc);
+            const targetFolderId = await gdrive.ensureFolderPath(pathSegs, targetProjectFolderId, pathCache, inFlightMap);
+            const preloadedFiles = await getCachedFolderFiles(targetFolderId);
 
-        // Nếu đã lưu dirHandle mà chưa quét trong phiên này -> xin quyền đọc ngay trong click handler!
-        if (!activeLocalIndex && this.localDirectoryHandle && projectDocs.length > 0) {
-          await refreshMatchInfo(true);
-        }
+            const uploaded = await gdrive.uploadBinaryFile(
+              fileObj.name,
+              fileObj,
+              fileObj.type || 'application/octet-stream',
+              targetFolderId,
+              preloadedFiles
+            );
 
-        if (!quanLyDuAnId) {
-          quanLyDuAnId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn']);
-        }
-
-        const mode = modal.querySelector('input[name="drive-folder-mode"]:checked')?.value || 'overwrite';
-        let targetProjectFolderId = null;
-        let targetFolderName = defaultFolderName;
-
-        setProgress(5, 'Đang chuẩn bị thư mục dự án trên Google Drive...');
-        if (matchedFolder && mode === 'overwrite') {
-          targetProjectFolderId = matchedFolder.id;
-          targetFolderName = matchedFolder.name;
-        } else if (matchedFolder && mode === 'create_new') {
-          targetFolderName = `${defaultFolderName}_${new Date().toISOString().slice(0, 10)}`;
-          targetProjectFolderId = await gdrive.createFolder(targetFolderName, quanLyDuAnId);
-        } else {
-          targetProjectFolderId = await gdrive.createFolder(defaultFolderName, quanLyDuAnId);
-        }
-
-        // Tạo đủ 4 thư mục con chuẩn
-        setProgress(12, 'Đang tạo cấu trúc CPMS_Data, HoSo, HopDong_PL, ThanhToan...');
-        const cpmsFolderId = await gdrive.ensureFolderPath(['CPMS_Data'], targetProjectFolderId);
-        const hoSoFolderId = await gdrive.ensureFolderPath(['HoSo'], targetProjectFolderId);
-        const hopDongFolderId = await gdrive.ensureFolderPath(['HopDong_PL'], targetProjectFolderId);
-        const thanhToanFolderId = await gdrive.ensureFolderPath(['ThanhToan'], targetProjectFolderId);
-        const subFolderIds = {
-          HoSo: hoSoFolderId,
-          HopDong_PL: hopDongFolderId,
-          ThanhToan: thanhToanFolderId,
-        };
-
-        // Upload các file tài liệu khớp từ thư mục Local đã chọn
-        let uploadedDocsCount = 0;
-        let missingLocalCount = 0;
-
-        if (activeLocalIndex && projectDocs.length > 0) {
-          for (let i = 0; i < projectDocs.length; i++) {
-            const doc = projectDocs[i];
-            const entry = this.matchLocalFileEntry(doc.local_link, activeLocalIndex);
-            if (!entry) {
-              missingLocalCount++;
-              continue;
+            if (uploaded && uploaded.webViewLink) {
+              doc.drive_link = uploaded.webViewLink;
+              doc.drive_file_id = uploaded.id;
+              doc.updated_at = new Date().toISOString();
+              await db.put('documents', doc);
+              uploadedDocsCount++;
             }
-
-            const pct = 15 + Math.round(((i + 1) / projectDocs.length) * 65);
-            setProgress(pct, `Đang tải lên (${i + 1}/${projectDocs.length}): ${doc.doc_no || doc.title || doc.id}...`);
-
-            try {
-              const fileObj = typeof entry.getFile === 'function' ? await entry.getFile() : entry;
-              const subKey = contractsManager.getDriveSubfolderKeyForDoc(doc);
-              const targetFolder = subFolderIds[subKey] || hoSoFolderId;
-              const uploaded = await gdrive.uploadBinaryFile(
-                fileObj.name,
-                fileObj,
-                fileObj.type || 'application/octet-stream',
-                targetFolder
-              );
-
-              if (uploaded && uploaded.webViewLink) {
-                doc.drive_link = uploaded.webViewLink;
-                doc.drive_file_id = uploaded.id;
-                doc.updated_at = new Date().toISOString();
-                await db.put('documents', doc);
-                uploadedDocsCount++;
-              }
-            } catch (uploadErr) {
-              console.warn(`Lỗi tải tài liệu "${doc.doc_no || doc.id}" lên Drive:`, uploadErr);
+          } catch (uploadErr) {
+            const msg = String(uploadErr?.message || '');
+            if (msg.includes('[401]')) {
+              authExpiredDuringSync = true;
+              gdrive.accessToken = null;
+              sessionStorage.removeItem('maio_gdrive_token');
+              sessionStorage.removeItem('maio_gdrive_token_exp');
             }
+            failedDocs.push({ doc, error: msg });
+          } finally {
+            processedCount++;
+            const pct = 8 + Math.round((processedCount / Math.max(1, totalToUpload)) * 78);
+            setBgProgress(pct, `Đã xử lý ${processedCount}/${totalToUpload}: ${doc.doc_no || doc.title || doc.id}`);
           }
         }
+      };
 
-        // Cập nhật giao diện Tab Hồ sơ & file CPMS cục bộ nếu có
-        if (uploadedDocsCount > 0) {
-          setProgress(85, 'Đang cập nhật Link Drive vào Tab Hồ sơ & file CPMS...');
-          await contractsManager.loadData();
-          contractsManager.render();
-          if (contractsManager.activeFileHandle) {
-            await contractsManager.syncToLocalFile();
-          }
+      if (totalToUpload > 0) {
+        const workers = Array.from({ length: Math.min(CONCURRENCY, totalToUpload) }, () => worker());
+        await Promise.all(workers);
+      }
+
+      if (uploadedDocsCount > 0) {
+        setBgProgress(88, 'Đang cập nhật Link Drive vào Tab Hồ sơ & file CPMS...');
+        await contractsManager.loadData();
+        contractsManager.render();
+        if (contractsManager.activeFileHandle) {
+          await contractsManager.syncToLocalFile();
         }
+      }
 
-        // Lưu JSON snapshot mới nhất vào CPMS_Data
-        setProgress(90, 'Đang lưu MAIO_CPMS_Snapshot lên CPMS_Data...');
-        await db.syncToGoogleDrive({
-          projectId: curPrjId,
-          targetProjectFolderId,
-          cpmsFolderId,
-        });
-
-        // Tạo và upload file nhị phân .cpms mới nhất (đã chứa drive_link) vào CPMS_Data
-        setProgress(95, 'Đang xuất & lưu tệp dữ liệu .cpms lên CPMS_Data...');
+      let cpmsSavedOnline = false;
+      if (!authExpiredDuringSync && gdrive.isSignedIn()) {
+        setBgProgress(94, 'Đang lưu MAIO_CPMS_Snapshot và file .cpms lên CPMS_Data...');
         try {
+          await db.syncToGoogleDrive({
+            projectId: curPrjId,
+            targetProjectFolderId,
+            cpmsFolderId,
+          });
           const cpmsBuffer = await contractsManager.buildProjectCPMSBuffer(curPrjId);
           const cpmsFileName = contractsManager.activeFileHandle?.name || `MAIO_Data_${safePrjId}.cpms`;
           await gdrive.uploadBinaryFile(cpmsFileName, cpmsBuffer, 'application/octet-stream', cpmsFolderId);
+          cpmsSavedOnline = true;
         } catch (cpmsErr) {
-          console.warn('Lỗi tạo/upload file .cpms lên Drive:', cpmsErr);
+          console.warn('Lỗi lưu CPMS_Data lên Drive:', cpmsErr);
         }
-
-        setProgress(100, 'Hoàn tất đồng bộ lên Google Drive!');
-        this.updateProjectSourceBadge();
-
-        let summaryMsg = `Đã đồng bộ thành công dự án "${curPrj.name || curPrjId}" lên Google Drive!\n\n`;
-        summaryMsg += `• Thư mục Drive: MAIO_Data / 01_QuanLy_DuAn / ${targetFolderName}\n`;
-        summaryMsg += `• Cấu trúc: CPMS_Data (Snapshot + .cpms), HoSo, HopDong_PL, ThanhToan\n`;
-        if (uploadedDocsCount > 0) {
-          summaryMsg += `• Đã tải lên & cập nhật Link Drive cho ${uploadedDocsCount} tài liệu hồ sơ.\n`;
-        }
-        if (missingLocalCount > 0) {
-          summaryMsg += `• Có ${missingLocalCount} tài liệu không tìm thấy trong thư mục máy tính đã chọn.\n`;
-        }
-        closeModal();
-        alert(summaryMsg);
-      } catch (err) {
-        alert('Lỗi đồng bộ lên Google Drive: ' + err.message);
-        startBtn.disabled = false;
-        startBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Bắt đầu Đồng bộ lên Drive';
       }
+
+      setBgProgress(100, authExpiredDuringSync ? 'Tạm dừng do hết phiên đăng nhập Drive!' : 'Đồng bộ hoàn tất!');
+      this.updateProjectSourceBadge();
+      setTimeout(() => toast.remove(), 1200);
+
+      this.openDriveSyncReportModal({
+        curPrjId,
+        curPrj,
+        targetFolderName,
+        targetProjectFolderId,
+        uploadedDocsCount,
+        skippedAlreadySynced,
+        missingDocs,
+        failedDocs,
+        cpmsSavedOnline,
+        authExpiredDuringSync,
+        pathCache,
+        folderFilesCache,
+        cpmsFolderId,
+      });
+    } catch (err) {
+      toast.remove();
+      alert('Lỗi đồng bộ ngầm lên Google Drive: ' + err.message);
+    }
+  }
+
+  /**
+   * Hiển thị Modal Báo cáo Kết quả Đồng bộ & cho phép tải bù ngay các file thiếu
+   */
+  openDriveSyncReportModal(report) {
+    document.getElementById('drive-sync-report-modal')?.remove();
+    const modal = document.createElement('div');
+    modal.id = 'drive-sync-report-modal';
+    modal.className = 'modal-overlay';
+
+    const {
+      curPrjId,
+      curPrj,
+      targetFolderName,
+      targetProjectFolderId,
+      uploadedDocsCount,
+      skippedAlreadySynced,
+      missingDocs,
+      failedDocs,
+      cpmsSavedOnline,
+      authExpiredDuringSync,
+      cpmsFolderId,
+    } = report;
+
+    modal.innerHTML = `
+      <div class="modal-container" style="max-width: 620px;">
+        <div class="modal-header">
+          <h2 style="font-size: 1.08rem; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+            <i class="fa-solid ${authExpiredDuringSync ? 'fa-triangle-exclamation' : 'fa-circle-check'}" style="color: ${authExpiredDuringSync ? '#d97706' : '#16a34a'};"></i>
+            Báo cáo Kết quả Đồng bộ Google Drive
+          </h2>
+          <button type="button" id="btn-close-sync-report" class="button button-outline" style="padding: 4px 10px;">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="modal-body" style="padding: 16px 20px; font-size: 0.85rem;">
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;">
+            <div><strong>Dự án:</strong> ${curPrj?.name || curPrjId}</div>
+            <div><strong>Thư mục Drive:</strong> <code>MAIO_Data / 01_QuanLy_DuAn / ${targetFolderName}</code></div>
+            <div><strong>Dữ liệu CPMS_Data:</strong> ${cpmsSavedOnline ? '<span style="color: #166534; font-weight: 600;">Đã cập nhật Snapshot & .cpms</span>' : '<span style="color: #dc2626;">Chưa cập nhật được do gián đoạn kết nối</span>'}</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; text-align: center;">
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px;">
+              <div style="font-size: 1.15rem; font-weight: 800; color: #15803d;">${uploadedDocsCount}</div>
+              <div style="font-size: 0.74rem; color: #166534;">Đã tải lên mới</div>
+            </div>
+            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 8px;">
+              <div style="font-size: 1.15rem; font-weight: 800; color: #1d4ed8;">${skippedAlreadySynced}</div>
+              <div style="font-size: 0.74rem; color: #1e40af;">Đã có sẵn Link</div>
+            </div>
+            <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 8px;">
+              <div style="font-size: 1.15rem; font-weight: 800; color: #b45309;">${missingDocs.length + failedDocs.length}</div>
+              <div style="font-size: 0.74rem; color: #92400e;">Chưa tìm thấy / Lỗi</div>
+            </div>
+          </div>
+
+          ${
+            authExpiredDuringSync
+              ? `<div style="background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;">
+                  <strong>Phiên đăng nhập Google Drive đã hết hạn giữa chừng!</strong> Tiến độ ${uploadedDocsCount} hồ sơ vừa tải lên đã được lưu. Hãy bấm <strong>Đăng nhập lại Google Drive</strong> và bấm Đồng bộ lại để tải tiếp phần còn lại.
+                </div>`
+              : ''
+          }
+
+          ${
+            missingDocs.length > 0
+              ? `<div>
+                  <div style="font-weight: 600; color: #b45309; margin-bottom: 4px;">
+                    Danh sách ${missingDocs.length} hồ sơ chưa tìm thấy file trên máy tính (có thể tải bù từng file):
+                  </div>
+                  <div class="missing-doc-list">
+                    ${missingDocs
+                      .map(
+                        (d) => `
+                      <div class="missing-doc-item" data-missing-row="${d.id}">
+                        <div class="missing-doc-info">
+                          <div><strong>${d.doc_no || d.id}</strong> — ${d.title || d.name || ''}</div>
+                          <div class="missing-doc-path">${d.local_link}</div>
+                        </div>
+                        <button type="button" class="button button-outline button-sm btn-upload-missing-single" data-doc-id="${d.id}" style="flex-shrink: 0; font-size: 0.72rem; padding: 3px 8px;">
+                          <i class="fa-solid fa-upload"></i> Tải bù
+                        </button>
+                      </div>
+                    `
+                      )
+                      .join('')}
+                  </div>
+                </div>`
+              : ''
+          }
+
+          ${
+            failedDocs.length > 0
+              ? `<div style="margin-top: 10px; font-size: 0.78rem; color: #dc2626;">
+                  <strong>${failedDocs.length} hồ sơ gặp lỗi khi upload:</strong> ${failedDocs[0]?.error || ''}
+                </div>`
+              : ''
+          }
+
+          <div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; margin-top: 12px; border-top: 1px solid #e2e8f0;">
+            ${
+              authExpiredDuringSync
+                ? `<button type="button" id="btn-report-reauth-drive" class="button button-primary"><i class="fa-brands fa-google"></i> Đăng nhập lại & Chạy tiếp</button>`
+                : ''
+            }
+            <button type="button" id="btn-ok-sync-report" class="button button-outline">Đóng</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    modal.querySelector('#btn-close-sync-report')?.addEventListener('click', close);
+    modal.querySelector('#btn-ok-sync-report')?.addEventListener('click', close);
+
+    modal.querySelector('#btn-report-reauth-drive')?.addEventListener('click', () => {
+      close();
+      this.pendingSyncAction = 'to-drive';
+      gdrive.signIn();
+    });
+
+    modal.querySelectorAll('.btn-upload-missing-single').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const docId = btn.getAttribute('data-doc-id');
+        const doc = missingDocs.find((d) => d.id === docId);
+        if (!doc || !('showOpenFilePicker' in window)) return;
+        try {
+          const [fh] = await window.showOpenFilePicker({ multiple: false });
+          if (!fh) return;
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+          const fileObj = await fh.getFile();
+          const pathSegs = contractsManager.getDrivePathSegmentsForDoc(doc);
+          const folderId = await gdrive.ensureFolderPath(pathSegs, targetProjectFolderId);
+          const uploaded = await gdrive.uploadBinaryFile(fileObj.name, fileObj, fileObj.type || 'application/octet-stream', folderId);
+          if (uploaded && uploaded.webViewLink) {
+            doc.drive_link = uploaded.webViewLink;
+            doc.drive_file_id = uploaded.id;
+            doc.updated_at = new Date().toISOString();
+            await db.put('documents', doc);
+            await contractsManager.loadData();
+            contractsManager.render();
+            if (contractsManager.activeFileHandle) await contractsManager.syncToLocalFile();
+            await db.syncToGoogleDrive({ projectId: curPrjId, targetProjectFolderId, cpmsFolderId });
+            const cpmsBuffer = await contractsManager.buildProjectCPMSBuffer(curPrjId);
+            await gdrive.uploadBinaryFile(contractsManager.activeFileHandle?.name || `MAIO_Data_${curPrjId}.cpms`, cpmsBuffer, 'application/octet-stream', cpmsFolderId);
+            btn.outerHTML = '<span style="color: #16a34a; font-weight: 600;"><i class="fa-solid fa-check"></i> Đã tải</span>';
+          }
+        } catch (e) {
+          if (e.name !== 'AbortError') {
+            alert('Lỗi tải bù file: ' + e.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-upload"></i> Tải bù';
+          }
+        }
+      });
     });
   }
 

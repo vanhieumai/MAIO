@@ -3376,6 +3376,80 @@ select.reminder-category-select {
   transition: width 0.2s ease;
 }
 
+/* Widget đồng bộ ngầm góc dưới bên phải */
+.drive-bg-sync-toast {
+  position: fixed;
+  bottom: 22px;
+  right: 22px;
+  z-index: 99995;
+  width: 350px;
+  max-width: calc(100vw - 32px);
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px -6px rgba(15, 23, 42, 0.22);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.drive-bg-sync-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.drive-bg-sync-sub {
+  font-size: 0.76rem;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Danh sách file thiếu trong modal đồng bộ / báo cáo */
+.missing-doc-list {
+  max-height: 165px;
+  overflow-y: auto;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.missing-doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 6px;
+  background: #ffffff;
+  border: 1px solid #fef3c7;
+  border-radius: 5px;
+  font-size: 0.76rem;
+}
+
+.missing-doc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.missing-doc-path {
+  color: #64748b;
+  font-family: monospace;
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
 /* Hiệu ứng nhấp nháy dòng khi chuyển tới (Go to) từ Reminders */
 .row-highlight-active {
   animation: rowFlashPulse 1s ease-in-out infinite alternate;

@@ -406,19 +406,47 @@ export class GoogleDriveService {
   }
 
   /**
-   * Đảm bảo một chuỗi thư mục lồng nhau tồn tại trên Google Drive
+   * Đảm bảo một chuỗi thư mục lồng nhau tồn tại trên Google Drive (có cache + chống race-condition)
    * Vd: ['01_QuanLy_DuAn', 'DuAn_CHC1', 'CPMS_Data']
    */
-  async ensureFolderPath(pathSegments, rootFolderId = null) {
+  async ensureFolderPath(pathSegments, rootFolderId = null, pathCache = null, inFlightMap = null) {
     await this.ensureAppFolder();
     let currentParent = rootFolderId || this.appFolderId;
     if (!currentParent) return null;
 
+    let accPath = String(currentParent);
     for (const segment of pathSegments) {
       if (!segment) continue;
-      let folderId = await this.findFolder(segment, currentParent);
-      if (!folderId) {
-        folderId = await this.createFolder(segment, currentParent);
+      accPath += '/' + segment;
+
+      if (pathCache && pathCache.has(accPath)) {
+        currentParent = pathCache.get(accPath);
+        continue;
+      }
+
+      const resolveSegment = async () => {
+        let folderId = await this.findFolder(segment, currentParent);
+        if (!folderId) {
+          folderId = await this.createFolder(segment, currentParent);
+        }
+        return folderId;
+      };
+
+      let folderId = null;
+      if (inFlightMap) {
+        if (!inFlightMap.has(accPath)) {
+          inFlightMap.set(
+            accPath,
+            resolveSegment().finally(() => inFlightMap.delete(accPath))
+          );
+        }
+        folderId = await inFlightMap.get(accPath);
+      } else {
+        folderId = await resolveSegment();
+      }
+
+      if (pathCache && folderId) {
+        pathCache.set(accPath, folderId);
       }
       currentParent = folderId;
     }
@@ -541,12 +569,13 @@ export class GoogleDriveService {
 
   /**
    * Upload hoặc ghi đè file nhị phân (PDF, Word, Excel, Ảnh, .cpms...) lên thư mục targetFolderId
+   * Hỗ trợ truyền sẵn preloadedFiles để tránh gọi listProjectFiles lặp lại nhiều lần
    * Trả về { id, name, webViewLink }
    */
-  async uploadBinaryFile(fileName, blobOrBuffer, mimeType = 'application/octet-stream', targetFolderId = null) {
+  async uploadBinaryFile(fileName, blobOrBuffer, mimeType = 'application/octet-stream', targetFolderId = null, preloadedFiles = null) {
     await this.ensureAppFolder();
     const parentId = targetFolderId || this.appFolderId;
-    const existingFiles = await this.listProjectFiles(parentId);
+    const existingFiles = Array.isArray(preloadedFiles) ? preloadedFiles : await this.listProjectFiles(parentId);
     const existingFile = existingFiles.find((f) => f.name === fileName);
 
     const metadata = {
@@ -600,6 +629,9 @@ export class GoogleDriveService {
     const data = await res.json();
     if (!data.webViewLink && data.id) {
       data.webViewLink = `https://drive.google.com/file/d/${data.id}/view`;
+    }
+    if (!existingFile && Array.isArray(preloadedFiles) && data.id) {
+      preloadedFiles.push({ id: data.id, name: data.name || fileName });
     }
     return data;
   }
