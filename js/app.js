@@ -707,7 +707,32 @@ class App {
   }
 
   /**
-   * Mở Modal Đồng bộ lên Google Drive (tránh mất User Activation khi chọn thư mục máy tính)
+   * Tìm đường dẫn gốc chung từ danh sách local_link trong data CPMS để gợi ý cho người dùng
+   */
+  detectCommonLocalRoot(docs) {
+    const paths = (docs || [])
+      .map((d) => String(d.local_link || '').trim())
+      .filter((p) => p && !p.startsWith('http'));
+    if (paths.length === 0) return '';
+    const splitPaths = paths.map((p) => p.replace(/\\/g, '/').split('/').slice(0, -1));
+    let common = splitPaths[0] || [];
+    for (let i = 1; i < splitPaths.length; i++) {
+      const cur = splitPaths[i];
+      let j = 0;
+      while (j < common.length && j < cur.length && common[j].toLowerCase() === cur[j].toLowerCase()) {
+        j++;
+      }
+      common = common.slice(0, j);
+      if (common.length === 0) break;
+    }
+    return common.join('\\');
+  }
+
+  /**
+   * Mở Modal Đồng bộ lên Google Drive:
+   * - Tự động dùng lại quyền thư mục gốc đã lưu theo dự án (chỉ cấp quyền 1 lần duy nhất)
+   * - Kiểm tra trùng thư mục theo cả mã & tên dự án để hỏi ghi đè
+   * - Upload file từ Link Local vào HoSo / HopDong_PL / ThanhToan & cập nhật drive_link + file .cpms
    */
   async handleSyncToDrive() {
     const curPrjId = contractsManager.currentProjectId || db.activeProjectId || 'CHC1';
@@ -723,6 +748,15 @@ class App {
     const projectDocs = (contractsManager.documents || []).filter(
       (d) => (!d.project_id || d.project_id === curPrjId) && d.local_link && !String(d.local_link).startsWith('http')
     );
+    const commonRootHint = this.detectCommonLocalRoot(projectDocs);
+
+    // Khôi phục dirHandle đã lưu của dự án nếu trong phiên hiện tại chưa có
+    if (!this.localDirectoryHandle && projectDocs.length > 0) {
+      const savedHandle = await db.getProjectDirHandle(curPrjId);
+      if (savedHandle) {
+        this.localDirectoryHandle = savedHandle;
+      }
+    }
 
     document.getElementById('drive-sync-upload-modal')?.remove();
     const modal = document.createElement('div');
@@ -755,19 +789,30 @@ class App {
             </div>
           </div>
 
-          <!-- BƯỚC 2: CHỌN THƯ MỤC LOCAL ĐỂ UPLOAD TÀI LIỆU ĐÍNH KÈM -->
+          <!-- BƯỚC 2: TRẠNG THÁI TÀI LIỆU TỪ DATA CPMS -->
           <div style="margin-bottom: 14px;">
             <div style="font-weight: 600; margin-bottom: 6px; color: #0f172a;">
-              2. Tài liệu đính kèm từ Link Local (${projectDocs.length} hồ sơ có đường dẫn Local)
+              2. Tài liệu hồ sơ theo Link Local trong CPMS (${projectDocs.length} hồ sơ)
             </div>
+            ${
+              commonRootHint
+                ? `<div style="font-size: 0.76rem; color: #475569; margin-bottom: 6px;">Thư mục gốc trong CPMS: <code class="font-mono">${commonRootHint}</code></div>`
+                : ''
+            }
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <button type="button" id="btn-pick-sync-local-dir" class="button button-outline" ${projectDocs.length === 0 ? 'disabled' : ''}>
-                <i class="fa-solid fa-folder-open" style="color: #d97706;"></i> Chọn thư mục chứa tài liệu trên máy tính
+              <span id="sync-local-dir-match-info" style="font-size: 0.8rem; color: #475569; flex: 1;">
+                ${
+                  this.localDirectoryHandle
+                    ? `<span style="color: #166534; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> Đã liên kết thư mục gốc: "${this.localDirectoryHandle.name}"</span>`
+                    : projectDocs.length > 0
+                      ? 'Trình duyệt cần cấp quyền thư mục gốc 1 lần để đọc file từ máy tính.'
+                      : 'Không có hồ sơ đính kèm Local nào cần tải lên.'
+                }
+              </span>
+              <button type="button" id="btn-pick-sync-local-dir" class="button button-outline button-sm" ${projectDocs.length === 0 ? 'disabled' : ''}>
+                <i class="fa-solid fa-folder-open" style="color: #d97706;"></i> ${this.localDirectoryHandle ? 'Đổi thư mục' : 'Cấp quyền thư mục gốc (1 lần)'}
               </button>
               <input type="file" id="input-fallback-local-dir" webkitdirectory multiple style="display: none;">
-              <span id="sync-local-dir-match-info" style="font-size: 0.8rem; color: #64748b;">
-                ${this.localDirectoryHandle ? `Đang chọn: ${this.localDirectoryHandle.name}` : 'Chưa chọn thư mục (chỉ đồng bộ dữ liệu CPMS nếu bỏ qua)'}
-              </span>
             </div>
           </div>
 
@@ -799,13 +844,29 @@ class App {
     let matchedFolder = null;
     let activeLocalIndex = null;
 
-    const refreshMatchInfo = async () => {
+    const refreshMatchInfo = async (allowPromptPermission = false) => {
       const infoEl = modal.querySelector('#sync-local-dir-match-info');
       if (!infoEl) return;
+
       if (!activeLocalIndex && this.localDirectoryHandle) {
-        infoEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang quét thư mục "${this.localDirectoryHandle.name}"...`;
-        activeLocalIndex = await this.indexLocalFiles(this.localDirectoryHandle);
+        try {
+          let perm = await this.localDirectoryHandle.queryPermission({ mode: 'read' });
+          if (perm !== 'granted' && allowPromptPermission) {
+            perm = await this.localDirectoryHandle.requestPermission({ mode: 'read' });
+          }
+          if (perm === 'granted') {
+            infoEl.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang quét thư mục "${this.localDirectoryHandle.name}"...`;
+            activeLocalIndex = await this.indexLocalFiles(this.localDirectoryHandle);
+          } else {
+            infoEl.innerHTML = `<span style="color: #b45309;"><i class="fa-solid fa-lock"></i> Đã nhớ thư mục "${this.localDirectoryHandle.name}" (sẽ xin quyền đọc khi bấm Bắt đầu Đồng bộ)</span>`;
+            return;
+          }
+        } catch (err) {
+          console.warn('Lỗi kiểm tra quyền thư mục đã lưu:', err);
+          return;
+        }
       }
+
       if (activeLocalIndex) {
         let matched = 0;
         for (const d of projectDocs) {
@@ -816,26 +877,36 @@ class App {
       }
     };
 
-    // Nếu đã có sẵn localDirectoryHandle từ trước -> quét hiển thị ngay
+    // Nếu đã có sẵn localDirectoryHandle từ trước -> tự động quét nếu đã có quyền
     if (this.localDirectoryHandle && projectDocs.length > 0) {
-      refreshMatchInfo();
+      refreshMatchInfo(false);
     }
 
-    // Kiểm tra trùng thư mục dự án trên Google Drive
+    // Kiểm tra trùng thư mục dự án trên Google Drive (theo cả Mã dự án, Tên dự án và từ khóa chính)
     (async () => {
       const statusBox = modal.querySelector('#drive-folder-check-status');
       try {
         quanLyDuAnId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn']);
         const existingFolders = await gdrive.findFoldersInParent(quanLyDuAnId);
         const prjNameLower = String(curPrj?.name || '').trim().toLowerCase();
+        const nameTokens = prjNameLower
+          .replace(/dự án|nhà ở|chung cư|cao tầng|khu đô thị/gi, '')
+          .trim()
+          .split(/\s+/)
+          .filter((w) => w.length >= 3);
+
         matchedFolder = existingFolders.find((f) => {
           const fname = String(f.name || '').toLowerCase();
-          return (
-            fname === defaultFolderName.toLowerCase() ||
-            fname.includes(safePrjId.toLowerCase()) ||
-            (prjNameLower && fname.includes(prjNameLower))
-          );
+          if (fname === defaultFolderName.toLowerCase() || fname.includes(safePrjId.toLowerCase())) return true;
+          if (prjNameLower && fname.includes(prjNameLower)) return true;
+          if (nameTokens.length >= 2 && nameTokens.every((t) => fname.includes(t))) return true;
+          return false;
         });
+
+        // Nếu chỉ có đúng 1 thư mục dự án trên Drive và chưa khớp tên -> vẫn gợi ý kiểm tra nếu tên là DuAn_CHC1 cho Westlake
+        if (!matchedFolder && existingFolders.length === 1 && prjNameLower.includes('westlake') && existingFolders[0].name === 'DuAn_CHC1') {
+          matchedFolder = existingFolders[0];
+        }
 
         if (statusBox) {
           if (matchedFolder) {
@@ -889,7 +960,7 @@ class App {
       }
     })();
 
-    // Nút chọn thư mục Local (gọi trực tiếp trong click handler -> luôn có User Activation!)
+    // Nút cấp quyền / đổi thư mục gốc Local (lưu nhớ vào IndexedDB để lần sau không cần chọn lại)
     const pickLocalBtn = modal.querySelector('#btn-pick-sync-local-dir');
     const fallbackInput = modal.querySelector('#input-fallback-local-dir');
 
@@ -898,8 +969,10 @@ class App {
         try {
           const handle = await window.showDirectoryPicker();
           this.localDirectoryHandle = handle;
+          await db.saveProjectDirHandle(curPrjId, handle);
           activeLocalIndex = null;
-          await refreshMatchInfo();
+          pickLocalBtn.innerHTML = '<i class="fa-solid fa-folder-open" style="color: #d97706;"></i> Đổi thư mục';
+          await refreshMatchInfo(true);
         } catch (e) {
           if (e.name !== 'AbortError') {
             alert('Không thể mở thư mục máy tính: ' + e.message);
@@ -913,7 +986,7 @@ class App {
     fallbackInput?.addEventListener('change', async (e) => {
       if (e.target.files && e.target.files.length > 0) {
         activeLocalIndex = this.indexFileList(e.target.files);
-        await refreshMatchInfo();
+        await refreshMatchInfo(false);
       }
     });
 
@@ -932,6 +1005,11 @@ class App {
       try {
         startBtn.disabled = true;
         startBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang đồng bộ...';
+
+        // Nếu đã lưu dirHandle mà chưa quét trong phiên này -> xin quyền đọc ngay trong click handler!
+        if (!activeLocalIndex && this.localDirectoryHandle && projectDocs.length > 0) {
+          await refreshMatchInfo(true);
+        }
 
         if (!quanLyDuAnId) {
           quanLyDuAnId = await gdrive.ensureFolderPath(['01_QuanLy_DuAn']);
