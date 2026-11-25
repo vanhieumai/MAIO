@@ -3,9 +3,9 @@
  * Quản lý khởi tạo IndexedDB, nạp dữ liệu hạt giống CHC1, điều hướng phân hệ và kết nối đồng bộ.
  */
 
-import { gdrive } from './core/gdrive.js?v=5.2';
-import { db } from './core/db.js?v=5.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=8.3';
+import { gdrive } from './core/gdrive.js?v=5.3';
+import { db } from './core/db.js?v=5.2';
+import { contractsManager } from './modules/cpms/contracts.js?v=8.4';
 
 class App {
   constructor() {
@@ -74,6 +74,16 @@ class App {
       // Cập nhật giao diện Header & Cloud & Badge nguồn dữ liệu
       this.updateGoogleDriveUI(user);
       this.updateProjectSourceBadge();
+
+      // Khi đăng nhập Google Drive thật -> tải danh sách dự án Online & kiểm tra bản cập nhật mới nhất
+      if (!user.isOffline) {
+        await this.refreshOnlineDriveProjects();
+        contractsManager.updateProjectSelectorUI();
+        await this.checkDriveProjectUpdates(contractsManager.currentProjectId);
+      } else {
+        this.onlineDriveProjects = [];
+        contractsManager.updateProjectSelectorUI();
+      }
 
       // Nếu có hành động đồng bộ đang chờ sau khi đăng nhập Google Drive thành công
       if (this.pendingSyncAction === 'to-drive') {
@@ -505,6 +515,12 @@ class App {
       setTimeout(() => {
         contractsManager.pickAndLoadLocalCPMSFile();
       }, 150);
+    });
+
+    // Nút Đăng nhập Google Drive ở footer menu bên trái (khi đang ở chế độ Local)
+    document.getElementById('btn-mobile-drawer-login-gdrive')?.addEventListener('click', () => {
+      document.getElementById('mobile-menu-drawer')?.classList.add('hidden');
+      handleLogin();
     });
 
     logoutBtn?.addEventListener('click', async () => {
@@ -1616,41 +1632,142 @@ class App {
     const headerUserName = document.getElementById('header-user-name');
     const testSyncBtn = document.getElementById('btn-test-sync');
 
+    const mobileDrawerLoginBtn = document.getElementById('btn-mobile-drawer-login-gdrive');
+    const mobileDrawerAuthBadge = document.getElementById('mobile-drawer-auth-badge');
+    const mobileDrawerLogoutBtn = document.getElementById('btn-mobile-drawer-logout');
     const mobileDrawerAuthIcon = document.getElementById('mobile-drawer-auth-icon');
     const mobileDrawerAuthText = document.getElementById('mobile-drawer-auth-text');
 
-    if (user) {
-      // Khi đã vào phiên làm việc: ẨN nút Đăng nhập, CHỈ HIỆN nhãn (Local hoặc email) + nút Thoát
+    if (user && !user.isOffline) {
+      // Đã kết nối Google Drive: Ẩn nút Đăng nhập, hiện Email + nút Đăng xuất
       headerLoginBtn?.classList.add('hidden');
       headerUserStatus?.classList.remove('hidden');
+      mobileDrawerLoginBtn?.classList.add('hidden');
+      mobileDrawerAuthBadge?.classList.remove('hidden');
+      mobileDrawerLogoutBtn?.classList.remove('hidden');
 
-      if (user.isOffline) {
-        // Chế độ Cục bộ: Hiển thị nhãn Local
-        if (headerUserAvatarIcon) headerUserAvatarIcon.className = 'fa-solid fa-laptop-file';
-        if (headerUserName) headerUserName.textContent = 'Local';
-        if (mobileDrawerAuthIcon) mobileDrawerAuthIcon.className = 'fa-solid fa-laptop-file';
-        if (mobileDrawerAuthText) mobileDrawerAuthText.textContent = 'Local';
-        if (testSyncBtn) testSyncBtn.disabled = true;
-      } else {
-        // Đã kết nối Google Drive: Hiển thị email
-        if (headerUserAvatarIcon) headerUserAvatarIcon.className = 'fa-brands fa-google';
-        if (headerUserName) {
-          headerUserName.textContent = user.email || user.name || 'Drive';
-        }
-        if (mobileDrawerAuthIcon) mobileDrawerAuthIcon.className = 'fa-brands fa-google';
-        if (mobileDrawerAuthText) {
-          mobileDrawerAuthText.textContent = user.email || user.name || 'Drive';
-        }
-        if (testSyncBtn) testSyncBtn.disabled = false;
-      }
+      if (headerUserAvatarIcon) headerUserAvatarIcon.className = 'fa-brands fa-google';
+      if (headerUserName) headerUserName.textContent = user.email || user.name || 'Drive';
+      if (mobileDrawerAuthIcon) mobileDrawerAuthIcon.className = 'fa-brands fa-google';
+      if (mobileDrawerAuthText) mobileDrawerAuthText.textContent = user.email || user.name || 'Drive';
+      if (testSyncBtn) testSyncBtn.disabled = false;
     } else {
-      // Khi chưa đăng nhập (Auth Gate): Chỉ hiện nút Đăng nhập, ẩn nút Thoát
+      // Chế độ làm việc Local mặc định: Hiện nút Đăng nhập Google Drive, bỏ nút Thoát
       headerLoginBtn?.classList.remove('hidden');
       headerUserStatus?.classList.add('hidden');
+      mobileDrawerLoginBtn?.classList.remove('hidden');
+      mobileDrawerAuthBadge?.classList.add('hidden');
+      mobileDrawerLogoutBtn?.classList.add('hidden');
       if (testSyncBtn) testSyncBtn.disabled = true;
     }
 
+    this.updateProjectSourceBadge();
     this.updateProfileView(user);
+  }
+
+  /**
+   * Lấy danh sách dự án Online trên Google Drive để hiển thị chung trong danh sách dự án
+   */
+  async refreshOnlineDriveProjects() {
+    if (!gdrive.isSignedIn()) {
+      this.onlineDriveProjects = [];
+      return [];
+    }
+    try {
+      this.onlineDriveProjects = await gdrive.listOnlineProjects();
+      return this.onlineDriveProjects;
+    } catch (e) {
+      console.warn('Lỗi lấy danh sách dự án Online trên Drive:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Mở một dự án Online từ Google Drive (tải snapshot về IndexedDB & giữ local_root_path riêng của máy)
+   */
+  async openOnlineDriveProject(fileId, projectId) {
+    if (!fileId || !gdrive.isSignedIn()) return;
+    try {
+      contractsManager.showLocalSaveStatus('Đang tải dữ liệu dự án từ Google Drive...');
+      const snapshotData = await gdrive.readJsonFile(fileId);
+      await db.importSnapshot(snapshotData);
+      const targetId = projectId || snapshotData.active_project || snapshotData.data?.projects?.[0]?.id;
+      if (targetId) {
+        const prj = await db.get('projects', targetId);
+        if (prj) {
+          prj.data_origin = 'online';
+          prj.source = 'drive_sync';
+          await db.put('projects', prj);
+        }
+        contractsManager.currentProjectId = targetId;
+      }
+      contractsManager.activeFileHandle = null;
+      await contractsManager.loadData();
+      contractsManager.render();
+      await this.updateDashboardStats();
+      this.updateProjectSourceBadge();
+      contractsManager.showLocalSaveStatus('Đã mở dự án từ Google Drive Online!');
+    } catch (err) {
+      window.maioAlert?.(`Không thể mở dự án từ Google Drive: ${err.message}`);
+    }
+  }
+
+  /**
+   * Kiểm tra xem trên Google Drive có bản cập nhật mới hơn bản trên máy tính không
+   */
+  async checkDriveProjectUpdates(projectId) {
+    if (!projectId || !gdrive.isSignedIn() || this._isCheckingDriveUpdate) return;
+    const now = Date.now();
+    if (this._lastDriveCheckAt && now - this._lastDriveCheckAt < 25000) return;
+    this._lastDriveCheckAt = now;
+    this._isCheckingDriveUpdate = true;
+
+    try {
+      const onlineList = await this.refreshOnlineDriveProjects();
+      const matched = onlineList.find((item) => item.projectId === projectId);
+      if (!matched || !matched.modifiedTime) return;
+
+      const curPrj = (contractsManager.projects || []).find((p) => p.id === projectId);
+      if (!curPrj) return;
+
+      const driveMs = new Date(matched.modifiedTime).getTime();
+      const localMs = new Date(curPrj.updated_at || curPrj.source_file_updated || curPrj.created_at || 0).getTime();
+
+      if (driveMs > localMs + 10000) {
+        const timeStr = new Date(driveMs).toLocaleString('vi-VN');
+        const wantPull = await (window.maioConfirm
+          ? window.maioConfirm({
+              title: 'Có bản cập nhật mới trên Google Drive',
+              message: `Dự án "${curPrj.name || projectId}" có bản cập nhật mới hơn trên Google Drive (lúc ${timeStr}).`,
+              subMessage: 'Bạn có muốn tải bản mới nhất từ Drive về máy (giữ nguyên đường dẫn thư mục Local của máy này) không?',
+              confirmText: 'Cập nhật ngay',
+              cancelText: 'Giữ bản hiện tại',
+              confirmType: 'primary',
+            })
+          : Promise.resolve(false));
+
+        if (wantPull) {
+          const snapshotData = await gdrive.readJsonFile(matched.fileId);
+          await db.importSnapshot(snapshotData);
+          const updatedPrj = await db.get('projects', projectId);
+          if (updatedPrj) {
+            updatedPrj.updated_at = matched.modifiedTime;
+            await db.put('projects', updatedPrj);
+          }
+          await contractsManager.loadData();
+          contractsManager.render();
+          if (contractsManager.activeFileHandle) {
+            await contractsManager.syncToLocalFile();
+          }
+          await this.updateDashboardStats();
+          contractsManager.showLocalSaveStatus('Đã cập nhật dữ liệu mới nhất từ Google Drive!');
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi kiểm tra cập nhật trên Drive:', e);
+    } finally {
+      this._isCheckingDriveUpdate = false;
+    }
   }
 
   async updateProfileView(user = gdrive.currentUser) {

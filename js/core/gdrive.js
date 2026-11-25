@@ -142,8 +142,8 @@ export class GoogleDriveService {
                   this.signOut();
                 });
             } else {
-              // Chưa từng đăng nhập -> kích hoạt thông báo Auth Gate ngay
-              this.notifyAuthChange(null);
+              // Mặc định vào thẳng chế độ làm việc Local (không khóa màn hình Auth Gate)
+              this.signInOffline();
             }
 
             this.isInitialized = true;
@@ -223,7 +223,7 @@ export class GoogleDriveService {
   }
 
   /**
-   * Đăng xuất và xóa token phiên
+   * Đăng xuất khỏi Google Drive và quay về chế độ làm việc Local mặc định
    */
   signOut() {
     if (this.accessToken && window.google?.accounts?.oauth2 && !this.currentUser?.isOffline) {
@@ -239,7 +239,7 @@ export class GoogleDriveService {
     sessionStorage.removeItem('maio_gdrive_token');
     sessionStorage.removeItem('maio_gdrive_token_exp');
     localStorage.removeItem('maio_gdrive_user');
-    this.notifyAuthChange(null);
+    this.signInOffline();
   }
 
   isSignedIn() {
@@ -686,6 +686,27 @@ export class GoogleDriveService {
       console.warn('Lỗi tìm snapshot dự án:', e);
       return [];
     }
+  }
+
+  /**
+   * Liệt kê danh sách các dự án duy nhất đang có bản sao lưu Online trên Google Drive
+   */
+  async listOnlineProjects() {
+    const snapshots = await this.listProjectSnapshots();
+    const byPrj = new Map();
+    for (const f of snapshots) {
+      const m = String(f.name || '').match(/^MAIO_CPMS_Snapshot_(.+)\.json$/i);
+      const projectId = m ? m[1] : f.name;
+      if (!byPrj.has(projectId)) {
+        byPrj.set(projectId, {
+          projectId,
+          fileId: f.id,
+          fileName: f.name,
+          modifiedTime: f.modifiedTime,
+        });
+      }
+    }
+    return Array.from(byPrj.values());
   }
 
   /**

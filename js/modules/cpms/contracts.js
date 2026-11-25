@@ -10,8 +10,8 @@
  * 2. Giải ngân & Thanh toán: CHỈ cộng các dòng giao dịch thực tế (is_header !== true), tuyệt đối không cộng dòng Header tổng hợp.
  */
 
-import { db } from '../../core/db.js?v=5.1';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.3';
+import { db } from '../../core/db.js?v=5.2';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.4';
 
 export class ContractsManager {
   constructor() {
@@ -1022,6 +1022,15 @@ export class ContractsManager {
       optionsHtml += `<option value="${p.id}" ${isSel}>${this.formatProjectOptionLabel(p)}</option>`;
     });
 
+    // Bổ sung các dự án Online trên Google Drive chưa có bản local trên máy này
+    const onlineList = window.__MAIO_APP__?.onlineDriveProjects || [];
+    const localIds = new Set(this.projects.map((p) => p.id));
+    onlineList.forEach((item) => {
+      if (!localIds.has(item.projectId)) {
+        optionsHtml += `<option value="DRIVE_ONLINE:${item.fileId}" data-drive-prj-id="${item.projectId}">☁️ [Online] Dự án ${item.projectId}</option>`;
+      }
+    });
+
     optionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
     selector.innerHTML = optionsHtml;
     selector.value = this.currentProjectId;
@@ -1100,10 +1109,22 @@ export class ContractsManager {
         // Trả lại giá trị trước đó trên UI
         projectSelector.value = this.currentProjectId;
         this.pickAndLoadLocalCPMSFile();
+      } else if (String(val).startsWith('DRIVE_ONLINE:')) {
+        const fileId = val.slice('DRIVE_ONLINE:'.length);
+        const selOpt = projectSelector.selectedOptions?.[0];
+        const drivePrjId = selOpt?.getAttribute('data-drive-prj-id') || '';
+        if (typeof window.__MAIO_APP__?.openOnlineDriveProject === 'function') {
+          await window.__MAIO_APP__.openOnlineDriveProject(fileId, drivePrjId);
+        }
       } else {
+        this.activeFileHandle = null;
+        this._lastKnownFileModified = 0;
         this.currentProjectId = val;
         await this.loadData();
         this.render();
+        if (typeof window.__MAIO_APP__?.checkDriveProjectUpdates === 'function') {
+          window.__MAIO_APP__.checkDriveProjectUpdates(val);
+        }
       }
     });
 

@@ -3,7 +3,7 @@
  * Đọc và xuất file dữ liệu định dạng .cpms (.xlsb / .xlsx) chuẩn xác 100% với phần mềm CPMS Plus.
  */
 
-import { db } from './db.js?v=5.1';
+import { db } from './db.js?v=5.2';
 
 export class CPMSImporterExporter {
   /**
@@ -503,6 +503,7 @@ export class CPMSImporterExporter {
         const rawLink = String(r[5] || '').trim();
         const isOnlineDrive = rawLink.startsWith('http://') || rawLink.startsWith('https://');
         const extraDriveLink = String(r[20] || '').trim();
+        const extraRelPath = String(r[21] || '').trim();
 
         documents.push({
           id: docId,
@@ -514,6 +515,7 @@ export class CPMSImporterExporter {
           file_link: rawLink,
           local_link: isOnlineDrive ? '' : rawLink,
           drive_link: extraDriveLink || (isOnlineDrive ? rawLink : ''),
+          relative_path: extraRelPath,
           start_date: r[6] || null,
           due_date: r[7] || null,
           received_date: r[8] || null,
@@ -809,12 +811,12 @@ export class CPMSImporterExporter {
 
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(payRows), 'PAYMENT_LEDGER');
 
-    // 4. Sheet DOCUMENT_TRACKER (20 cột chuẩn CPMS Plus + cột mở rộng DriveLink ở cuối)
+    // 4. Sheet DOCUMENT_TRACKER (20 cột chuẩn CPMS Plus + cột mở rộng DriveLink, RelativePath ở cuối)
     const docHeaders = [
       'DocumentID', 'ContractID', 'Hồ sơ', 'Số', 'Tên hồ sơ', 'Link', 'Từ ngày',
       'Đến ngày', 'Tiếp nhận', 'Trả lại', 'Người nhận lại', 'Số lượng', 'Hồ sơ kèm theo',
       'Lần', 'Tình trạng', 'Ghi chú', 'Issuer', 'Recipients', 'SubType1', 'SubType2',
-      'DriveLink'
+      'DriveLink', 'RelativePath'
     ];
     const docRows = [docHeaders];
     allDocs.forEach(d => {
@@ -839,7 +841,8 @@ export class CPMSImporterExporter {
         d.recipients || '',
         d.sub_type1 || '',
         d.sub_type2 || '',
-        d.drive_link || ''
+        d.drive_link || '',
+        d.relative_path || ''
       ]);
     });
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(docRows), 'DOCUMENT_TRACKER');

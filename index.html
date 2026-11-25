@@ -14,8 +14,8 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-  <!-- MÀN HÌNH YÊU CẦU CHỌN CHẾ ĐỘ LÀM VIỆC (AUTH GATE) -->
-  <div id="auth-gate" class="auth-gate-overlay" style="position: fixed; inset: 0; z-index: 99999; background: radial-gradient(circle at 50% 20%, #eff6ff 0%, #f8fafc 70%, #f1f5f9 100%); display: flex; align-items: center; justify-content: center; padding: 20px;">
+  <!-- MÀN HÌNH YÊU CẦU CHỌN CHẾ ĐỘ LÀM VIỆC (AUTH GATE - ẨN MẶC ĐỊNH ĐỂ VÀO THẲNG LOCAL) -->
+  <div id="auth-gate" class="auth-gate-overlay hidden" style="position: fixed; inset: 0; z-index: 99999; background: radial-gradient(circle at 50% 20%, #eff6ff 0%, #f8fafc 70%, #f1f5f9 100%); display: flex; align-items: center; justify-content: center; padding: 20px;">
     <div class="auth-gate-card">
       <div class="auth-gate-icon-wrap">
         <div class="auth-brand-badge">
@@ -104,13 +104,17 @@
         </div>
 
         <div class="mobile-drawer-footer">
-          <div class="mobile-drawer-auth-badge">
-            <i id="mobile-drawer-auth-icon" class="fa-solid fa-laptop-file"></i>
-            <span id="mobile-drawer-auth-text">Local</span>
+          <button id="btn-mobile-drawer-login-gdrive" class="button button-primary button-sm" style="width: 100%; justify-content: center; gap: 8px;">
+            <i class="fa-brands fa-google"></i>
+            <span>Đăng nhập Google Drive</span>
+          </button>
+          <div class="mobile-drawer-auth-badge hidden" id="mobile-drawer-auth-badge">
+            <i id="mobile-drawer-auth-icon" class="fa-brands fa-google"></i>
+            <span id="mobile-drawer-auth-text">Drive</span>
           </div>
-          <button id="btn-mobile-drawer-logout" class="button button-outline button-sm btn-logout" style="color: var(--danger); border-color: #fca5a5;">
+          <button id="btn-mobile-drawer-logout" class="button button-outline button-sm btn-logout hidden" style="color: var(--danger); border-color: #fca5a5;">
             <i class="fa-solid fa-arrow-right-from-bracket"></i>
-            <span>Thoát</span>
+            <span>Đăng xuất</span>
           </button>
         </div>
       </div>
@@ -704,6 +708,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=11.3"></script>
+  <script type="module" src="js/app.js?v=11.4"></script>
 </body>
 </html>

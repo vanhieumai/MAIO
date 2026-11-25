@@ -3,7 +3,7 @@
  * Quản lý kho dữ liệu Local-first (IndexedDB) và liên kết đồng bộ Google Drive.
  */
 
-import { gdrive } from './gdrive.js?v=5.2';
+import { gdrive } from './gdrive.js?v=5.3';
 
 const DB_VERSION = 1;
 
@@ -195,15 +195,41 @@ class DatabaseEngine {
     for (const storeName of stores) {
       snapshot.data[storeName] = await this.getAll(storeName);
     }
+
+    // Chuẩn hóa relative_path cho documents khi xuất snapshot lên Drive để đồng bộ đa máy
+    if (Array.isArray(snapshot.data.documents)) {
+      const rootCache = new Map();
+      snapshot.data.documents = snapshot.data.documents.map((doc) => {
+        if (!doc.local_link || String(doc.local_link).startsWith('http')) return doc;
+        const pid = doc.project_id || this.activeProjectId || 'CHC1';
+        if (!rootCache.has(pid)) {
+          rootCache.set(pid, this.getProjectLocalRootPath(pid));
+        }
+        const rootPath = rootCache.get(pid);
+        const rel = doc.relative_path || this.computeRelativePath(doc.local_link, rootPath);
+        return rel ? { ...doc, relative_path: rel } : doc;
+      });
+    }
+
     return snapshot;
   }
 
   /**
    * Nạp dữ liệu snapshot từ Google Drive hoặc file JSON vào IndexedDB
+   * Bảo toàn local_link theo thư mục gốc riêng của máy tính hiện tại
    */
   async importSnapshot(snapshot) {
     if (!snapshot || !snapshot.data) throw new Error('Dữ liệu không đúng định dạng snapshot MAIO.');
     if (!this.db) await this.init();
+
+    // Đọc trước local_link hiện có trên máy này để không bị ghi đè đường dẫn của máy khác
+    const existingDocs = await this.getAll('documents');
+    const existingLocalByDocId = new Map();
+    (existingDocs || []).forEach((d) => {
+      if (d && d.id && d.local_link && !String(d.local_link).startsWith('http')) {
+        existingLocalByDocId.set(d.id, d.local_link);
+      }
+    });
 
     for (const [storeName, records] of Object.entries(snapshot.data)) {
       if (Array.isArray(records)) {
@@ -211,7 +237,20 @@ class DatabaseEngine {
         const store = tx.objectStore(storeName);
         store.clear();
         for (const item of records) {
-          store.put(item);
+          if (storeName === 'documents' && item) {
+            const pid = item.project_id || snapshot.active_project || this.activeProjectId;
+            const localRoot = this.getProjectLocalRootPath(pid);
+            const resolved =
+              localRoot && item.relative_path
+                ? this.resolveLocalLink(item.relative_path, localRoot)
+                : existingLocalByDocId.get(item.id) || item.local_link || '';
+            store.put({
+              ...item,
+              local_link: resolved,
+            });
+          } else {
+            store.put(item);
+          }
         }
       }
     }
@@ -516,6 +555,61 @@ class DatabaseEngine {
       };
       req.onerror = () => resolve(false);
     });
+  }
+
+  /**
+   * Lưu thư mục gốc (local_root_path) riêng của máy tính hiện tại cho từng dự án
+   */
+  saveProjectLocalRootPath(projectId, rootPath) {
+    if (!projectId || !rootPath) return;
+    try {
+      localStorage.setItem(`maio_local_root_${projectId}`, String(rootPath).trim());
+    } catch (_) {}
+  }
+
+  getProjectLocalRootPath(projectId) {
+    if (!projectId) return '';
+    try {
+      return localStorage.getItem(`maio_local_root_${projectId}`) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /**
+   * Tách đường dẫn tương đối từ đường dẫn đầy đủ trên máy tính và thư mục gốc
+   */
+  computeRelativePath(fullPath, rootPath = '') {
+    if (!fullPath) return '';
+    const normFull = String(fullPath).replace(/\\/g, '/').trim();
+    if (!normFull || normFull.startsWith('http')) return '';
+    if (rootPath) {
+      const normRoot = String(rootPath).replace(/\\/g, '/').replace(/\/+$/, '').trim();
+      if (normRoot && normFull.toLowerCase().startsWith(normRoot.toLowerCase() + '/')) {
+        return normFull.slice(normRoot.length + 1);
+      }
+      // Nếu rootPath chỉ là tên thư mục gốc (ví dụ "_Westlake Residential")
+      const rootFolderName = normRoot.split('/').pop();
+      if (rootFolderName) {
+        const marker = '/' + rootFolderName.toLowerCase() + '/';
+        const idx = normFull.toLowerCase().indexOf(marker);
+        if (idx !== -1) {
+          return normFull.slice(idx + marker.length);
+        }
+      }
+    }
+    return '';
+  }
+
+  /**
+   * Ghép lại đường dẫn local đầy đủ trên máy hiện tại từ relative_path + local_root_path
+   */
+  resolveLocalLink(relativePath, localRootPath) {
+    if (!relativePath) return '';
+    const cleanRel = String(relativePath).replace(/^[/\\]+/, '').replace(/\//g, '\\');
+    if (!localRootPath) return cleanRel;
+    const cleanRoot = String(localRootPath).replace(/[/\\]+$/, '');
+    return `${cleanRoot}\\${cleanRel}`;
   }
 }
 
