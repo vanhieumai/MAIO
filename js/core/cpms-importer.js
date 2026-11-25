@@ -502,6 +502,7 @@ export class CPMSImporterExporter {
 
         const rawLink = String(r[5] || '').trim();
         const isOnlineDrive = rawLink.startsWith('http://') || rawLink.startsWith('https://');
+        const extraDriveLink = String(r[20] || '').trim();
 
         documents.push({
           id: docId,
@@ -512,7 +513,7 @@ export class CPMSImporterExporter {
           title: String(r[4] || ''),
           file_link: rawLink,
           local_link: isOnlineDrive ? '' : rawLink,
-          drive_link: isOnlineDrive ? rawLink : '',
+          drive_link: extraDriveLink || (isOnlineDrive ? rawLink : ''),
           start_date: r[6] || null,
           due_date: r[7] || null,
           received_date: r[8] || null,
@@ -808,11 +809,12 @@ export class CPMSImporterExporter {
 
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(payRows), 'PAYMENT_LEDGER');
 
-    // 4. Sheet DOCUMENT_TRACKER (20 cột chuẩn CPMS Plus)
+    // 4. Sheet DOCUMENT_TRACKER (20 cột chuẩn CPMS Plus + cột mở rộng DriveLink ở cuối)
     const docHeaders = [
       'DocumentID', 'ContractID', 'Hồ sơ', 'Số', 'Tên hồ sơ', 'Link', 'Từ ngày',
       'Đến ngày', 'Tiếp nhận', 'Trả lại', 'Người nhận lại', 'Số lượng', 'Hồ sơ kèm theo',
-      'Lần', 'Tình trạng', 'Ghi chú', 'Issuer', 'Recipients', 'SubType1', 'SubType2'
+      'Lần', 'Tình trạng', 'Ghi chú', 'Issuer', 'Recipients', 'SubType1', 'SubType2',
+      'DriveLink'
     ];
     const docRows = [docHeaders];
     allDocs.forEach(d => {
@@ -822,7 +824,7 @@ export class CPMSImporterExporter {
         d.category || '',
         d.doc_no || '',
         d.title || '',
-        d.file_link || d.local_link || d.drive_link || '',
+        d.local_link || d.file_link || d.drive_link || '',
         d.start_date || '',
         d.due_date || '',
         d.received_date || '',
@@ -836,7 +838,8 @@ export class CPMSImporterExporter {
         d.issuer || '',
         d.recipients || '',
         d.sub_type1 || '',
-        d.sub_type2 || ''
+        d.sub_type2 || '',
+        d.drive_link || ''
       ]);
     });
     window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.aoa_to_sheet(docRows), 'DOCUMENT_TRACKER');
