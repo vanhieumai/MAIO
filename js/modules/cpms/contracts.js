@@ -9889,7 +9889,7 @@ export class ContractsManager {
                     <th style="text-align: center; width: 120px;">Tình trạng</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody id="reminder-table-tbody">
                   ${rowsHtml}
                 </tbody>
               </table>
@@ -9909,7 +9909,7 @@ export class ContractsManager {
         </div>
 
         <!-- CỘT PHẢI: KHUNG CHI TIẾT HỒ SƠ (REMINDER DETAIL CARD - CPMS PLUS) -->
-        <div class="reminder-right-col">
+        <div class="reminder-right-col" id="reminder-right-col">
           <div class="card reminder-detail-card">
             <!-- HEADER CHI TIẾT -->
             <div class="reminder-detail-header">
@@ -10052,18 +10052,25 @@ export class ContractsManager {
     const container = document.getElementById('reminder-layout-container');
     if (!container) return;
 
-    // 1. Chọn dòng trong bảng
+    this.bindReminderRowEvents(container);
+    this.bindReminderDetailEvents(selectedDoc, targetContract, locLink, drvLink, driveDocPath);
+    this.bindReminderFilterEvents(container);
+  }
+
+  bindReminderRowEvents(container = document.getElementById('reminder-layout-container')) {
+    if (!container) return;
     container.querySelectorAll('.reminder-table-row').forEach((row) => {
-      row.addEventListener('click', (e) => {
+      row.addEventListener('click', () => {
         const docId = row.getAttribute('data-doc-id');
         if (docId && docId !== this.selectedReminderDocId) {
+          container.querySelectorAll('.reminder-table-row.selected').forEach((r) => r.classList.remove('selected'));
+          row.classList.add('selected');
           this.selectedReminderDocId = docId;
-          this.renderRemindersTab();
+          this.updateReminderDetailOnly();
         }
       });
 
-      // Nhấp đúp chuột -> Kích hoạt Go to
-      row.addEventListener('dblclick', (e) => {
+      row.addEventListener('dblclick', () => {
         const docId = row.getAttribute('data-doc-id');
         const doc = (this.documents || []).find((d) => d.id === docId);
         if (doc) {
@@ -10071,32 +10078,280 @@ export class ContractsManager {
         }
       });
     });
+  }
 
-    // 2. Nút Refresh
+  updateReminderDetailOnly() {
+    const rightCol = document.getElementById('reminder-right-col');
+    if (!rightCol) return;
+
+    const allDocs = this.documents || [];
+    const filteredDocs = this.getFilteredReminderDocs();
+    const selectedDoc = allDocs.find((d) => d.id === this.selectedReminderDocId) || filteredDocs[0] || null;
+    const targetContract = selectedDoc ? this.contracts.find((c) => c.id === selectedDoc.contract_id) : null;
+    const isOrphanDoc = Boolean(selectedDoc && !targetContract);
+
+    let locLink = '';
+    let drvLink = '';
+    let driveDocPath = '';
+    if (selectedDoc) {
+      locLink = selectedDoc.local_link || (!String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link) || '';
+      drvLink = selectedDoc.drive_link || (String(selectedDoc.file_link || '').startsWith('http') && selectedDoc.file_link) || '';
+      driveDocPath = targetContract ? this.getDriveDocPathForContract(targetContract) : '';
+    }
+
+    const localLinkHtml = `
+      <div class="reminder-link-row-flex">
+        <div class="reminder-link-text">
+          ${locLink
+            ? `<span class="font-mono text-muted" style="font-size: 0.78rem; word-break: break-all;" title="${locLink}">${locLink}</span>`
+            : '<span style="color: #94a3b8;">—</span>'}
+        </div>
+        <div class="reminder-link-btn-group">
+          ${locLink
+            ? `<button type="button" class="button button-outline btn-reminder-inline-icon btn-copy-doc-local" data-path="${encodeURIComponent(locLink)}" title="Sao chép đường dẫn máy tính">
+                 <i class="fa-regular fa-copy"></i>
+               </button>`
+            : ''}
+          <button type="button" id="btn-reminder-open-file-local" class="button button-outline btn-reminder-inline-icon btn-action-local" title="Mở file trên máy tính">
+            <i class="fa-solid fa-file-lines"></i>
+          </button>
+          <button type="button" id="btn-reminder-open-folder-local" class="button button-outline btn-reminder-inline-icon btn-action-local-folder" title="Mở thư mục trên máy tính">
+            <i class="fa-solid fa-folder-open"></i>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const driveLinkHtml = `
+      <div class="reminder-link-row-flex">
+        <div class="reminder-link-text">
+          ${drvLink
+            ? `<a href="${drvLink}" target="_blank" class="font-mono" style="font-size: 0.78rem; color: #0284c7; word-break: break-all; text-decoration: none;" title="${drvLink}">${driveDocPath || drvLink}</a>`
+            : driveDocPath
+              ? `<span class="font-mono" style="font-size: 0.78rem; color: #0369a1; word-break: break-all;" title="${driveDocPath}">${driveDocPath}</span>`
+              : '<span style="color: #94a3b8;">—</span>'}
+        </div>
+        <div class="reminder-link-btn-group">
+          <button type="button" id="btn-reminder-open-file-drive" class="button button-outline btn-reminder-inline-icon btn-action-drive-file" title="Mở file trên Google Drive">
+            <i class="fa-solid fa-file-lines"></i>
+          </button>
+          <button type="button" id="btn-reminder-open-folder-drive" class="button button-outline btn-reminder-inline-icon btn-action-drive-folder" title="Mở thư mục trên Google Drive">
+            <i class="fa-solid fa-folder-open"></i>
+          </button>
+        </div>
+      </div>
+    `;
+
+    rightCol.innerHTML = `
+      <div class="card reminder-detail-card">
+        <div class="reminder-detail-header">
+          <div class="reminder-detail-title-box">
+            ${
+              isOrphanDoc
+                ? `<span class="badge" style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca;">CHƯA GÁN HĐ</span>`
+                : `<span class="badge ${targetContract?.group === 'B' ? 'badge-warning' : 'badge-primary'}">GROUP ${targetContract?.group || 'A'}</span>`
+            }
+            <span class="reminder-detail-contract-no">
+              ${
+                targetContract?.contract_no ||
+                (selectedDoc
+                  ? selectedDoc.contract_id
+                    ? `Mã tham chiếu: ${selectedDoc.contract_id}`
+                    : 'Chưa gắn hợp đồng / phụ lục'
+                  : 'Chưa chọn hồ sơ')
+              }
+            </span>
+          </div>
+          <div>${selectedDoc ? this.getDocumentStatusBadgeHtml(selectedDoc.status) : ''}</div>
+        </div>
+        ${
+          selectedDoc
+            ? `
+          <div class="reminder-detail-fields">
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Party B</div>
+              <div class="reminder-field-value"><strong>${targetContract?.company_b || targetContract?.company_a || '—'}</strong></div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Scope</div>
+              <div class="reminder-field-value">${targetContract?.scope_of_work || '—'}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Type</div>
+              <div class="reminder-field-value">${this.getDocumentCategoryBadgeHtml(selectedDoc.category)}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Name</div>
+              <div class="reminder-field-value reminder-field-name"><strong>${selectedDoc.title || selectedDoc.name || '—'}</strong></div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Document Number</div>
+              <div class="reminder-field-value font-mono"><strong>${selectedDoc.doc_no || selectedDoc.id || '—'}</strong></div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Status</div>
+              <div class="reminder-field-value">${this.getDocumentStatusBadgeHtml(selectedDoc.status)}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Processed Date</div>
+              <div class="reminder-field-value">${this.formatDate(this.getDocReceivedDate(selectedDoc, targetContract))}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Supporting Docs</div>
+              <div class="reminder-field-value">${selectedDoc.supporting_docs || '—'}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Version</div>
+              <div class="reminder-field-value">${selectedDoc.version || '1'}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label">Note</div>
+              <div class="reminder-field-value reminder-field-note">${selectedDoc.note || '—'}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label"><i class="fa-solid fa-laptop" style="color: #475569; margin-right: 2px;"></i> Link Local</div>
+              <div class="reminder-field-value reminder-field-link">${localLinkHtml}</div>
+            </div>
+            <div class="reminder-field-row">
+              <div class="reminder-field-label"><i class="fa-brands fa-google-drive" style="color: #0284c7; margin-right: 2px;"></i> Link Drive</div>
+              <div class="reminder-field-value reminder-field-link">${driveLinkHtml}</div>
+            </div>
+          </div>
+          <div class="reminder-detail-actions ${isOrphanDoc ? 'is-orphan-actions' : ''}">
+            <button type="button" id="btn-reminder-refresh" class="button button-outline" title="Làm mới danh sách dữ liệu">
+              <i class="fa-solid fa-rotate-right"></i> Làm mới
+            </button>
+            <button type="button" id="btn-reminder-goto" class="button button-primary" ${isOrphanDoc ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} title="${isOrphanDoc ? 'Tài liệu chưa gắn hợp đồng, vui lòng gán hợp đồng trước' : 'Mở chi tiết Hợp đồng và trỏ đến hồ sơ này'}">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở HĐ
+            </button>
+            ${
+              isOrphanDoc
+                ? `
+              <button type="button" id="btn-reminder-assign-contract" class="button button-outline btn-reminder-assign-contract" title="Gán tài liệu này vào một Hợp đồng hoặc Phụ lục hiện có">
+                <i class="fa-solid fa-link"></i> Gán HĐ
+              </button>
+              <button type="button" id="btn-reminder-delete-orphan" class="button button-outline btn-reminder-delete-orphan" title="Xóa vĩnh viễn tài liệu chưa gắn hợp đồng này">
+                <i class="fa-solid fa-trash-can"></i> Xóa
+              </button>
+            `
+                : ''
+            }
+          </div>
+        `
+            : `
+          <div style="text-align: center; padding: 60px 20px; color: var(--text-muted);">
+            <i class="fa-regular fa-folder-open" style="font-size: 2.5rem; color: #cbd5e1; margin-bottom: 12px; display: block;"></i>
+            Chọn một hồ sơ trong danh sách bên trái để xem chi tiết.
+          </div>
+        `
+        }
+      </div>
+    `;
+
+    this.bindReminderDetailEvents(selectedDoc, targetContract, locLink, drvLink, driveDocPath);
+  }
+
+  /**
+   * Chỉ cập nhật lại tbody bảng và cột chi tiết khi tìm kiếm/lọc (giữ nguyên ô input tìm kiếm & focus)
+   */
+  refreshReminderListAndDetail() {
+    const tbody = document.getElementById('reminder-table-tbody');
+    if (!tbody) {
+      this.renderRemindersTab();
+      return;
+    }
+
+    const allDocs = this.documents || [];
+    const totalPending = allDocs.filter((d) => !this.isDocCompleted(d)).length;
+    const filteredDocs = this.getFilteredReminderDocs();
+
+    if (!this.selectedReminderDocId || !filteredDocs.some((d) => d.id === this.selectedReminderDocId)) {
+      this.selectedReminderDocId = filteredDocs[0]?.id || null;
+    }
+
+    const rowsHtml =
+      filteredDocs.length === 0
+        ? `<tr><td colspan="5" style="text-align: center; padding: 40px 16px; color: var(--text-muted);">
+            <i class="fa-solid fa-clipboard-check" style="font-size: 2rem; color: #10b981; margin-bottom: 8px; display: block;"></i>
+            Không có hồ sơ nào cần xử lý trong bộ lọc hiện tại.
+          </td></tr>`
+        : filteredDocs
+            .map((d) => {
+              const c = this.contracts.find((item) => item.id === d.contract_id);
+              const isRowOrphan = !c;
+              const partyBText = c?.company_b || c?.company_a || '[Chưa gắn hợp đồng]';
+              const partyBHtml = isRowOrphan
+                ? `<span style="color: #dc2626; font-weight: 600;">[Chưa gắn hợp đồng]</span>`
+                : partyBText;
+              const contractSub = c?.contract_no || (d.contract_id ? `Mã cũ: ${d.contract_id}` : 'Không có mã HĐ');
+              const shortSeq = this.getDocShortSequence(d);
+              const recDate = this.formatDate(d.received_date || this.getDocReceivedDate(d, c));
+              const isSelected = d.id === this.selectedReminderDocId;
+
+              return `
+                <tr class="reminder-table-row ${isSelected ? 'selected' : ''}" data-doc-id="${d.id}" style="cursor: pointer;">
+                  <td class="reminder-col-party" title="${partyBText}">
+                    <div class="reminder-party-cell">
+                      <span class="reminder-party-name">${partyBHtml}</span>
+                      <span class="reminder-contract-sub">${contractSub}</span>
+                    </div>
+                  </td>
+                  <td style="text-align: center; white-space: nowrap;">
+                    ${this.getDocumentCategoryBadgeHtml(d.category)}
+                  </td>
+                  <td style="text-align: center; white-space: nowrap; font-family: monospace; font-weight: 700; color: #334155;">
+                    ${shortSeq}
+                  </td>
+                  <td style="text-align: center; white-space: nowrap; font-size: 0.82rem; color: #475569;">
+                    ${recDate}
+                  </td>
+                  <td style="text-align: center; white-space: nowrap;">
+                    ${this.getDocumentStatusBadgeHtml(d.status)}
+                  </td>
+                </tr>
+              `;
+            })
+            .join('');
+
+    tbody.innerHTML = rowsHtml;
+
+    const countEl = document.querySelector('.reminder-pending-count-text');
+    if (countEl) {
+      countEl.innerHTML = `
+        Pending [All]: <strong id="reminder-pending-number" class="text-primary" style="font-size: 1.05rem;">${totalPending}</strong> document(s)
+        ${this.reminderShowCompleted ? `<span style="font-size: 0.8rem; color: #64748b; margin-left: 8px;">(Đang hiện ${filteredDocs.length} / ${allDocs.length} hồ sơ)</span>` : ''}
+      `;
+    }
+
+    this.bindReminderRowEvents();
+    this.updateReminderDetailOnly();
+  }
+
+  bindReminderDetailEvents(selectedDoc, targetContract, locLink = '', drvLink = '', driveDocPath = '') {
+    const rightCol = document.getElementById('reminder-right-col');
+    if (!rightCol) return;
+
     document.getElementById('btn-reminder-refresh')?.addEventListener('click', async () => {
       const btn = document.getElementById('btn-reminder-refresh');
-      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Refreshing...';
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...';
       await this.loadData();
       this.updateReminderBadge();
-      this.renderRemindersTab();
+      this.refreshReminderListAndDetail();
       this.showLocalSaveStatus('Đã làm mới danh sách hồ sơ nhắc việc!');
     });
 
-    // 3. Nút Go to
     document.getElementById('btn-reminder-goto')?.addEventListener('click', () => {
       if (selectedDoc && targetContract) {
         this.handleReminderGoTo(selectedDoc);
       }
     });
 
-    // 3b. Nút Gán hợp đồng (chỉ hiện với tài liệu chưa gắn hợp đồng/phụ lục)
     document.getElementById('btn-reminder-assign-contract')?.addEventListener('click', () => {
       if (selectedDoc) {
         this.openAssignContractModal(selectedDoc);
       }
     });
 
-    // 3c. Nút Delete orphan (chỉ hiện với tài liệu chưa gắn hợp đồng/phụ lục)
     document.getElementById('btn-reminder-delete-orphan')?.addEventListener('click', async () => {
       if (!selectedDoc) return;
       const docLabel = selectedDoc.doc_no || selectedDoc.title || selectedDoc.name || selectedDoc.id;
@@ -10115,25 +10370,18 @@ export class ContractsManager {
       await this.loadData();
       await this.syncToLocalFile();
       this.updateReminderBadge();
-      this.renderRemindersTab();
+      this.refreshReminderListAndDetail();
       this.showLocalSaveStatus('Đã xóa tài liệu chưa gắn hợp đồng!');
     });
 
-    // 4. Nút Mở file Local
     document.getElementById('btn-reminder-open-file-local')?.addEventListener('click', () => {
-      if (selectedDoc) {
-        this.handleOpenDocFile(selectedDoc);
-      }
+      if (selectedDoc) this.handleOpenDocFile(selectedDoc);
     });
 
-    // 5. Nút Mở thư mục Local
     document.getElementById('btn-reminder-open-folder-local')?.addEventListener('click', () => {
-      if (selectedDoc) {
-        this.handleOpenDocFolder(selectedDoc, targetContract);
-      }
+      if (selectedDoc) this.handleOpenDocFolder(selectedDoc, targetContract);
     });
 
-    // 6. Nút Mở file Drive
     document.getElementById('btn-reminder-open-file-drive')?.addEventListener('click', () => {
       if (drvLink) {
         window.open(drvLink, '_blank');
@@ -10141,12 +10389,10 @@ export class ContractsManager {
         window.open(selectedDoc.drive_link, '_blank');
       } else {
         const q = selectedDoc?.doc_no || selectedDoc?.title || selectedDoc?.id || '';
-        const searchUrl = `https://drive.google.com/drive/search?q=${encodeURIComponent(q)}`;
-        window.open(searchUrl, '_blank');
+        window.open(`https://drive.google.com/drive/search?q=${encodeURIComponent(q)}`, '_blank');
       }
     });
 
-    // 7. Nút Mở thư mục Drive
     document.getElementById('btn-reminder-open-folder-drive')?.addEventListener('click', async () => {
       if (drvLink && drvLink.includes('/folders/')) {
         window.open(drvLink, '_blank');
@@ -10162,8 +10408,7 @@ export class ContractsManager {
       }
     });
 
-    // 6. Nút Sao chép link local
-    container.querySelectorAll('.btn-copy-doc-local').forEach((btn) => {
+    rightCol.querySelectorAll('.btn-copy-doc-local').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const p = decodeURIComponent(btn.getAttribute('data-path') || '');
@@ -10183,30 +10428,28 @@ export class ContractsManager {
         }
       });
     });
+  }
 
-    // 7. Checkbox Show Completed
-    const chkCompleted = document.getElementById('reminder-filter-show-completed');
-    chkCompleted?.addEventListener('change', (e) => {
+  bindReminderFilterEvents(container = document.getElementById('reminder-layout-container')) {
+    if (!container) return;
+
+    document.getElementById('reminder-filter-show-completed')?.addEventListener('change', (e) => {
       this.reminderShowCompleted = e.target.checked;
-      this.renderRemindersTab();
+      this.refreshReminderListAndDetail();
     });
 
-    // 8. Radio lọc loại tài liệu (ALL / IPC / OTHER)
     container.querySelectorAll('input[name="reminder-doc-type-radio"]').forEach((radio) => {
       radio.addEventListener('change', (e) => {
         this.reminderDocType = e.target.value;
-        this.renderRemindersTab();
+        this.refreshReminderListAndDetail();
       });
     });
 
-    // 9. Dropdown chọn loại hồ sơ cụ thể
-    const catSelect = document.getElementById('reminder-filter-category');
-    catSelect?.addEventListener('change', (e) => {
+    document.getElementById('reminder-filter-category')?.addEventListener('change', (e) => {
       this.reminderCategory = e.target.value;
-      this.renderRemindersTab();
+      this.refreshReminderListAndDetail();
     });
 
-    // 10. Ô tìm kiếm
     const searchInput = document.getElementById('reminder-search-input');
     const clearBtn = document.getElementById('btn-clear-reminder-search');
 
@@ -10216,14 +10459,17 @@ export class ContractsManager {
         if (this.reminderSearchTerm) clearBtn.classList.remove('hidden');
         else clearBtn.classList.add('hidden');
       }
-      this.renderRemindersTab();
+      this.refreshReminderListAndDetail();
     });
 
     clearBtn?.addEventListener('click', () => {
       this.reminderSearchTerm = '';
-      if (searchInput) searchInput.value = '';
+      if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+      }
       clearBtn.classList.add('hidden');
-      this.renderRemindersTab();
+      this.refreshReminderListAndDetail();
     });
   }
 
