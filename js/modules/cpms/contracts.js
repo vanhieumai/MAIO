@@ -3826,7 +3826,7 @@ export class ContractsManager {
                       : docs
                           .map(
                             (d) => `
-                        <tr class="doc-item-row" data-doc-category="${(d.category || 'Hồ sơ').trim()}" data-received-time="${this.parsePaymentDateObj(d.received_date)?.getTime() || 0}">
+                        <tr class="doc-item-row" data-doc-id="${d.id}" data-doc-category="${(d.category || 'Hồ sơ').trim()}" data-received-time="${this.parsePaymentDateObj(d.received_date)?.getTime() || 0}" style="cursor: pointer;" title="Nhấp đúp để mở popup sửa hồ sơ">
                           <td style="white-space: nowrap; font-family: monospace; font-weight: 600; color: #334155; text-align: center;">${d.id}</td>
                           <td style="white-space: nowrap;">${d.doc_no || '—'}</td>
                           <td style="text-align: center; white-space: nowrap;">${this.getDocumentCategoryBadgeHtml(d.category)}</td>
@@ -4295,6 +4295,16 @@ export class ContractsManager {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const docId = btn.getAttribute('data-doc-id');
+        const doc = (this.documents || []).find((d) => d.id === docId);
+        if (doc) this.openDocumentFormModal(contract, doc);
+      });
+    });
+
+    // Nhấp đúp dòng hồ sơ để mở popup sửa hồ sơ
+    modal.querySelectorAll('tr.doc-item-row').forEach((row) => {
+      row.addEventListener('dblclick', (e) => {
+        if (e.target.closest('button, a')) return;
+        const docId = row.getAttribute('data-doc-id');
         const doc = (this.documents || []).find((d) => d.id === docId);
         if (doc) this.openDocumentFormModal(contract, doc);
       });
@@ -5943,9 +5953,9 @@ export class ContractsManager {
                 <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; color: #92400e; font-size: 0.84rem; margin: 0;">
                   <input type="checkbox" name="is_provisional_val" id="chk-provisional-val" value="1" ${editContract?.is_provisional_val === true || editContract?.is_provisional_val === 1 || editContract?.is_provisional_val === '1' ? 'checked' : ''} style="margin-top: 3px; width: 15px; height: 15px; cursor: pointer; accent-color: #d97706;">
                   <div>
-                    <strong>${isAppendix ? 'Giá trị phụ lục này là tạm tính' : 'Giá trị hợp đồng chủ là tạm tính'}</strong>
+                    <strong>${isAppendix ? 'Giá trị phụ lục này là tạm tính' : 'Giá trị hợp đồng là tạm tính'}</strong>
                     <div style="font-size: 0.75rem; color: #b45309; margin-top: 2px;">
-                      Khi tích chọn, giá trị ${isAppendix ? 'phụ lục này' : 'hợp đồng chủ'} sẽ <strong>không tính</strong> vào tổng hợp; hệ thống sẽ tự động lấy <strong>tổng giá trị các phụ lục con</strong> trực thuộc ${isAppendix ? 'phụ lục này' : 'hợp đồng này'} để tổng hợp.
+                      Khi tích chọn, giá trị ${isAppendix ? 'phụ lục này' : 'hợp đồng'} sẽ <strong>không tính</strong> vào tổng hợp; hệ thống sẽ tự động lấy <strong>tổng giá trị các phụ lục con</strong> trực thuộc ${isAppendix ? 'phụ lục này' : 'hợp đồng này'} để tổng hợp.
                     </div>
                   </div>
                 </label>
@@ -6765,7 +6775,17 @@ export class ContractsManager {
 
                 <!-- 6. Link Drive Online -->
                 <div class="form-group" style="margin-bottom: 14px;">
-                  <label class="form-label"><i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Google Drive Link (Xem trực tuyến Online URL)</label>
+                  <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px; flex-wrap: wrap;">
+                    <span><i class="fa-brands fa-google-drive" style="color: #0284c7;"></i> Google Drive Link (Xem trực tuyến Online URL)</span>
+                    <span style="display: inline-flex; gap: 6px; align-items: center;">
+                      <button type="button" id="btn-doc-edit-open-drive-file" class="button button-outline" style="padding: 2px 8px; font-size: 0.73rem; color: #0284c7; border-color: #bae6fd; background: #f0f9ff;" title="Mở file trên Google Drive">
+                        <i class="fa-solid fa-up-right-from-square"></i> Mở file
+                      </button>
+                      <button type="button" id="btn-doc-edit-open-drive-folder" class="button button-outline" style="padding: 2px 8px; font-size: 0.73rem; color: #0369a1; border-color: #bae6fd; background: #f0f9ff;" title="Mở thư mục chứa hồ sơ trên Google Drive">
+                        <i class="fa-brands fa-google-drive"></i> Mở thư mục Drive
+                      </button>
+                    </span>
+                  </label>
                   <input type="url" class="form-control" name="drive_link" id="input-doc-drive-link" value="${editDoc?.drive_link || (String(editDoc?.file_link || '').startsWith('http') ? editDoc?.file_link : '') || ''}" placeholder="https://drive.google.com/file/d/..." style="font-size: 0.85rem;">
                 </div>
 
@@ -6907,11 +6927,20 @@ export class ContractsManager {
             </div>
 
             <!-- Footer Buttons -->
-            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color);">
-              <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
-              <button type="submit" class="button button-primary" style="padding: 8px 20px; font-weight: 700;">
-                <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Lưu thay đổi Hồ sơ' : 'Lưu Hồ sơ mới'}
-              </button>
+            <div style="display: flex; justify-content: ${isEdit ? 'space-between' : 'flex-end'}; align-items: center; gap: 10px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
+              ${
+                isEdit
+                  ? `<button type="button" id="btn-doc-edit-delete" class="button button-outline" style="color: var(--danger); border-color: #fca5a5; font-weight: 600;">
+                      <i class="fa-solid fa-trash-can"></i> Xóa hồ sơ
+                    </button>`
+                  : ''
+              }
+              <div style="display: flex; gap: 10px; align-items: center; margin-left: auto;">
+                <button type="button" class="button button-outline btn-close-submodal">Hủy</button>
+                <button type="submit" class="button button-primary" style="padding: 8px 20px; font-weight: 700;">
+                  <i class="fa-solid fa-floppy-disk"></i> ${isEdit ? 'Lưu thay đổi Hồ sơ' : 'Lưu Hồ sơ mới'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -6934,6 +6963,69 @@ export class ContractsManager {
       const locLink = modal.querySelector('#input-doc-local-link')?.value || '';
       const drvLink = modal.querySelector('#input-doc-drive-link')?.value || '';
       this.handleOpenDocFolder({ local_link: locLink, drive_link: drvLink, file_link: drvLink || locLink }, targetContract);
+    });
+
+    // Nút Mở file Drive ở dòng Google Drive Link
+    modal.querySelector('#btn-doc-edit-open-drive-file')?.addEventListener('click', () => {
+      const drvLink = (modal.querySelector('#input-doc-drive-link')?.value || '').trim();
+      if (drvLink && drvLink.startsWith('http')) {
+        window.open(drvLink, '_blank');
+      } else {
+        this.showAppAlert?.('Hồ sơ này chưa có Google Drive Link.');
+      }
+    });
+
+    // Nút Mở thư mục Drive ở dòng Google Drive Link
+    modal.querySelector('#btn-doc-edit-open-drive-folder')?.addEventListener('click', async () => {
+      const gdriveSvc = window.__MAIO_GDRIVE_SERVICE__;
+      if (gdriveSvc && gdriveSvc.isSignedIn()) {
+        try {
+          const curPrjId = this.currentProjectId || 'CHC1';
+          const safePrjId = String(curPrjId).replace(/[\/\\?%*:|"<>]/g, '_');
+          const prjFolderId = await gdriveSvc.ensureFolderPath(['01_QuanLy_DuAn', `DuAn_${safePrjId}`]);
+          const docNoVal = modal.querySelector('#txtSoCV')?.value || editDoc?.doc_no || '';
+          const titleVal = modal.querySelector('input[name="title"]')?.value || editDoc?.title || '';
+          const locVal = modal.querySelector('#input-doc-local-link')?.value || editDoc?.local_link || '';
+          const catRadio = modal.querySelector('input[name="category"]:checked')?.value || editDoc?.category || 'OTHER';
+          const resolvedCat = catRadio === 'Other' ? (modal.querySelector('#cboDocType')?.value || 'OTHER') : (catRadio === 'Contract' ? 'CON' : 'IPC');
+          const segs = this.getDrivePathSegmentsForDoc({
+            contract_id: targetContract.id,
+            category: resolvedCat,
+            doc_no: docNoVal,
+            title: titleVal,
+            local_link: locVal,
+          });
+          const targetFolderId = await gdriveSvc.ensureFolderPath(segs, prjFolderId);
+          window.open(`https://drive.google.com/drive/folders/${targetFolderId}`, '_blank');
+          return;
+        } catch (err) {
+          console.warn('Không mở được thư mục Drive trực tiếp:', err);
+        }
+      }
+      window.open('https://drive.google.com/', '_blank');
+    });
+
+    // Nút Xóa hồ sơ ngay trong popup sửa hồ sơ
+    modal.querySelector('#btn-doc-edit-delete')?.addEventListener('click', async () => {
+      if (!editDoc) return;
+      const ok = await this.confirmAsync({
+        title: 'Xác nhận xóa hồ sơ',
+        message: `Bạn có chắc muốn xóa hồ sơ "${editDoc.doc_no || editDoc.id}" không?`,
+        confirmText: 'Xóa hồ sơ',
+        cancelText: 'Hủy bỏ',
+        confirmType: 'danger',
+      });
+      if (!ok) return;
+      await db.delete('documents', editDoc.id);
+      await this.loadData();
+      await this.syncToLocalFile();
+      this.updateReminderBadge();
+      closeSubModal();
+      this.openContractDetail(targetContract.id);
+      setTimeout(() => {
+        document.querySelector('.modal-tab-btn[data-target="m-tab-docs"]')?.click();
+      }, 60);
+      this.showLocalSaveStatus(`Đã xóa hồ sơ "${editDoc.doc_no || editDoc.id}"!`);
     });
 
     // Nút Hoán đổi Bên gửi <=> Bên nhận

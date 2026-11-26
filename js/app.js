@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.3';
 import { db } from './core/db.js?v=5.3';
-import { contractsManager } from './modules/cpms/contracts.js?v=9.5';
+import { contractsManager } from './modules/cpms/contracts.js?v=9.6';
 
 class App {
   constructor() {
@@ -1227,7 +1227,7 @@ class App {
     toast.className = 'drive-bg-sync-toast';
     toast.innerHTML = `
       <div class="drive-bg-sync-header">
-        <span><i class="fa-solid fa-cloud-arrow-up fa-beat-fade" style="color: #2563eb;"></i> Đang đồng bộ ngầm lên Drive</span>
+        <span><i class="fa-solid fa-cloud-arrow-up fa-beat-fade" style="color: #2563eb;"></i> Đang đồng bộ lên Drive</span>
         <span id="bg-sync-pct" style="font-size: 0.78rem; color: #2563eb;">0%</span>
       </div>
       <div id="bg-sync-sub" class="drive-bg-sync-sub">Đang chuẩn bị cấu trúc thư mục...</div>
@@ -1399,7 +1399,7 @@ class App {
       });
     } catch (err) {
       toast.remove();
-      alert('Lỗi đồng bộ ngầm lên Google Drive: ' + err.message);
+      alert('Lỗi đồng bộ lên Google Drive: ' + err.message);
     }
   }
 
