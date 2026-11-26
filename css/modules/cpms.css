@@ -3610,6 +3610,117 @@ html[data-theme="dark"] #m-tab-dash .stat-box:first-child .stat-note {
   color: #94a3b8 !important;
 }
 
+/* ==========================================================================
+   Làm nổi bật 2 tab Nhóm A / Nhóm B ở Tab Hợp đồng & Tab Giải ngân (Light & Dark)
+   ========================================================================== */
+.cpms-sticky-tabs-row .tab-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0 5px 0;
+}
+
+.cpms-sticky-tabs-row .group-tab-btn,
+.cpms-sticky-tabs-row .disburse-group-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1.5px solid #cbd5e1;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.84rem;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: all 0.18s ease;
+}
+
+.cpms-sticky-tabs-row .group-tab-btn[data-group="A"] i,
+.cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="A"] i {
+  color: #2563eb;
+}
+.cpms-sticky-tabs-row .group-tab-btn[data-group="B"] i,
+.cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="B"] i {
+  color: #d97706;
+}
+
+.cpms-sticky-tabs-row .group-tab-btn[data-group="A"]:hover,
+.cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="A"]:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.cpms-sticky-tabs-row .group-tab-btn[data-group="B"]:hover,
+.cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="B"]:hover {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+
+.cpms-sticky-tabs-row .group-tab-btn[data-group="A"].active,
+.cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="A"].active {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.32);
+}
+.cpms-sticky-tabs-row .group-tab-btn[data-group="B"].active,
+.cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="B"].active {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  border-color: #b45309 !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 10px rgba(217, 119, 6, 0.32);
+}
+
+.cpms-sticky-tabs-row .group-tab-btn.active i,
+.cpms-sticky-tabs-row .disburse-group-btn.active i {
+  color: #ffffff !important;
+}
+
+/* Dark Mode cho 2 tab Nhóm A / Nhóm B */
+html[data-theme="dark"] .cpms-sticky-tabs-row .group-tab-btn,
+html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+}
+
+html[data-theme="dark"] .cpms-sticky-tabs-row .group-tab-btn[data-group="A"] i,
+html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="A"] i {
+  color: #60a5fa;
+}
+html[data-theme="dark"] .cpms-sticky-tabs-row .group-tab-btn[data-group="B"] i,
+html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="B"] i {
+  color: #fbbf24;
+}
+
+html[data-theme="dark"] .cpms-sticky-tabs-row .group-tab-btn[data-group="A"]:hover,
+html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="A"]:hover {
+  background: rgba(37, 99, 235, 0.18) !important;
+  border-color: #60a5fa !important;
+  color: #93c5fd !important;
+}
+html[data-theme="dark"] .cpms-sticky-tabs-row .group-tab-btn[data-group="B"]:hover,
+html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="B"]:hover {
+  background: rgba(245, 158, 11, 0.18) !important;
+  border-color: #fbbf24 !important;
+  color: #fcd34d !important;
+}
+
+html[data-theme="dark"] .cpms-sticky-tabs-row .group-tab-btn[data-group="A"].active,
+html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="A"].active {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 12px rgba(59, 130, 246, 0.42);
+}
+html[data-theme="dark"] .cpms-sticky-tabs-row .group-tab-btn[data-group="B"].active,
+html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn[data-disburse-group="B"].active {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+  border-color: #fbbf24 !important;
+  color: #ffffff !important;
+  box-shadow: 0 3px 12px rgba(245, 158, 11, 0.38);
+}
+
 
 
 
