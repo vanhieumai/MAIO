@@ -984,8 +984,24 @@ export class ContractsManager {
   formatProjectOptionLabel(project) {
     if (!project) return '';
     const mode = this.getProjectOriginMode(project);
-    const prefix = mode === 'online' ? '☁️ [Online]' : '💻 [Local]';
-    return `${prefix} ${project.name || project.id}`;
+    const onlineList = window.__MAIO_APP__?.onlineDriveProjects || [];
+    const hasOnline = Boolean(
+      project.drive_synced ||
+        mode === 'online' ||
+        onlineList.some((o) => o.projectId === project.id)
+    );
+    const linkedLocal =
+      (project.id === this.currentProjectId ? this.activeFileHandle?.name : '') ||
+      project.source_filename ||
+      '';
+
+    if (hasOnline && linkedLocal) {
+      return `☁️💻 [Online ↔ Local: ${linkedLocal}] ${project.name || project.id}`;
+    }
+    if (hasOnline) {
+      return `☁️ [Online] ${project.name || project.id}`;
+    }
+    return `💻 [Local] ${project.name || project.id}`;
   }
 
   updateProjectSelectorUI() {

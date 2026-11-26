@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.3';
 import { db } from './core/db.js?v=5.3';
-import { contractsManager } from './modules/cpms/contracts.js?v=9.6';
+import { contractsManager } from './modules/cpms/contracts.js?v=9.7';
 
 class App {
   constructor() {
@@ -730,23 +730,32 @@ class App {
 
     const mode = contractsManager?.getProjectOriginMode ? contractsManager.getProjectOriginMode(curPrj) : 'local';
     const localFileName = contractsManager?.activeFileHandle?.name || '';
+    const linkedLocalName = localFileName || curPrj.source_filename || '';
     const isDriveOnline = Boolean(gdrive.isSignedIn() && !gdrive.currentUser?.isOffline);
+    const onlineList = this.onlineDriveProjects || [];
+    const matchedOnline = onlineList.find((o) => o.projectId === curPrj.id);
+    const hasOnlineData = Boolean(matchedOnline || curPrj.drive_synced || mode === 'online');
+    const driveFolderLabel = curPrj.drive_folder_name || `DuAn_${curPrj.id}`;
 
     badge.classList.remove('source-local', 'source-drive', 'source-hybrid', 'source-browser');
 
-    if (mode === 'online') {
+    if (hasOnlineData && linkedLocalName) {
+      badge.classList.add('source-hybrid');
+      badge.innerHTML = `<i class="fa-brands fa-google-drive"></i> Online <span style="opacity:0.7;margin:0 2px;">↔</span> <i class="fa-solid fa-laptop-file"></i> ${linkedLocalName}`;
+      badge.title = `Đã có dữ liệu Online trên Drive (${driveFolderLabel}) — Đang liên kết với file Local: ${linkedLocalName}`;
+    } else if (hasOnlineData) {
       badge.classList.add('source-drive');
       badge.innerHTML = `<i class="fa-brands fa-google-drive"></i> Online`;
       badge.title = isDriveOnline
-        ? `Đang làm việc với dữ liệu Online trên Google Drive (${gdrive.currentUser?.email || ''})`
-        : 'Dự án đồng bộ từ Google Drive Online';
+        ? `Đang làm việc với dữ liệu Online trên Google Drive (${driveFolderLabel} · ${gdrive.currentUser?.email || ''})`
+        : `Dự án đồng bộ từ Google Drive Online (${driveFolderLabel})`;
     } else {
       badge.classList.add('source-local');
-      badge.innerHTML = localFileName
-        ? `<i class="fa-solid fa-laptop-file"></i> Local (${localFileName})`
+      badge.innerHTML = linkedLocalName
+        ? `<i class="fa-solid fa-laptop-file"></i> Local (${linkedLocalName})`
         : `<i class="fa-solid fa-laptop-file"></i> Local`;
-      badge.title = localFileName
-        ? `Đang làm việc với file CPMS Local trên máy tính: ${localFileName}`
+      badge.title = linkedLocalName
+        ? `Đang làm việc với file CPMS Local trên máy tính: ${linkedLocalName}`
         : 'Đang làm việc với dữ liệu Local trên máy tính';
     }
   }
@@ -1373,12 +1382,24 @@ class App {
           const cpmsFileName = contractsManager.activeFileHandle?.name || `MAIO_Data_${safePrjId}.cpms`;
           await gdrive.uploadBinaryFile(cpmsFileName, cpmsBuffer, 'application/octet-stream', cpmsFolderId);
           cpmsSavedOnline = true;
+          if (curPrj) {
+            curPrj.drive_synced = true;
+            curPrj.drive_folder_name = targetFolderName;
+            curPrj.drive_folder_id = targetProjectFolderId;
+            curPrj.drive_synced_at = new Date().toISOString();
+            await db.put('projects', curPrj);
+          }
         } catch (cpmsErr) {
           console.warn('Lỗi lưu CPMS_Data lên Drive:', cpmsErr);
         }
       }
 
+      if (!authExpiredDuringSync) {
+        await this.refreshOnlineDriveProjects();
+      }
       setBgProgress(100, authExpiredDuringSync ? 'Tạm dừng do hết phiên đăng nhập Drive!' : 'Đồng bộ hoàn tất!');
+      contractsManager.updateProjectSelectorUI();
+      contractsManager.renderProjectInfo();
       this.updateProjectSourceBadge();
       setTimeout(() => toast.remove(), 1200);
 

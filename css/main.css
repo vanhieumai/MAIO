@@ -309,6 +309,16 @@ html[data-theme="dark"] .project-source-badge.source-drive {
   border-color: rgba(96, 165, 250, 0.4);
   color: #93c5fd;
 }
+.project-source-badge.source-hybrid {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #1d4ed8;
+}
+html[data-theme="dark"] .project-source-badge.source-hybrid {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(96, 165, 250, 0.5);
+  color: #93c5fd;
+}
 
 html[data-theme="dark"] .mobile-nav-item {
   color: #cbd5e1;
