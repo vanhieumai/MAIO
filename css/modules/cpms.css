@@ -3465,6 +3465,151 @@ select.reminder-category-select {
   }
 }
 
+/* ==========================================================================
+   Dark Mode Overrides cho toàn bộ thành phần CPMS (load sau main.css)
+   ========================================================================== */
+html[data-theme="dark"] .accordion-toggle-bar {
+  background: var(--bg-card-subtle) !important;
+  color: #cbd5e1 !important;
+  border-color: var(--border-color) !important;
+}
+html[data-theme="dark"] .accordion-toggle-bar:hover {
+  background: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .appendix-grid-table,
+html[data-theme="dark"] .appendix-grid-table tbody tr {
+  background: var(--bg-card) !important;
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] .appendix-grid-table th {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-bottom-color: #334155 !important;
+}
+html[data-theme="dark"] .appendix-grid-table td {
+  border-bottom-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] .appendix-grid-table tr.appendix-row-clickable:hover td {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+html[data-theme="dark"] .col-app-no {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .disburse-detail-header {
+  background: var(--bg-card-subtle) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: #cbd5e1 !important;
+}
+html[data-theme="dark"] .disburse-detail-header strong {
+  color: #f1f5f9 !important;
+}
+
+html[data-theme="dark"] .data-table thead th,
+html[data-theme="dark"] .disburse-compact-table thead th,
+html[data-theme="dark"] .disburse-scroll-contract-list thead th,
+html[data-theme="dark"] .disburse-summary-table thead th,
+html[data-theme="dark"] .overview-detail-table thead th,
+html[data-theme="dark"] .disburse-detail-table thead th,
+html[data-theme="dark"] #contract-detail-modal .disburse-detail-table thead th,
+html[data-theme="dark"] #disburse-contracts-table thead th,
+html[data-theme="dark"] #disburse-ledger-table thead th,
+html[data-theme="dark"] #contract-detail-modal thead th,
+html[data-theme="dark"] #m-tab-docs thead th,
+html[data-theme="dark"] #m-tab-ipc thead th,
+html[data-theme="dark"] .modal-body table thead th,
+html[data-theme="dark"] .reminder-data-table thead th {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-bottom-color: #334155 !important;
+}
+
+html[data-theme="dark"] .disburse-detail-table tbody td span[style*="color: #1e293b"],
+html[data-theme="dark"] #contract-detail-modal tbody td span[style*="color: #1e293b"],
+html[data-theme="dark"] #m-tab-docs tbody td span[style*="color: #1e293b"],
+html[data-theme="dark"] #m-tab-ipc tbody td span[style*="color: #1e293b"] {
+  color: #f1f5f9 !important;
+}
+html[data-theme="dark"] .disburse-detail-table tbody td div[style*="color: #64748b"],
+html[data-theme="dark"] #contract-detail-modal tbody td div[style*="color: #64748b"] {
+  color: #94a3b8 !important;
+}
+
+html[data-theme="dark"] .modal-nav-wrap .tab-btn {
+  color: #94a3b8 !important;
+  background: transparent !important;
+}
+html[data-theme="dark"] .modal-nav-wrap .tab-btn:hover {
+  color: #f1f5f9 !important;
+  background: rgba(51, 65, 85, 0.5) !important;
+}
+html[data-theme="dark"] .modal-nav-wrap .tab-btn.active {
+  color: #60a5fa !important;
+  background: rgba(59, 130, 246, 0.14) !important;
+  border-bottom-color: #60a5fa !important;
+}
+
+html[data-theme="dark"] .data-table tbody td,
+html[data-theme="dark"] .overview-detail-table tbody td,
+html[data-theme="dark"] .disburse-detail-table tbody td,
+html[data-theme="dark"] #contract-detail-modal .disburse-detail-table tbody td,
+html[data-theme="dark"] .modal-body table tbody td {
+  border-bottom-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+
+html[data-theme="dark"] .data-table tbody tr:hover td,
+html[data-theme="dark"] .disburse-compact-table tbody tr:hover td,
+html[data-theme="dark"] .overview-detail-table tbody tr:hover td,
+html[data-theme="dark"] .disburse-detail-table tbody tr:hover td,
+html[data-theme="dark"] #contract-detail-modal .disburse-detail-table tbody tr:hover td,
+html[data-theme="dark"] .modal-body table tbody tr:hover td,
+html[data-theme="dark"] .reminder-data-table tbody tr:hover td,
+html[data-theme="dark"] .reminder-table-row:hover td {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+html[data-theme="dark"] .reminder-table-row.selected:hover td {
+  background-color: rgba(59, 130, 246, 0.28) !important;
+}
+
+html[data-theme="dark"] .data-table tfoot td,
+html[data-theme="dark"] .disburse-compact-table tfoot td,
+html[data-theme="dark"] .overview-detail-table tfoot td,
+html[data-theme="dark"] .disburse-detail-table tfoot td,
+html[data-theme="dark"] #contract-detail-modal .disburse-detail-table tfoot td,
+html[data-theme="dark"] .modal-body table tfoot td {
+  background: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-top-color: #334155 !important;
+}
+
+html[data-theme="dark"] .badge[style*="background: #f1f5f9"],
+html[data-theme="dark"] .badge[style*="background:#f1f5f9"] {
+  background: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+html[data-theme="dark"] .dashboard-progress-track {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+html[data-theme="dark"] #m-tab-dash .stat-box {
+  background: var(--bg-card-subtle) !important;
+  border-color: var(--border-color) !important;
+}
+html[data-theme="dark"] #m-tab-dash .stat-box:first-child > div:nth-child(2) {
+  color: #f1f5f9 !important;
+}
+html[data-theme="dark"] #m-tab-dash .stat-box:first-child .stat-label,
+html[data-theme="dark"] #m-tab-dash .stat-box:first-child .stat-note {
+  color: #94a3b8 !important;
+}
+
 
 
 
