@@ -11118,39 +11118,134 @@ export class ContractsManager {
   }
 
   /**
-   * Xuất Báo cáo Tình hình Thực hiện Hợp đồng và Thanh toán theo mẫu Excel (.xlsx)
+   * Xuất Báo cáo Tình hình Thực hiện Hợp đồng và Thanh toán theo mẫu Excel (.xlsx) định dạng chuẩn đẹp
    */
-  exportCompanyCashflowReportCsv() {
+  async exportCompanyCashflowReportCsv() {
     if (!this.overviewSelectedCompany) return;
     const companyContracts = this.getContractsByCompany(this.overviewSelectedCompany);
     const selectedContracts = companyContracts.filter((c) => this.overviewSelectedContractIds.has(c.id));
     if (selectedContracts.length === 0) return;
 
-    if (!window.XLSX) {
-      this.showAppAlert?.('Thư viện xuất Excel (SheetJS) chưa sẵn sàng. Vui lòng tải lại trang.');
+    if (!window.ExcelJS) {
+      this.showAppAlert?.('Thư viện xuất báo cáo Excel (ExcelJS) chưa sẵn sàng. Vui lòng tải lại trang.');
       return;
     }
 
     const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
-    const prjName = (curPrj?.name || this.currentProjectId || 'DỰ ÁN').toUpperCase();
-    const companyUpper = this.overviewSelectedCompany.toUpperCase();
+    const rawPrjName = String(curPrj?.name || this.currentProjectId || 'DỰ ÁN').trim();
+    const prjUpper = rawPrjName.toUpperCase();
+    const prjTitle = prjUpper.startsWith('DỰ ÁN') ? prjUpper : `DỰ ÁN ${prjUpper}`;
+    const companyUpper = this.overviewSelectedCompany.trim().toUpperCase();
 
-    const rows = [];
-    rows.push([`BÁO CÁO TÌNH HÌNH THỰC HIỆN HỢP ĐỒNG VÀ THANH TOÁN CỦA DỰ ÁN ${prjName} - ĐỐI TÁC ${companyUpper}`]);
-    rows.push([]);
-    rows.push(['', '', '', '', '', '', '', '', '', 'Đvt: VNĐ']);
-    rows.push([
+    const wb = new window.ExcelJS.Workbook();
+    wb.creator = 'MAIO CPMS';
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet('BaoCao_DongTien', {
+      pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+
+    ws.columns = [
+      { key: 'tt', width: 8 },
+      { key: 'content', width: 56 },
+      { key: 'contract_val', width: 20 },
+      { key: 'actual_vol', width: 20 },
+      { key: 'accepted_vol', width: 20 },
+      { key: 'request_amt', width: 20 },
+      { key: 'paid_amt', width: 20 },
+      { key: 'remaining', width: 20 },
+      { key: 'invoice', width: 16 },
+      { key: 'note', width: 26 },
+    ];
+
+    const baseFont = { name: 'Times New Roman', size: 11 };
+    const thinBorder = {
+      top: { style: 'thin', color: { argb: 'FF94A3B8' } },
+      left: { style: 'thin', color: { argb: 'FF94A3B8' } },
+      bottom: { style: 'thin', color: { argb: 'FF94A3B8' } },
+      right: { style: 'thin', color: { argb: 'FF94A3B8' } },
+    };
+
+    // Dòng 1: Tiêu đề báo cáo
+    const titleRow = ws.addRow([
+      `BÁO CÁO TÌNH HÌNH THỰC HIỆN HỢP ĐỒNG VÀ THANH TOÁN CỦA ${prjTitle} - ĐỐI TÁC ${companyUpper}`,
+    ]);
+    ws.mergeCells('A1:J1');
+    titleRow.height = 32;
+    titleRow.getCell(1).font = { ...baseFont, size: 13, bold: true, color: { argb: 'FF0F172A' } };
+    titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+
+    // Dòng 2: Đơn vị tính
+    const unitRow = ws.addRow(['', '', '', '', '', '', '', '', '', 'Đvt: VNĐ']);
+    unitRow.height = 18;
+    unitRow.getCell(10).font = { ...baseFont, size: 10, italic: true };
+    unitRow.getCell(10).alignment = { horizontal: 'right', vertical: 'middle' };
+
+    // Dòng 3: Header bảng
+    const headers = [
       'TT',
       'Nội dung',
-      'Giá trị Hợp đồng (đã bao gồm VAT)',
-      'Giá trị sản lượng thực hiện (đã bao gồm VAT)',
-      'Giá trị sản lượng đã được nghiệm thu (đã bao gồm VAT)',
-      'Giá trị đề nghị thanh toán / tạm ứng (đã bao gồm VAT)',
-      'Giá trị đã được thanh toán / tạm ứng (đã bao gồm VAT)',
-      'Chênh lệch sau khi giải ngân (VNĐ - đã bao gồm VAT)',
+      'Giá trị Hợp đồng\n(đã bao gồm VAT)',
+      'Giá trị sản lượng thực hiện\n(đã bao gồm VAT)',
+      'Giá trị sản lượng đã được nghiệm thu\n(đã bao gồm VAT)',
+      'Giá trị đề nghị thanh toán / tạm ứng\n(đã bao gồm VAT)',
+      'Giá trị đã được thanh toán / tạm ứng\n(đã bao gồm VAT)',
+      'Chênh lệch sau khi giải ngân\n(VNĐ - đã bao gồm VAT)',
       'Số hóa đơn VAT',
       'Ghi chú',
-    ]);
+    ];
+    const headerRow = ws.addRow(headers);
+    headerRow.height = 44;
+    headerRow.eachCell((cell) => {
+      cell.font = { ...baseFont, size: 10.5, bold: true, color: { argb: 'FF0F172A' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } };
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+      cell.border = thinBorder;
+    });
+
+    const estimateRowHeight = (text, colChars = 50, minH = 20) => {
+      const s = String(text || '');
+      const lines = Math.max(1, Math.ceil(s.length / colChars));
+      return Math.max(minH, lines * 15 + 6);
+    };
+
+    const styleDataRow = (row, { isContract = false, isRoot = false, isTotal = false } = {}) => {
+      const contentLen = String(row.getCell(2).value || '').length;
+      row.height = isTotal ? 24 : estimateRowHeight(row.getCell(2).value, 50, isContract ? 24 : 20);
+      for (let c = 1; c <= 10; c++) {
+        const cell = row.getCell(c);
+        cell.font = {
+          ...baseFont,
+          size: isTotal ? 11 : 10.5,
+          bold: isTotal || isContract,
+          color: { argb: isRoot ? 'FF1E3A8A' : 'FF0F172A' },
+        };
+        if (isTotal) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF2CC' } };
+        } else if (isRoot) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEF2FF' } };
+        } else if (isContract) {
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8FAFC' } };
+        }
+        cell.border = thinBorder;
+
+        if (c === 1) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        } else if (c >= 3 && c <= 8) {
+          cell.alignment = { horizontal: 'right', vertical: 'middle' };
+          if (typeof cell.value === 'number') {
+            cell.numFmt = '#,##0';
+          }
+        } else if (c === 9) {
+          cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+        } else {
+          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true };
+          if (c === 10 && contentLen > 0) {
+            row.height = Math.max(row.height, estimateRowHeight(cell.value, 24, 20));
+          }
+        }
+      }
+    };
 
     let sumSigned = 0;
     let sumActual = 0;
@@ -11180,7 +11275,7 @@ export class ContractsManager {
       const kindLabel = level > 0 ? 'Phụ lục số' : 'Hợp đồng số';
       const contractTitle = `${indentPrefix}${kindLabel}: ${c.contract_no || c.id}${signDateStr}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
 
-      rows.push([
+      const contractRow = ws.addRow([
         treeNo,
         contractTitle,
         st.totalSigned,
@@ -11192,6 +11287,7 @@ export class ContractsManager {
         '',
         c.status || '',
       ]);
+      styleDataRow(contractRow, { isContract: true, isRoot: level === 0 });
 
       realPayments.forEach((p, pIdx) => {
         const pAct = this.getPaymentVnd(p, 'actual_volume', 'actual_vol');
@@ -11202,7 +11298,7 @@ export class ContractsManager {
         const pLabel = this.getPaymentContent(p) || `Đợt thanh toán ${pIdx + 1}`;
         const pDateStr = p.payment_date ? ` (${this.formatDate(p.payment_date)})` : '';
 
-        rows.push([
+        const payRow = ws.addRow([
           `${treeNo}.${pIdx + 1}`,
           `${'  '.repeat(level + 1)}${pLabel}${pDateStr}`,
           null,
@@ -11214,10 +11310,11 @@ export class ContractsManager {
           p.invoice_ref || '',
           p.note || '',
         ]);
+        styleDataRow(payRow);
       });
     });
 
-    rows.push([
+    const totalRow = ws.addRow([
       rootCount + 1,
       'Tổng cộng',
       sumSigned,
@@ -11229,50 +11326,55 @@ export class ContractsManager {
       '',
       '',
     ]);
-    rows.push([]);
-    rows.push(['', '', '', 'LÃNH ĐẠO PHÊ DUYỆT', '', '', 'BAN ĐẦU TƯ VÀ QUẢN LÝ DỰ ÁN', '', '', 'Người đề nghị']);
+    styleDataRow(totalRow, { isTotal: true });
 
-    const ws = window.XLSX.utils.aoa_to_sheet(rows);
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }];
-    ws['!cols'] = [
-      { wch: 8 },
-      { wch: 52 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 22 },
-      { wch: 18 },
-      { wch: 28 },
-    ];
+    ws.addRow([]);
+    const signRow = ws.addRow([
+      '',
+      '',
+      'LÃNH ĐẠO PHÊ DUYỆT',
+      '',
+      '',
+      'BAN ĐẦU TƯ VÀ QUẢN LÝ DỰ ÁN',
+      '',
+      '',
+      '',
+      'Người đề nghị',
+    ]);
+    const signRowIdx = signRow.number;
+    ws.mergeCells(`C${signRowIdx}:D${signRowIdx}`);
+    ws.mergeCells(`F${signRowIdx}:G${signRowIdx}`);
+    signRow.height = 24;
+    [3, 6, 10].forEach((colIdx) => {
+      const cell = signRow.getCell(colIdx);
+      cell.font = { ...baseFont, size: 11, bold: true };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
 
-    // Định dạng số phân cách hàng nghìn cho các cột tiền (C..H, từ dòng 5 trở đi)
-    const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1:J1');
-    for (let r = 4; r <= range.e.r; r++) {
-      for (let c = 2; c <= 7; c++) {
-        const addr = window.XLSX.utils.encode_cell({ r, c });
-        if (ws[addr] && typeof ws[addr].v === 'number') {
-          ws[addr].z = '#,##0';
-        }
-      }
-    }
-
-    const wb = window.XLSX.utils.book_new();
-    window.XLSX.utils.book_append_sheet(wb, ws, 'BaoCao_DongTien');
-
-    const asciiComp = this.overviewSelectedCompany
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/đ/g, 'd')
-      .replace(/Đ/g, 'D')
-      .replace(/[^a-zA-Z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 36) || 'DoiTac';
+    const asciiComp =
+      this.overviewSelectedCompany
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .replace(/[^a-zA-Z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 36) || 'DoiTac';
     const today = new Date().toISOString().slice(0, 10);
     const fileName = `BaoCao_DongTien_${asciiComp}_${today}.xlsx`;
 
-    window.XLSX.writeFile(wb, fileName, { bookType: 'xlsx' });
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 
     this.showLocalSaveStatus(`Đã xuất báo cáo Excel "${fileName}" (${selectedContracts.length} hợp đồng)!`);
   }
