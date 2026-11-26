@@ -10697,25 +10697,70 @@ export class ContractsManager {
   }
 
   /**
-   * Lấy toàn bộ hợp đồng (gồm cả HĐ chính & phụ lục) liên quan tới một công ty
+   * Sắp xếp và phân cấp danh sách hợp đồng/phụ lục theo thời gian ký tăng dần ở từng cấp
+   */
+  buildCompanyContractTreeRows(contractsList) {
+    const list = Array.isArray(contractsList) ? contractsList : [];
+    const idSet = new Set(list.map((c) => c.id));
+
+    const compareBySignDate = (a, b) => {
+      if ((a.group || '') !== (b.group || '')) {
+        return (a.group || '').localeCompare(b.group || '');
+      }
+      const dA = this.parsePaymentDateObj(a.signing_date || a.created_at)?.getTime();
+      const dB = this.parsePaymentDateObj(b.signing_date || b.created_at)?.getTime();
+      const tA = Number.isFinite(dA) ? dA : Number.MAX_SAFE_INTEGER;
+      const tB = Number.isFinite(dB) ? dB : Number.MAX_SAFE_INTEGER;
+      if (tA !== tB) return tA - tB;
+      return String(a.contract_no || '').localeCompare(String(b.contract_no || ''), 'vi');
+    };
+
+    const childrenMap = new Map();
+    const roots = [];
+
+    list.forEach((c) => {
+      if (c.parent_id && idSet.has(c.parent_id)) {
+        if (!childrenMap.has(c.parent_id)) childrenMap.set(c.parent_id, []);
+        childrenMap.get(c.parent_id).push(c);
+      } else {
+        roots.push(c);
+      }
+    });
+
+    roots.sort(compareBySignDate);
+    childrenMap.forEach((arr) => arr.sort(compareBySignDate));
+
+    const result = [];
+    const traverse = (node, level, prefixNo) => {
+      result.push({
+        contract: node,
+        level,
+        treeNo: prefixNo,
+        isSub: !!node.parent_id,
+      });
+      const children = childrenMap.get(node.id) || [];
+      children.forEach((ch, idx) => {
+        traverse(ch, level + 1, `${prefixNo}.${idx + 1}`);
+      });
+    };
+
+    roots.forEach((r, idx) => traverse(r, 0, String(idx + 1)));
+    return result;
+  }
+
+  /**
+   * Lấy toàn bộ hợp đồng (gồm cả HĐ chính & phụ lục) liên quan tới một công ty, đã sắp xếp theo cây & ngày ký
    */
   getContractsByCompany(companyName) {
     const target = String(companyName || '').trim().toLowerCase();
     if (!target) return [];
-    return (this.contracts || [])
-      .filter((c) => {
-        if (c.is_cpb) return false;
-        const a = String(c.company_a || '').trim().toLowerCase();
-        const b = String(c.company_b || '').trim().toLowerCase();
-        return a === target || b === target;
-      })
-      .sort((a, b) => {
-        if ((a.group || '') !== (b.group || '')) return (a.group || '').localeCompare(b.group || '');
-        const aIsMain = !a.parent_id ? 0 : 1;
-        const bIsMain = !b.parent_id ? 0 : 1;
-        if (aIsMain !== bIsMain) return aIsMain - bIsMain;
-        return String(a.contract_no || '').localeCompare(String(b.contract_no || ''), 'vi');
-      });
+    const matched = (this.contracts || []).filter((c) => {
+      if (c.is_cpb) return false;
+      const a = String(c.company_a || '').trim().toLowerCase();
+      const b = String(c.company_b || '').trim().toLowerCase();
+      return a === target || b === target;
+    });
+    return this.buildCompanyContractTreeRows(matched).map((item) => item.contract);
   }
 
   /**
@@ -10922,22 +10967,23 @@ export class ContractsManager {
         </div>
 
         <div class="overview-contract-checklist">
-          ${companyContracts
-            .map((c) => {
+          ${this.buildCompanyContractTreeRows(companyContracts)
+            .map(({ contract: c, level, treeNo, isSub }) => {
               const checked = this.overviewSelectedContractIds.has(c.id) ? 'checked' : '';
               const st = this.calculateTotals(c);
-              const isSub = !!c.parent_id;
+              const signDateStr = c.signing_date ? this.formatDate(c.signing_date) : '—';
               return `
-                <label class="overview-contract-check-item ${checked ? 'is-checked' : ''}">
+                <label class="overview-contract-check-item ${checked ? 'is-checked' : ''}" style="${level > 0 ? `border-left: 3px solid var(--primary);` : ''}">
                   <input type="checkbox" class="overview-contract-checkbox" data-contract-id="${c.id}" ${checked}>
                   <div class="overview-contract-check-info">
                     <div class="overview-contract-check-row1">
+                      <span class="badge" style="font-size: 0.66rem; background: rgba(59,130,246,0.12); color: var(--primary);">${treeNo}</span>
                       <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.68rem;">Nhóm ${c.group || 'B'}</span>
-                      <strong class="overview-contract-no">${c.contract_no || c.id}</strong>
+                      <strong class="overview-contract-no">${level > 0 ? '↳ ' : ''}${c.contract_no || c.id}</strong>
                       ${isSub ? '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #475569;">Phụ lục</span>' : ''}
                       <span class="overview-contract-val">${this.formatCurrency(st.totalSigned)}</span>
                     </div>
-                    <div class="overview-contract-scope">${c.scope_of_work || '—'}</div>
+                    <div class="overview-contract-scope">${c.signing_date ? `[${signDateStr}] ` : ''}${c.scope_of_work || '—'}</div>
                   </div>
                 </label>
               `;
@@ -10964,8 +11010,9 @@ export class ContractsManager {
       let sumRemaining = 0;
       let sumIpc = 0;
 
-      const rowsHtml = selectedContracts
-        .map((c, idx) => {
+      const selectedTreeRows = this.buildCompanyContractTreeRows(selectedContracts);
+      const rowsHtml = selectedTreeRows
+        .map(({ contract: c, level, treeNo, isSub }) => {
           const st = this.calculateTotals(c);
           const realPayments = this.getRealPayments(c.id);
           const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
@@ -10978,11 +11025,19 @@ export class ContractsManager {
           sumRemaining += st.remaining;
           sumIpc += st.ipcCount;
 
+          const signDateText = c.signing_date ? ` • Ký: ${this.formatDate(c.signing_date)}` : '';
+          const indentPx = level * 18;
+
           return `
-            <tr>
-              <td style="text-align: center; font-weight: 600;">${idx + 1}</td>
-              <td>
-                <div style="font-weight: 700; color: var(--primary);">${c.contract_no || c.id}</div>
+            <tr class="${level === 0 ? 'overview-tree-parent-row' : 'overview-tree-child-row'}">
+              <td style="text-align: center; font-weight: ${level === 0 ? '700' : '600'}; white-space: nowrap;">${treeNo}</td>
+              <td style="padding-left: ${10 + indentPx}px;">
+                <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  ${level > 0 ? '<span style="color: var(--text-muted); font-weight: 400;">↳</span>' : ''}
+                  <span>${c.contract_no || c.id}</span>
+                  ${isSub ? '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #475569;">Phụ lục</span>' : ''}
+                  ${signDateText ? `<span style="font-size: 0.72rem; font-weight: 500; color: var(--text-muted);">${signDateText}</span>` : ''}
+                </div>
                 <div style="font-size: 0.74rem; color: var(--text-muted);">${c.scope_of_work || '—'}</div>
               </td>
               <td style="text-align: center;">
@@ -11088,7 +11143,11 @@ export class ContractsManager {
     let sumPaid = 0;
     let sumRemaining = 0;
 
-    selectedContracts.forEach((c, idx) => {
+    const selectedTreeRows = this.buildCompanyContractTreeRows(selectedContracts);
+    let rootCount = 0;
+
+    selectedTreeRows.forEach(({ contract: c, level, treeNo }) => {
+      if (level === 0) rootCount += 1;
       const st = this.calculateTotals(c);
       const realPayments = this.getRealPayments(c.id);
       const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
@@ -11101,10 +11160,12 @@ export class ContractsManager {
       sumRemaining += st.remaining;
 
       const signDateStr = c.signing_date ? ` ký ngày ${this.formatDate(c.signing_date)}` : '';
-      const contractTitle = `Hợp đồng số: ${c.contract_no || c.id}${signDateStr}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
+      const indentPrefix = level > 0 ? `${'  '.repeat(level)}↳ ` : '';
+      const kindLabel = level > 0 ? 'Phụ lục số' : 'Hợp đồng số';
+      const contractTitle = `${indentPrefix}${kindLabel}: ${c.contract_no || c.id}${signDateStr}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
 
       rows.push([
-        idx + 1,
+        treeNo,
         contractTitle,
         st.totalSigned,
         actualVnd,
@@ -11126,8 +11187,8 @@ export class ContractsManager {
         const pDateStr = p.payment_date ? ` (${this.formatDate(p.payment_date)})` : '';
 
         rows.push([
-          `${idx + 1}.${pIdx + 1}`,
-          `${pLabel}${pDateStr}`,
+          `${treeNo}.${pIdx + 1}`,
+          `${'  '.repeat(level + 1)}${pLabel}${pDateStr}`,
           null,
           pAct || null,
           pAcc || null,
@@ -11141,7 +11202,7 @@ export class ContractsManager {
     });
 
     rows.push([
-      selectedContracts.length + 1,
+      rootCount + 1,
       'Tổng cộng',
       sumSigned,
       sumActual,
