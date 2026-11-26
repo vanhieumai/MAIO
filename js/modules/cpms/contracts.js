@@ -992,18 +992,29 @@ export class ContractsManager {
     const selector = document.getElementById('project-selector');
     if (!selector) return;
 
+    const onlineList = window.__MAIO_APP__?.onlineDriveProjects || [];
+
     if (!this.projects || this.projects.length === 0) {
       this.currentProjectId = null;
       this.activeFileHandle = null;
       this._lastKnownFileModified = 0;
-      selector.innerHTML = `
-        <option value="" disabled selected>-- Chưa có dự án nào --</option>
-        <option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>
-      `;
+
+      let emptyOptionsHtml = '';
+      if (onlineList.length > 0) {
+        emptyOptionsHtml += `<option value="" disabled selected>-- Chọn dự án Online trên Google Drive (${onlineList.length}) --</option>`;
+        onlineList.forEach((item) => {
+          emptyOptionsHtml += `<option value="DRIVE_ONLINE:${item.fileId}" data-drive-prj-id="${item.projectId}">☁️ [Online] Dự án ${item.projectId}</option>`;
+        });
+      } else {
+        emptyOptionsHtml += `<option value="" disabled selected>-- Chưa có dự án nào --</option>`;
+      }
+      emptyOptionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
+      selector.innerHTML = emptyOptionsHtml;
+
       const activePrjName = document.getElementById('active-project-name');
       if (activePrjName) activePrjName.textContent = 'Chưa có dự án nào';
       const topProjName = document.getElementById('top-project-name');
-      if (topProjName) topProjName.textContent = 'Chưa có dự án nào';
+      if (topProjName) topProjName.textContent = onlineList.length > 0 ? 'Chọn dự án Online từ Google Drive' : 'Chưa có dự án nào';
       const topProjLoc = document.getElementById('top-project-location');
       if (topProjLoc) topProjLoc.textContent = '—';
       if (typeof window.__MAIO_APP__?.updateProjectSourceBadge === 'function') {
@@ -1024,7 +1035,6 @@ export class ContractsManager {
     });
 
     // Bổ sung các dự án Online trên Google Drive chưa có bản local trên máy này
-    const onlineList = window.__MAIO_APP__?.onlineDriveProjects || [];
     const localIds = new Set(this.projects.map((p) => p.id));
     onlineList.forEach((item) => {
       if (!localIds.has(item.projectId)) {

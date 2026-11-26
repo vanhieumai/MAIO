@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.3';
 import { db } from './core/db.js?v=5.3';
-import { contractsManager } from './modules/cpms/contracts.js?v=9.4';
+import { contractsManager } from './modules/cpms/contracts.js?v=9.5';
 
 class App {
   constructor() {
@@ -114,9 +114,13 @@ class App {
 
       // Khi đăng nhập Google Drive thật -> tải danh sách dự án Online & kiểm tra bản cập nhật mới nhất
       if (!user.isOffline) {
-        await this.refreshOnlineDriveProjects();
+        const onlineList = await this.refreshOnlineDriveProjects();
         contractsManager.updateProjectSelectorUI();
-        await this.checkDriveProjectUpdates(contractsManager.currentProjectId);
+        if ((!contractsManager.projects || contractsManager.projects.length === 0) && onlineList.length > 0 && !this.pendingSyncAction) {
+          await this.openOnlineDriveProject(onlineList[0].fileId, onlineList[0].projectId);
+        } else {
+          await this.checkDriveProjectUpdates(contractsManager.currentProjectId);
+        }
       } else {
         this.onlineDriveProjects = [];
         contractsManager.updateProjectSelectorUI();
