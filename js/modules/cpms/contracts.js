@@ -10846,6 +10846,15 @@ export class ContractsManager {
       }
       this.renderOverviewCompanyReport(true);
     });
+
+    bodyEl.addEventListener('dblclick', (e) => {
+      if (e.target.closest('input[type="checkbox"]')) return;
+      const row = e.target.closest('.overview-cashflow-contract-row, .overview-contract-check-item');
+      const cid = row?.dataset?.contractId;
+      if (cid) {
+        this.openContractDetail(cid);
+      }
+    });
   }
 
   /**
@@ -10973,7 +10982,7 @@ export class ContractsManager {
               const st = this.calculateTotals(c);
               const signDateStr = c.signing_date ? this.formatDate(c.signing_date) : '—';
               return `
-                <label class="overview-contract-check-item ${checked ? 'is-checked' : ''}" style="${level > 0 ? `border-left: 3px solid var(--primary);` : ''}">
+                <label class="overview-contract-check-item ${checked ? 'is-checked' : ''}" data-contract-id="${c.id}" title="Nhấp đúp để mở popup chi tiết hợp đồng" style="${level > 0 ? `border-left: 3px solid var(--primary);` : ''}">
                   <input type="checkbox" class="overview-contract-checkbox" data-contract-id="${c.id}" ${checked}>
                   <div class="overview-contract-check-info">
                     <div class="overview-contract-check-row1">
@@ -11029,7 +11038,7 @@ export class ContractsManager {
           const indentPx = level * 18;
 
           return `
-            <tr class="${level === 0 ? 'overview-tree-parent-row' : 'overview-tree-child-row'}">
+            <tr class="overview-cashflow-contract-row ${level === 0 ? 'overview-tree-parent-row' : 'overview-tree-child-row'}" data-contract-id="${c.id}" style="cursor: pointer;" title="Nhấp đúp để mở popup chi tiết & chỉnh sửa hợp đồng">
               <td style="text-align: center; font-weight: ${level === 0 ? '700' : '600'}; white-space: nowrap;">${treeNo}</td>
               <td style="padding-left: ${10 + indentPx}px;">
                 <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
