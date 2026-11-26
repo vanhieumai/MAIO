@@ -3726,23 +3726,50 @@ html[data-theme="dark"] .cpms-sticky-tabs-row .disburse-group-btn[data-disburse-
    ========================================================================== */
 .overview-company-card {
   margin-top: 4px;
+  padding: 14px 16px !important;
 }
 
 .overview-company-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .overview-company-search-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+  flex-wrap: nowrap;
+  margin-bottom: 10px;
+}
+
+.overview-company-search-wrap {
+  flex: 0 1 320px;
+  min-width: 200px;
+}
+
+.overview-company-select {
+  flex: 1 1 320px;
+  max-width: 440px;
+  min-width: 220px;
+  height: 34px !important;
+  padding: 4px 10px !important;
+  font-size: 0.83rem !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 768px) {
+  .overview-company-search-row {
+    flex-wrap: wrap;
+  }
+  .overview-company-search-wrap,
+  .overview-company-select {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
 }
 
 .overview-company-empty {

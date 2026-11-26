@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="css/main.css?v=5.5">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=9.7">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=9.8">
   <script>
     (function () {
       try {
@@ -334,15 +334,10 @@
           <!-- Bộ lọc Tìm kiếm Công ty & Tổng hợp Dòng tiền / Xuất Báo cáo -->
           <div id="overview-company-report-card" class="card overview-company-card">
             <div class="overview-company-header">
-              <div>
-                <h2 class="card-title" style="margin-bottom: 2px;">
-                  <i class="fa-solid fa-building-magnifying-glass" style="color: var(--primary);"></i>
-                  Tra cứu Công ty & Tổng hợp Dòng tiền Hợp đồng
-                </h2>
-                <p class="card-desc" style="margin-bottom: 0;">
-                  Tìm kiếm đối tác / nhà thầu, chọn các hợp đồng cần tổng hợp để xem dòng tiền và xuất báo cáo theo mẫu.
-                </p>
-              </div>
+              <h2 class="card-title" style="margin-bottom: 0; font-size: 0.98rem;">
+                <i class="fa-solid fa-building-magnifying-glass" style="color: var(--primary);"></i>
+                Tra cứu Công ty & Tổng hợp Dòng tiền Hợp đồng
+              </h2>
               <div class="overview-company-actions">
                 <button type="button" id="btn-export-company-report" class="button button-primary button-sm" disabled title="Chọn công ty và ít nhất 1 hợp đồng để xuất báo cáo">
                   <i class="fa-solid fa-file-excel"></i> Xuất báo cáo theo mẫu
@@ -350,16 +345,16 @@
               </div>
             </div>
 
-            <!-- Thanh tìm kiếm công ty -->
+            <!-- Thanh tìm kiếm & chọn nhanh công ty cùng 1 hàng -->
             <div class="overview-company-search-row">
-              <div class="search-input-wrap" style="flex: 1; min-width: 240px;">
+              <div class="search-input-wrap overview-company-search-wrap">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
-                <input type="text" id="overview-company-search" class="search-input" placeholder="Nhập tên công ty / nhà thầu / chủ đầu tư để tìm kiếm...">
+                <input type="text" id="overview-company-search" class="search-input" placeholder="Tìm tên công ty / nhà thầu...">
                 <button type="button" id="btn-clear-overview-company-search" class="btn-clear-search hidden" title="Xóa từ khóa">
                   <i class="fa-solid fa-xmark"></i>
                 </button>
               </div>
-              <select id="overview-company-select" class="form-control" style="width: auto; min-width: 260px; max-width: 420px; height: 36px; font-size: 0.84rem; font-weight: 600;">
+              <select id="overview-company-select" class="form-control overview-company-select">
                 <option value="">-- Chọn nhanh công ty trong dự án --</option>
               </select>
             </div>

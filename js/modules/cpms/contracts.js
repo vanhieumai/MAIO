@@ -10968,7 +10968,7 @@ export class ContractsManager {
         .map((c, idx) => {
           const st = this.calculateTotals(c);
           const realPayments = this.getRealPayments(c.id);
-          const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_vol'), 0);
+          const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
 
           sumSigned += st.totalSigned;
           sumActual += actualVnd;
@@ -11091,7 +11091,7 @@ export class ContractsManager {
     selectedContracts.forEach((c, idx) => {
       const st = this.calculateTotals(c);
       const realPayments = this.getRealPayments(c.id);
-      const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_vol'), 0);
+      const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
 
       sumSigned += st.totalSigned;
       sumActual += actualVnd;
@@ -11117,7 +11117,7 @@ export class ContractsManager {
       ]);
 
       realPayments.forEach((p, pIdx) => {
-        const pAct = this.getPaymentVnd(p, 'actual_vol');
+        const pAct = this.getPaymentVnd(p, 'actual_volume', 'actual_vol');
         const pAcc = this.getPaymentVnd(p, 'accepted_vol');
         const pReq = this.getPaymentVnd(p, 'request_amount');
         const pPaid = this.getPaymentVnd(p, 'paid_amount');
