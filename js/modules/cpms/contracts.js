@@ -11075,34 +11075,56 @@ export class ContractsManager {
             : ''
         }
 
-        <div class="overview-contract-checklist">
-          ${this.buildCompanyContractTreeRows(companyContracts)
-            .map(({ contract: c, level, treeNo, isSub }) => {
-              const checked = this.overviewSelectedContractIds.has(c.id) ? 'checked' : '';
-              const st = this.calculateTotals(c);
-              const signDateStr = c.signing_date ? this.formatDate(c.signing_date) : '—';
-              return `
-                <label class="overview-contract-check-item ${checked ? 'is-checked' : ''}" data-contract-id="${c.id}" title="Nhấp đúp để mở popup chi tiết hợp đồng" style="${level > 0 ? `border-left: 3px solid var(--primary);` : ''}">
-                  <input type="checkbox" class="overview-contract-checkbox" data-contract-id="${c.id}" ${checked}>
-                  <div class="overview-contract-check-info">
-                    <div class="overview-contract-check-row1">
-                      <span class="badge" style="font-size: 0.66rem; background: rgba(59,130,246,0.12); color: var(--primary);">${treeNo}</span>
-                      <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.68rem;">Nhóm ${c.group || 'B'}</span>
-                      <strong class="overview-contract-no">${level > 0 ? '↳ ' : ''}${c.contract_no || c.id}</strong>
-                      ${isSub ? '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #475569;">Phụ lục</span>' : ''}
-                      <span class="overview-contract-val">${this.formatCurrency(st.totalSigned)}</span>
+        ${(() => {
+          const compA = companyContracts.filter((c) => (c.group || 'B') === 'A');
+          const compB = companyContracts.filter((c) => (c.group || 'B') !== 'A');
+          const hasBothGroups = compA.length > 0 && compB.length > 0;
+          const renderChecklistItems = (list) =>
+            this.buildCompanyContractTreeRows(list)
+              .map(({ contract: c, level, treeNo, isSub }) => {
+                const checked = this.overviewSelectedContractIds.has(c.id) ? 'checked' : '';
+                const st = this.calculateTotals(c);
+                const signDateStr = c.signing_date ? this.formatDate(c.signing_date) : '—';
+                return `
+                  <label class="overview-contract-check-item ${checked ? 'is-checked' : ''}" data-contract-id="${c.id}" title="Nhấp đúp để mở popup chi tiết hợp đồng" style="${level > 0 ? `border-left: 3px solid var(--primary);` : ''}">
+                    <input type="checkbox" class="overview-contract-checkbox" data-contract-id="${c.id}" ${checked}>
+                    <div class="overview-contract-check-info">
+                      <div class="overview-contract-check-row1">
+                        <span class="badge" style="font-size: 0.66rem; background: rgba(59,130,246,0.12); color: var(--primary);">${treeNo}</span>
+                        <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.68rem;">Nhóm ${c.group || 'B'}</span>
+                        <strong class="overview-contract-no">${level > 0 ? '↳ ' : ''}${c.contract_no || c.id}</strong>
+                        ${isSub ? '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #475569;">Phụ lục</span>' : ''}
+                        <span class="overview-contract-val">${this.formatCurrency(st.totalSigned)}</span>
+                      </div>
+                      <div class="overview-contract-scope">${c.signing_date ? `[${signDateStr}] ` : ''}${c.scope_of_work || '—'}</div>
                     </div>
-                    <div class="overview-contract-scope">${c.signing_date ? `[${signDateStr}] ` : ''}${c.scope_of_work || '—'}</div>
-                  </div>
-                </label>
-              `;
-            })
-            .join('')}
-        </div>
+                  </label>
+                `;
+              })
+              .join('');
+
+          if (!hasBothGroups) {
+            return `<div class="overview-contract-checklist">${renderChecklistItems(companyContracts)}</div>`;
+          }
+          return `
+            <div style="margin-bottom: 10px;">
+              <div style="font-size: 0.78rem; font-weight: 700; color: var(--primary); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                <span class="badge badge-primary" style="font-size: 0.68rem;"><i class="fa-solid fa-landmark"></i> NHÓM A — THU (${compA.length})</span>
+              </div>
+              <div class="overview-contract-checklist">${renderChecklistItems(compA)}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.78rem; font-weight: 700; color: #d97706; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                <span class="badge badge-warning" style="font-size: 0.68rem;"><i class="fa-solid fa-handshake"></i> NHÓM B — CHI (${compB.length})</span>
+              </div>
+              <div class="overview-contract-checklist">${renderChecklistItems(compB)}</div>
+            </div>
+          `;
+        })()}
       </div>
     `;
 
-    // Bảng tổng hợp thông tin dòng tiền cho các hợp đồng đã chọn
+    // Bảng tổng hợp thông tin dòng tiền cho các hợp đồng đã chọn (phân tách rõ Nhóm A & Nhóm B)
     if (selectedContracts.length === 0) {
       html += `
         <div class="overview-company-empty" style="margin-top: 10px;">
@@ -11111,58 +11133,139 @@ export class ContractsManager {
         </div>
       `;
     } else {
-      let sumSigned = 0;
-      let sumActual = 0;
-      let sumAccepted = 0;
-      let sumRequested = 0;
-      let sumPaid = 0;
-      let sumRemaining = 0;
-      let sumIpc = 0;
+      const selectedA = selectedContracts.filter((c) => (c.group || 'B') === 'A');
+      const selectedB = selectedContracts.filter((c) => (c.group || 'B') !== 'A');
+      const hasBothSelected = selectedA.length > 0 && selectedB.length > 0;
 
-      const selectedTreeRows = this.buildCompanyContractTreeRows(selectedContracts);
-      const rowsHtml = selectedTreeRows
-        .map(({ contract: c, level, treeNo, isSub }) => {
-          const st = this.calculateTotals(c);
-          const realPayments = this.getRealPayments(c.id);
-          const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
+      const buildGroupBlock = (groupContracts) => {
+        const totals = { signed: 0, actual: 0, accepted: 0, requested: 0, paid: 0, remaining: 0, ipc: 0, count: groupContracts.length };
+        const treeRows = this.buildCompanyContractTreeRows(groupContracts);
+        const rowsHtml = treeRows
+          .map(({ contract: c, level, treeNo, isSub }) => {
+            const st = this.calculateTotals(c);
+            const realPayments = this.getRealPayments(c.id);
+            const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
 
-          sumSigned += st.totalSigned;
-          sumActual += actualVnd;
-          sumAccepted += st.totalAccepted;
-          sumRequested += st.totalRequested;
-          sumPaid += st.totalPaid;
-          sumRemaining += st.remaining;
-          sumIpc += st.ipcCount;
+            totals.signed += st.totalSigned;
+            totals.actual += actualVnd;
+            totals.accepted += st.totalAccepted;
+            totals.requested += st.totalRequested;
+            totals.paid += st.totalPaid;
+            totals.remaining += st.remaining;
+            totals.ipc += st.ipcCount;
 
-          const signDateText = c.signing_date ? ` • Ký: ${this.formatDate(c.signing_date)}` : '';
-          const indentPx = level * 18;
+            const signDateText = c.signing_date ? ` • Ký: ${this.formatDate(c.signing_date)}` : '';
+            const partnerTag = isMultiCompany ? ` • ${c.group === 'A' ? c.company_a : c.company_b || c.company_a || ''}` : '';
+            const indentPx = level * 18;
 
-          return `
-            <tr class="overview-cashflow-contract-row ${level === 0 ? 'overview-tree-parent-row' : 'overview-tree-child-row'}" data-contract-id="${c.id}" style="cursor: pointer;" title="Nhấp đúp để mở popup chi tiết & chỉnh sửa hợp đồng">
-              <td style="text-align: center; font-weight: ${level === 0 ? '700' : '600'}; white-space: nowrap;">${treeNo}</td>
-              <td style="padding-left: ${10 + indentPx}px;">
-                <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                  ${level > 0 ? '<span style="color: var(--text-muted); font-weight: 400;">↳</span>' : ''}
-                  <span>${c.contract_no || c.id}</span>
-                  ${isSub ? '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #475569;">Phụ lục</span>' : ''}
-                  ${signDateText ? `<span style="font-size: 0.72rem; font-weight: 500; color: var(--text-muted);">${signDateText}</span>` : ''}
-                </div>
-                <div style="font-size: 0.74rem; color: var(--text-muted);">${c.scope_of_work || '—'}</div>
-              </td>
-              <td style="text-align: center;">
-                <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.68rem;">Nhóm ${c.group || 'B'}</span>
-              </td>
-              <td style="text-align: right; font-weight: 600;">${this.formatMoneyPlain(st.totalSigned)}</td>
-              <td style="text-align: right;">${this.formatMoneyPlain(actualVnd)}</td>
-              <td style="text-align: right;">${this.formatMoneyPlain(st.totalAccepted)}</td>
-              <td style="text-align: right;">${this.formatMoneyPlain(st.totalRequested)}</td>
-              <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(st.totalPaid)}</td>
-              <td style="text-align: right; color: ${st.remaining > 0 ? 'var(--danger)' : 'var(--text-muted)'}; font-weight: 600;">${this.formatMoneyPlain(st.remaining)}</td>
-              <td style="text-align: center;">${st.ipcCount} đợt</td>
-            </tr>
-          `;
-        })
-        .join('');
+            return `
+              <tr class="overview-cashflow-contract-row ${level === 0 ? 'overview-tree-parent-row' : 'overview-tree-child-row'}" data-contract-id="${c.id}" style="cursor: pointer;" title="Nhấp đúp để mở popup chi tiết & chỉnh sửa hợp đồng">
+                <td style="text-align: center; font-weight: ${level === 0 ? '700' : '600'}; white-space: nowrap;">${treeNo}</td>
+                <td style="padding-left: ${10 + indentPx}px;">
+                  <div style="font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                    ${level > 0 ? '<span style="color: var(--text-muted); font-weight: 400;">↳</span>' : ''}
+                    <span>${c.contract_no || c.id}</span>
+                    ${isSub ? '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #475569;">Phụ lục</span>' : ''}
+                    ${signDateText ? `<span style="font-size: 0.72rem; font-weight: 500; color: var(--text-muted);">${signDateText}</span>` : ''}
+                  </div>
+                  <div style="font-size: 0.74rem; color: var(--text-muted);">${c.scope_of_work || '—'}${partnerTag}</div>
+                </td>
+                <td style="text-align: center;">
+                  <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.68rem;">Nhóm ${c.group || 'B'}</span>
+                </td>
+                <td style="text-align: right; font-weight: 600;">${this.formatMoneyPlain(st.totalSigned)}</td>
+                <td style="text-align: right;">${this.formatMoneyPlain(actualVnd)}</td>
+                <td style="text-align: right;">${this.formatMoneyPlain(st.totalAccepted)}</td>
+                <td style="text-align: right;">${this.formatMoneyPlain(st.totalRequested)}</td>
+                <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(st.totalPaid)}</td>
+                <td style="text-align: right; color: ${st.remaining > 0 ? 'var(--danger)' : 'var(--text-muted)'}; font-weight: 600;">${this.formatMoneyPlain(st.remaining)}</td>
+                <td style="text-align: center;">${st.ipcCount} đợt</td>
+              </tr>
+            `;
+          })
+          .join('');
+        return { rowsHtml, totals };
+      };
+
+      const blockA = selectedA.length > 0 ? buildGroupBlock(selectedA) : null;
+      const blockB = selectedB.length > 0 ? buildGroupBlock(selectedB) : null;
+
+      let tbodyHtml = '';
+      let tfootHtml = '';
+
+      if (hasBothSelected && blockA && blockB) {
+        const formatSubtotalRow = (label, badgeClass, tot) => `
+          <tr class="overview-group-subtotal-row" style="background: rgba(59, 130, 246, 0.06); font-weight: 700;">
+            <td colspan="3" style="font-weight: 700;">
+              <span class="badge ${badgeClass}" style="font-size: 0.72rem;">${label}</span>
+            </td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(tot.signed)}</td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(tot.actual)}</td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(tot.accepted)}</td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(tot.requested)}</td>
+            <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(tot.paid)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${tot.remaining > 0 ? 'var(--danger)' : 'inherit'};">${this.formatMoneyPlain(tot.remaining)}</td>
+            <td style="text-align: center; font-weight: 700;">${tot.ipc} đợt</td>
+          </tr>
+        `;
+
+        tbodyHtml = `
+          <tr class="overview-group-banner-row" style="background: rgba(37, 99, 235, 0.08);">
+            <td colspan="10" style="font-weight: 700; color: var(--primary); font-size: 0.8rem;">
+              <i class="fa-solid fa-landmark"></i> NHÓM A — HỢP ĐỒNG CHỦ ĐẦU TƯ / THU (${selectedA.length} hợp đồng)
+            </td>
+          </tr>
+          ${blockA.rowsHtml}
+          ${formatSubtotalRow(`TỔNG NHÓM A — THU (${selectedA.length} HĐ)`, 'badge-primary', blockA.totals)}
+          <tr class="overview-group-banner-row" style="background: rgba(245, 158, 11, 0.09);">
+            <td colspan="10" style="font-weight: 700; color: #d97706; font-size: 0.8rem;">
+              <i class="fa-solid fa-handshake"></i> NHÓM B — HỢP ĐỒNG THẦU PHỤ / NCC / CHI (${selectedB.length} hợp đồng)
+            </td>
+          </tr>
+          ${blockB.rowsHtml}
+          ${formatSubtotalRow(`TỔNG NHÓM B — CHI (${selectedB.length} HĐ)`, 'badge-warning', blockB.totals)}
+        `;
+
+        const diffSigned = blockA.totals.signed - blockB.totals.signed;
+        const diffActual = blockA.totals.actual - blockB.totals.actual;
+        const diffAccepted = blockA.totals.accepted - blockB.totals.accepted;
+        const diffRequested = blockA.totals.requested - blockB.totals.requested;
+        const diffPaid = blockA.totals.paid - blockB.totals.paid;
+        const diffRemaining = blockA.totals.remaining - blockB.totals.remaining;
+        const fmtDiff = (v) => `${v > 0 ? '+' : ''}${this.formatMoneyPlain(v)}`;
+
+        tfootHtml = `
+          <tr>
+            <td colspan="3" style="font-weight: 700;">
+              <i class="fa-solid fa-scale-balanced" style="color: var(--success); margin-right: 4px;"></i>
+              CHÊNH LỆCH DÒNG TIỀN (THU A - CHI B)
+            </td>
+            <td style="text-align: right; font-weight: 700; color: ${diffSigned >= 0 ? 'var(--success)' : 'var(--danger)'};">${fmtDiff(diffSigned)}</td>
+            <td style="text-align: right; font-weight: 700;">${fmtDiff(diffActual)}</td>
+            <td style="text-align: right; font-weight: 700;">${fmtDiff(diffAccepted)}</td>
+            <td style="text-align: right; font-weight: 700;">${fmtDiff(diffRequested)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${diffPaid >= 0 ? 'var(--success)' : 'var(--danger)'};">${fmtDiff(diffPaid)}</td>
+            <td style="text-align: right; font-weight: 700;">${fmtDiff(diffRemaining)}</td>
+            <td style="text-align: center; font-weight: 700;">${blockA.totals.ipc + blockB.totals.ipc} đợt</td>
+          </tr>
+        `;
+      } else {
+        const activeBlock = blockA || blockB;
+        const groupTitle = blockA ? `NHÓM A — THU (${selectedA.length} hợp đồng)` : `NHÓM B — CHI (${selectedB.length} hợp đồng)`;
+        tbodyHtml = activeBlock.rowsHtml;
+        tfootHtml = `
+          <tr>
+            <td colspan="3" style="font-weight: 700;">TỔNG CỘNG ${groupTitle}</td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(activeBlock.totals.signed)}</td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(activeBlock.totals.actual)}</td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(activeBlock.totals.accepted)}</td>
+            <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(activeBlock.totals.requested)}</td>
+            <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(activeBlock.totals.paid)}</td>
+            <td style="text-align: right; font-weight: 700; color: ${activeBlock.totals.remaining > 0 ? 'var(--danger)' : 'inherit'};">${this.formatMoneyPlain(activeBlock.totals.remaining)}</td>
+            <td style="text-align: center; font-weight: 700;">${activeBlock.totals.ipc} đợt</td>
+          </tr>
+        `;
+      }
 
       html += `
         <div class="overview-cashflow-summary-wrap">
@@ -11187,19 +11290,10 @@ export class ContractsManager {
                 </tr>
               </thead>
               <tbody>
-                ${rowsHtml}
+                ${tbodyHtml}
               </tbody>
               <tfoot>
-                <tr>
-                  <td colspan="3" style="font-weight: 700;">TỔNG CỘNG (${selectedContracts.length} hợp đồng)</td>
-                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumSigned)}</td>
-                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumActual)}</td>
-                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumAccepted)}</td>
-                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumRequested)}</td>
-                  <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(sumPaid)}</td>
-                  <td style="text-align: right; font-weight: 700; color: ${sumRemaining > 0 ? 'var(--danger)' : 'inherit'};">${this.formatMoneyPlain(sumRemaining)}</td>
-                  <td style="text-align: center; font-weight: 700;">${sumIpc} đợt</td>
-                </tr>
+                ${tfootHtml}
               </tfoot>
             </table>
           </div>
@@ -11348,92 +11442,126 @@ export class ContractsManager {
       }
     };
 
-    let sumSigned = 0;
-    let sumActual = 0;
-    let sumAccepted = 0;
-    let sumRequested = 0;
-    let sumPaid = 0;
-    let sumRemaining = 0;
-
-    const selectedTreeRows = this.buildCompanyContractTreeRows(selectedContracts);
+    const selectedA = selectedContracts.filter((c) => (c.group || 'B') === 'A');
+    const selectedB = selectedContracts.filter((c) => (c.group || 'B') !== 'A');
+    const hasBothGroups = selectedA.length > 0 && selectedB.length > 0;
     const selectedIdSet = new Set(selectedContracts.map((item) => item.id));
-    let rootCount = 0;
 
-    selectedTreeRows.forEach(({ contract: c, level, treeNo }) => {
-      if (level === 0) rootCount += 1;
-      const st = this.calculateTotals(c);
-      const realPayments = this.getRealPayments(c.id);
-      const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
-      // Không liệt kê lặp lại các đợt thanh toán thuộc phụ lục con đã có mặt trong báo cáo
-      const displayPayments = realPayments.filter(
-        (p) => p.contract_id === c.id || !selectedIdSet.has(p.contract_id)
-      );
+    const writeGroupSection = (groupContracts, sectionTitle, totalLabel) => {
+      let gSigned = 0;
+      let gActual = 0;
+      let gAccepted = 0;
+      let gRequested = 0;
+      let gPaid = 0;
+      let gRemaining = 0;
+      let gRootCount = 0;
 
-      sumSigned += st.totalSigned;
-      sumActual += actualVnd;
-      sumAccepted += st.totalAccepted;
-      sumRequested += st.totalRequested;
-      sumPaid += st.totalPaid;
-      sumRemaining += st.remaining;
+      if (sectionTitle) {
+        const secRow = ws.addRow(['', sectionTitle]);
+        ws.mergeCells(`B${secRow.number}:J${secRow.number}`);
+        styleDataRow(secRow, { isContract: true, isRoot: true });
+      }
 
-      const signDateStr = c.signing_date ? ` ký ngày ${this.formatDate(c.signing_date)}` : '';
-      const indentPrefix = level > 0 ? `${'  '.repeat(level)}↳ ` : '';
-      const kindLabel = level > 0 ? 'Phụ lục số' : 'Hợp đồng số';
-      const partnerSuffix = isMultiCompany ? ` [${c.group === 'A' ? c.company_a : c.company_b || c.company_a || ''}]` : '';
-      const contractTitle = `${indentPrefix}${kindLabel}: ${c.contract_no || c.id}${signDateStr}${partnerSuffix}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
+      const treeRows = this.buildCompanyContractTreeRows(groupContracts);
+      treeRows.forEach(({ contract: c, level, treeNo }) => {
+        if (level === 0) gRootCount += 1;
+        const st = this.calculateTotals(c);
+        const realPayments = this.getRealPayments(c.id);
+        const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
+        const displayPayments = realPayments.filter(
+          (p) => p.contract_id === c.id || !selectedIdSet.has(p.contract_id)
+        );
 
-      const contractRow = ws.addRow([
-        treeNo,
-        contractTitle,
-        st.totalSigned,
-        actualVnd,
-        st.totalAccepted,
-        st.totalRequested,
-        st.totalPaid,
-        st.remaining,
-        '',
-        c.status || '',
-      ]);
-      styleDataRow(contractRow, { isContract: true, isRoot: level === 0 });
+        gSigned += st.totalSigned;
+        gActual += actualVnd;
+        gAccepted += st.totalAccepted;
+        gRequested += st.totalRequested;
+        gPaid += st.totalPaid;
+        gRemaining += st.remaining;
 
-      displayPayments.forEach((p, pIdx) => {
-        const pAct = this.getPaymentVnd(p, 'actual_volume', 'actual_vol');
-        const pAcc = this.getPaymentVnd(p, 'accepted_vol');
-        const pReq = this.getPaymentVnd(p, 'request_amount');
-        const pPaid = this.getPaymentVnd(p, 'paid_amount');
-        const pRem = pReq - pPaid;
-        const pLabel = this.getPaymentContent(p) || `Đợt thanh toán ${pIdx + 1}`;
-        const pDateStr = p.payment_date ? ` (${this.formatDate(p.payment_date)})` : '';
+        const signDateStr = c.signing_date ? ` ký ngày ${this.formatDate(c.signing_date)}` : '';
+        const indentPrefix = level > 0 ? `${'  '.repeat(level)}↳ ` : '';
+        const kindLabel = level > 0 ? 'Phụ lục số' : 'Hợp đồng số';
+        const partnerSuffix = isMultiCompany ? ` [${c.group === 'A' ? c.company_a : c.company_b || c.company_a || ''}]` : '';
+        const contractTitle = `${indentPrefix}${kindLabel}: ${c.contract_no || c.id}${signDateStr}${partnerSuffix}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
 
-        const payRow = ws.addRow([
-          `${treeNo}.${pIdx + 1}`,
-          `${'  '.repeat(level + 1)}${pLabel}${pDateStr}`,
-          null,
-          pAct || null,
-          pAcc || null,
-          pReq || null,
-          pPaid || null,
-          pRem || null,
-          p.invoice_ref || '',
-          p.note || '',
+        const contractRow = ws.addRow([
+          treeNo,
+          contractTitle,
+          st.totalSigned,
+          actualVnd,
+          st.totalAccepted,
+          st.totalRequested,
+          st.totalPaid,
+          st.remaining,
+          '',
+          c.status || '',
         ]);
-        styleDataRow(payRow);
-      });
-    });
+        styleDataRow(contractRow, { isContract: true, isRoot: level === 0 });
 
-    const totalRow = ws.addRow([
-      rootCount + 1,
-      'Tổng cộng',
-      sumSigned,
-      sumActual,
-      sumAccepted,
-      sumRequested,
-      sumPaid,
-      sumRemaining,
-      '',
-      '',
-    ]);
-    styleDataRow(totalRow, { isTotal: true });
+        displayPayments.forEach((p, pIdx) => {
+          const pAct = this.getPaymentVnd(p, 'actual_volume', 'actual_vol');
+          const pAcc = this.getPaymentVnd(p, 'accepted_vol');
+          const pReq = this.getPaymentVnd(p, 'request_amount');
+          const pPaid = this.getPaymentVnd(p, 'paid_amount');
+          const pRem = pReq - pPaid;
+          const pLabel = this.getPaymentContent(p) || `Đợt thanh toán ${pIdx + 1}`;
+          const pDateStr = p.payment_date ? ` (${this.formatDate(p.payment_date)})` : '';
+
+          const payRow = ws.addRow([
+            `${treeNo}.${pIdx + 1}`,
+            `${'  '.repeat(level + 1)}${pLabel}${pDateStr}`,
+            null,
+            pAct || null,
+            pAcc || null,
+            pReq || null,
+            pPaid || null,
+            pRem || null,
+            p.invoice_ref || '',
+            p.note || '',
+          ]);
+          styleDataRow(payRow);
+        });
+      });
+
+      const groupTotalRow = ws.addRow([
+        gRootCount + 1,
+        totalLabel,
+        gSigned,
+        gActual,
+        gAccepted,
+        gRequested,
+        gPaid,
+        gRemaining,
+        '',
+        '',
+      ]);
+      styleDataRow(groupTotalRow, { isTotal: true });
+
+      return { gSigned, gActual, gAccepted, gRequested, gPaid, gRemaining };
+    };
+
+    if (hasBothGroups) {
+      const totA = writeGroupSection(selectedA, 'NHÓM A — HỢP ĐỒNG CHỦ ĐẦU TƯ (THU)', 'Tổng cộng Nhóm A (Thu)');
+      const totB = writeGroupSection(selectedB, 'NHÓM B — HỢP ĐỒNG THẦU PHỤ / NCC (CHI)', 'Tổng cộng Nhóm B (Chi)');
+      const diffRow = ws.addRow([
+        '',
+        'Chênh lệch dòng tiền (Thu A - Chi B)',
+        totA.gSigned - totB.gSigned,
+        totA.gActual - totB.gActual,
+        totA.gAccepted - totB.gAccepted,
+        totA.gRequested - totB.gRequested,
+        totA.gPaid - totB.gPaid,
+        totA.gRemaining - totB.gRemaining,
+        '',
+        '',
+      ]);
+      styleDataRow(diffRow, { isTotal: true });
+    } else if (selectedA.length > 0) {
+      writeGroupSection(selectedA, '', 'Tổng cộng Nhóm A (Thu)');
+    } else {
+      writeGroupSection(selectedB, '', 'Tổng cộng Nhóm B (Chi)');
+    }
 
     ws.addRow([]);
     const signRow = ws.addRow([
