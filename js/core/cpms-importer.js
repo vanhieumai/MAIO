@@ -7,16 +7,32 @@ import { db } from './db.js?v=5.3';
 
 export class CPMSImporterExporter {
   /**
-   * Chuyển đổi định dạng ngày trong Excel sang chuỗi ISO YYYY-MM-DD
+   * Chuyển đổi đối tượng Date sang chuỗi YYYY-MM-DD theo giờ Local (tránh lệch 1 ngày do UTC+7)
+   */
+  static formatLocalYmd(d) {
+    const adjusted = new Date(d.getTime() + 60 * 1000);
+    const y = adjusted.getFullYear();
+    const m = String(adjusted.getMonth() + 1).padStart(2, '0');
+    const day = String(adjusted.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  /**
+   * Chuyển đổi định dạng ngày trong Excel sang chuỗi YYYY-MM-DD (không bị lệch múi giờ)
    */
   static parseExcelDate(val) {
     if (!val) return null;
     if (val instanceof Date) {
-      return val.toISOString().slice(0, 10);
+      if (isNaN(val.getTime())) return null;
+      return this.formatLocalYmd(val);
     }
     if (typeof val === 'number') {
       const d = new Date(Math.round((val - 25569) * 86400 * 1000));
-      return d.toISOString().slice(0, 10);
+      if (isNaN(d.getTime())) return null;
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     }
     const s = String(val).trim();
     if (!s) return null;
@@ -29,7 +45,7 @@ export class CPMSImporterExporter {
     }
     const parsed = new Date(s);
     if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().slice(0, 10);
+      return this.formatLocalYmd(parsed);
     }
     return s;
   }
@@ -43,17 +59,20 @@ export class CPMSImporterExporter {
     if (val instanceof Date) {
       d = val;
     } else if (typeof val === 'number') {
-      d = new Date(Math.round((val - 25569) * 86400 * 1000));
+      const utcD = new Date(Math.round((val - 25569) * 86400 * 1000));
+      if (!isNaN(utcD.getTime())) {
+        d = new Date(utcD.getUTCFullYear(), utcD.getUTCMonth(), utcD.getUTCDate());
+      }
     } else if (typeof val === 'string') {
       const trimmed = val.trim();
       if (!trimmed) return '';
       if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
         const [y, m, day] = trimmed.slice(0, 10).split('-').map(Number);
-        d = new Date(Date.UTC(y, m - 1, day));
+        d = new Date(y, m - 1, day);
       } else {
         const dmY = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (dmY) {
-          d = new Date(Date.UTC(Number(dmY[3]), Number(dmY[2]) - 1, Number(dmY[1])));
+          d = new Date(Number(dmY[3]), Number(dmY[2]) - 1, Number(dmY[1]));
         } else {
           const parsed = new Date(trimmed);
           if (!isNaN(parsed.getTime())) d = parsed;

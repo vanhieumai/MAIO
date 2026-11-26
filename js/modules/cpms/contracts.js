@@ -1415,7 +1415,10 @@ export class ContractsManager {
     if (val instanceof Date) {
       d = val;
     } else if (typeof val === 'number') {
-      d = new Date(Math.round((val - 25569) * 86400 * 1000));
+      const utcD = new Date(Math.round((val - 25569) * 86400 * 1000));
+      if (!isNaN(utcD.getTime())) {
+        d = new Date(utcD.getUTCFullYear(), utcD.getUTCMonth(), utcD.getUTCDate());
+      }
     } else if (typeof val === 'string') {
       const trimmed = val.trim();
       // Nếu là định dạng DD/MM/YYYY hoặc D/M/YYYY
@@ -1451,7 +1454,10 @@ export class ContractsManager {
     if (val instanceof Date) {
       d = val;
     } else if (typeof val === 'number') {
-      d = new Date(Math.round((val - 25569) * 86400 * 1000));
+      const utcD = new Date(Math.round((val - 25569) * 86400 * 1000));
+      if (!isNaN(utcD.getTime())) {
+        d = new Date(utcD.getUTCFullYear(), utcD.getUTCMonth(), utcD.getUTCDate());
+      }
     } else if (typeof val === 'string') {
       const trimmed = val.trim();
       if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
@@ -1644,10 +1650,11 @@ export class ContractsManager {
     if (!val) return null;
     if (val instanceof Date && !isNaN(val.getTime())) return val;
     if (typeof val === 'number' && val > 20000) {
-      // Excel serial date
+      // Excel serial date -> chuyển sang Local Date đúng ngày
       const ms = Math.round((val - 25569) * 86400 * 1000);
-      const d = new Date(ms);
-      return isNaN(d.getTime()) ? null : d;
+      const utcD = new Date(ms);
+      if (isNaN(utcD.getTime())) return null;
+      return new Date(utcD.getUTCFullYear(), utcD.getUTCMonth(), utcD.getUTCDate());
     }
     const s = String(val).trim();
     if (!s) return null;
