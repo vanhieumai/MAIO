@@ -10988,42 +10988,21 @@ export class ContractsManager {
         })
         .join('');
 
-    // Vùng chip gợi ý nhanh (luôn cho phép bấm chọn/bỏ chọn nhiều công ty)
     let html = '';
-    if (matchedCompanies.length === 0) {
-      html += `
-        <div class="overview-company-empty">
-          <i class="fa-solid fa-magnifying-glass-minus"></i>
-          <span>Không tìm thấy công ty nào khớp với "<strong>${q}</strong>".</span>
-        </div>
-      `;
-    } else {
-      const displayChips = matchedCompanies.slice(0, 16);
-      html += `
-        <div class="overview-company-chips-wrap">
-          <div class="overview-company-chips-label">
-            <i class="fa-solid fa-buildings"></i> ${q ? `Tìm thấy ${matchedCompanies.length} công ty phù hợp (bấm để chọn / bỏ chọn):` : `Các công ty trong dự án (${companies.length} — bấm để chọn nhiều hoặc nhấn "Chọn tất cả"):`}
-          </div>
-          <div class="overview-company-chips-list">
-            ${displayChips
-              .map((c) => {
-                const isSel = this.overviewSelectedCompanies.has(c.name);
-                return `
-                  <button type="button" class="overview-company-chip ${isSel ? 'active' : ''}" data-company="${c.name.replace(/"/g, '&quot;')}">
-                    ${isSel ? '<i class="fa-solid fa-check"></i>' : ''}
-                    <span class="chip-name">${c.name}</span>
-                    <span class="chip-count">${c.count} HĐ</span>
-                  </button>
-                `;
-              })
-              .join('')}
-            ${matchedCompanies.length > 16 ? `<span class="text-muted" style="font-size: 0.78rem; align-self: center;">+ ${matchedCompanies.length - 16} công ty khác (dùng ô tìm kiếm hoặc nút Chọn tất cả)</span>` : ''}
-          </div>
-        </div>
-      `;
-    }
-
     if (this.overviewSelectedCompanies.size === 0) {
+      html = matchedCompanies.length === 0 && q
+        ? `
+          <div class="overview-company-empty">
+            <i class="fa-solid fa-magnifying-glass-minus"></i>
+            <span>Không tìm thấy công ty nào khớp với "<strong>${q}</strong>".</span>
+          </div>
+        `
+        : `
+          <div class="overview-company-empty">
+            <i class="fa-solid fa-building-user"></i>
+            <span>Tìm kiếm hoặc chọn công ty từ danh sách, hoặc bấm <strong>"Chọn tất cả"</strong> để xem hợp đồng và tổng hợp dòng tiền.</span>
+          </div>
+        `;
       bodyEl.innerHTML = html;
       if (exportBtn) exportBtn.disabled = true;
       return;
