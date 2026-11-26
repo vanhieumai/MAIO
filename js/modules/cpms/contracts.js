@@ -1842,7 +1842,7 @@ export class ContractsManager {
   /**
    * Xác định thư mục con chuẩn trên Google Drive cho một hồ sơ:
    * - HopDong_PL: Hợp đồng, Phụ lục (CON, APP, PL...)
-   * - ThanhToan: Hồ sơ thanh toán, tạm ứng (IPC, TT, ADV...)
+   * - ThanhToan: Hồ sơ thanh toán, tạm ứng (IPC, TT, ADV, Dong tien...)
    * - HoSo: Các hồ sơ còn lại (VO, RFA, BB, TK, CV, NOTE, CMT, TRN, OTHER...)
    */
   getDriveSubfolderKeyForDoc(doc) {
@@ -1850,6 +1850,20 @@ export class ContractsManager {
     const cat = String(doc.category || '').trim().toUpperCase();
     const title = String(doc.title || doc.name || '').toLowerCase();
     const docNo = String(doc.doc_no || '').toUpperCase();
+    const filePath = String(doc.local_link || doc.file_link || '').toLowerCase();
+
+    const isIpcByText =
+      /(^|[.\-_/\s])ipc([.\-_/\s]|$)/i.test(docNo) ||
+      /(^|[.\-_/\s])ipc([.\-_/\s]|$)/i.test(filePath) ||
+      title.includes('interim payment') ||
+      title.includes('thanh toán') ||
+      title.includes('tạm ứng') ||
+      filePath.includes('thanh toan') ||
+      filePath.includes('dong tien');
+
+    if (['IPC', 'TT', 'ADV', 'PAY'].includes(cat) || isIpcByText) {
+      return 'ThanhToan';
+    }
 
     if (
       ['CON', 'APP', 'PL', 'HD', 'HĐ'].includes(cat) ||
@@ -1861,28 +1875,27 @@ export class ContractsManager {
       return 'HopDong_PL';
     }
 
-    if (
-      ['IPC', 'TT', 'ADV', 'PAY'].includes(cat) ||
-      docNo.includes('.IPC.') ||
-      title.includes('interim payment') ||
-      title.includes('thanh toán') ||
-      title.includes('tạm ứng')
-    ) {
-      return 'ThanhToan';
-    }
-
     return 'HoSo';
   }
 
   /**
    * Trả về mảng các thư mục con (tương đối bên trong DuAn_<MaDA>) theo cây 3 trụ cột chuẩn của MAIO:
-   * - Nhóm A: 01_Nhom_A_ChuDauTu / {SoHieuHD} / {HopDong_PhuLuc/HopDong_Goc | HopDong_PhuLuc/PhuLuc_{SoPL} | ThanhToan | Doc}
-   * - Nhóm B: 02_Nhom_B_ThauPhu_NCC / {8 nhom CPMS} / {SoHieuHD}_{TenNhaThau} / {HopDong_PhuLuc/... | ThanhToan | Doc}
+   * - Nhóm A: 01_Nhom_A_ChuDauTu / {SoHieuHD} / {HopDong_PhuLuc/... | ThanhToan/[PhuLuc_{SoPL}/]{ThuMucIPC} | HoSo}
+   * - Nhóm B: 02_Nhom_B_ThauPhu_NCC / {8 nhom CPMS} / {SoHieuHD}_{TenNhaThau} / {HopDong_PhuLuc/... | ThanhToan/[PhuLuc_{SoPL}/]{ThuMucIPC} | HoSo}
    * - Hồ sơ chưa gắn HĐ: 00_Chua_Gan_HopDong
    */
   getDrivePathSegmentsForDoc(doc) {
     if (!doc) return ['00_Chua_Gan_HopDong'];
-    const contract = (this.contracts || []).find((c) => c.id === doc.contract_id);
+    const rawCid = String(doc.contract_id || '').trim();
+    if (!rawCid || rawCid.toUpperCase() === 'UNASSIGNED') {
+      return ['00_Chua_Gan_HopDong'];
+    }
+    const cidLower = rawCid.toLowerCase();
+    const allContracts = this.contracts || [];
+    const contract =
+      allContracts.find((c) => String(c.id || '').trim().toLowerCase() === cidLower) ||
+      allContracts.find((c) => String(c.contract_no || '').trim().toLowerCase() === cidLower) ||
+      allContracts.find((c) => String(c.display_no || '').trim().toLowerCase() === cidLower);
     if (!contract) return ['00_Chua_Gan_HopDong'];
 
     const cleanName = (str, maxLen = 70) => {
@@ -1896,10 +1909,10 @@ export class ContractsManager {
     // Tìm Hợp đồng gốc (Root Level 0)
     let rootMain = contract;
     if (contract.parent_id) {
-      const parent = (this.contracts || []).find((c) => c.id === contract.parent_id);
+      const parent = allContracts.find((c) => c.id === contract.parent_id);
       if (parent) {
         if (parent.parent_id) {
-          rootMain = (this.contracts || []).find((c) => c.id === parent.parent_id) || parent;
+          rootMain = allContracts.find((c) => c.id === parent.parent_id) || parent;
         } else {
           rootMain = parent;
         }
@@ -1932,10 +1945,40 @@ export class ContractsManager {
       const plNo = cleanName(contract.contract_no || contract.id, 45);
       return [...baseSegments, 'HopDong_PhuLuc', `PhuLuc_${plNo}`];
     }
+
     if (subKey === 'ThanhToan') {
-      return [...baseSegments, 'ThanhToan'];
+      let plFolder = '';
+      if (contract.parent_id) {
+        plFolder = `PhuLuc_${cleanName(contract.contract_no || contract.id, 45)}`;
+      } else {
+        // Nếu gắn ở HĐ gốc nhưng tên/mã hồ sơ có chỉ rõ phụ lục con (vd: IPC-APP10, IPC-PKG03...)
+        const haystack = `${doc.doc_no || ''} ${doc.local_link || ''} ${doc.title || ''}`
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, '');
+        const subContracts = allContracts.filter(
+          (c) => c.parent_id && (c.parent_id === rootMain.id || allContracts.some((p) => p.id === c.parent_id && p.parent_id === rootMain.id))
+        );
+        const matchedSub = subContracts.find((sub) => {
+          const token = String(sub.contract_no || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          return token.length >= 3 && haystack.includes(token);
+        });
+        if (matchedSub) {
+          plFolder = `PhuLuc_${cleanName(matchedSub.contract_no || matchedSub.id, 45)}`;
+        }
+      }
+
+      const rawIpc =
+        String(doc.doc_no || '').trim() ||
+        String(doc.title || doc.name || doc.id || 'IPC').trim();
+      const cleanedIpc = cleanName(rawIpc, 55);
+      const ipcFolder = /ipc/i.test(cleanedIpc) ? cleanedIpc : `IPC_${cleanedIpc}`;
+
+      return plFolder
+        ? [...baseSegments, 'ThanhToan', plFolder, ipcFolder]
+        : [...baseSegments, 'ThanhToan', ipcFolder];
     }
-    return [...baseSegments, 'Doc'];
+
+    return [...baseSegments, 'HoSo'];
   }
 
   getDriveDocPathForContract(contract) {
