@@ -37,6 +37,10 @@ export class ContractsManager {
     this.reminderSearchTerm = '';
     this.selectedReminderDocId = null;
     this.reminderEventsBound = false;
+    this.overviewCompanyQuery = '';
+    this.overviewSelectedCompany = '';
+    this.overviewSelectedContractIds = new Set();
+    this.overviewCompanyEventsBound = false;
     this._driveAutoSaveTimer = null;
     this._driveFolderCache = new Map();
     this._lastKnownFileModified = 0;
@@ -2916,6 +2920,7 @@ export class ContractsManager {
 
     this.renderProjectInfo();
     this.updateCategoryFilterUI();
+    this.renderOverviewCompanyReport();
 
     // Ẩn / hiện nút Thêm Chi phí Ban (CPB) theo nhóm đang chọn (Chỉ hiện ở Nhóm B)
     const btnAddCpb = document.getElementById('btn-add-cpb');
@@ -10659,6 +10664,511 @@ export class ContractsManager {
         }
       }, 150);
     }, 100);
+  }
+
+  // =========================================================================
+  // TRA CỨU CÔNG TY, CHỌN HỢP ĐỒNG, TỔNG HỢP DÒNG TIỀN & XUẤT BÁO CÁO (OVERVIEW)
+  // =========================================================================
+
+  /**
+   * Lấy danh sách tất cả công ty/đối tác (Nhóm A & Nhóm B) trong dự án hiện tại
+   */
+  getProjectCompanies() {
+    const map = new Map();
+    (this.contracts || []).forEach((c) => {
+      if (c.is_cpb) return;
+      const names = new Set();
+      const compA = String(c.company_a || '').trim();
+      const compB = String(c.company_b || '').trim();
+      if (compA) names.add(compA);
+      if (compB) names.add(compB);
+
+      names.forEach((name) => {
+        if (!map.has(name)) {
+          map.set(name, { name, count: 0, groups: new Set() });
+        }
+        const entry = map.get(name);
+        entry.count += 1;
+        if (c.group) entry.groups.add(c.group);
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  }
+
+  /**
+   * Lấy toàn bộ hợp đồng (gồm cả HĐ chính & phụ lục) liên quan tới một công ty
+   */
+  getContractsByCompany(companyName) {
+    const target = String(companyName || '').trim().toLowerCase();
+    if (!target) return [];
+    return (this.contracts || [])
+      .filter((c) => {
+        if (c.is_cpb) return false;
+        const a = String(c.company_a || '').trim().toLowerCase();
+        const b = String(c.company_b || '').trim().toLowerCase();
+        return a === target || b === target;
+      })
+      .sort((a, b) => {
+        if ((a.group || '') !== (b.group || '')) return (a.group || '').localeCompare(b.group || '');
+        const aIsMain = !a.parent_id ? 0 : 1;
+        const bIsMain = !b.parent_id ? 0 : 1;
+        if (aIsMain !== bIsMain) return aIsMain - bIsMain;
+        return String(a.contract_no || '').localeCompare(String(b.contract_no || ''), 'vi');
+      });
+  }
+
+  /**
+   * Gắn sự kiện 1 lần cho bộ lọc công ty ở Tab Tổng quan (giữ nguyên focus input khi gõ)
+   */
+  bindOverviewCompanyEvents() {
+    if (this.overviewCompanyEventsBound) return;
+    const searchInput = document.getElementById('overview-company-search');
+    const clearBtn = document.getElementById('btn-clear-overview-company-search');
+    const selectEl = document.getElementById('overview-company-select');
+    const exportBtn = document.getElementById('btn-export-company-report');
+    const bodyEl = document.getElementById('overview-company-report-body');
+
+    if (!searchInput || !selectEl || !bodyEl) return;
+    this.overviewCompanyEventsBound = true;
+
+    const selectCompany = (companyName) => {
+      this.overviewSelectedCompany = companyName || '';
+      const related = this.getContractsByCompany(this.overviewSelectedCompany);
+      this.overviewSelectedContractIds = new Set(related.map((c) => c.id));
+      if (selectEl && selectEl.value !== this.overviewSelectedCompany) {
+        selectEl.value = this.overviewSelectedCompany;
+      }
+      this.renderOverviewCompanyReport(true);
+    };
+
+    searchInput.addEventListener('input', (e) => {
+      this.overviewCompanyQuery = e.target.value || '';
+      if (clearBtn) {
+        clearBtn.classList.toggle('hidden', !this.overviewCompanyQuery.trim());
+      }
+      this.renderOverviewCompanyReport(true);
+    });
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => {
+        this.overviewCompanyQuery = '';
+        searchInput.value = '';
+        clearBtn.classList.add('hidden');
+        this.renderOverviewCompanyReport(true);
+        searchInput.focus();
+      });
+    }
+
+    selectEl.addEventListener('change', (e) => {
+      selectCompany(e.target.value);
+    });
+
+    if (exportBtn) {
+      exportBtn.addEventListener('click', () => {
+        this.exportCompanyCashflowReportCsv();
+      });
+    }
+
+    bodyEl.addEventListener('click', (e) => {
+      const chipBtn = e.target.closest('.overview-company-chip');
+      if (chipBtn) {
+        selectCompany(chipBtn.dataset.company || '');
+        return;
+      }
+      if (e.target.closest('#btn-overview-select-all-contracts')) {
+        const related = this.getContractsByCompany(this.overviewSelectedCompany);
+        this.overviewSelectedContractIds = new Set(related.map((c) => c.id));
+        this.renderOverviewCompanyReport(true);
+        return;
+      }
+      if (e.target.closest('#btn-overview-unselect-all-contracts')) {
+        this.overviewSelectedContractIds = new Set();
+        this.renderOverviewCompanyReport(true);
+        return;
+      }
+    });
+
+    bodyEl.addEventListener('change', (e) => {
+      const cb = e.target.closest('.overview-contract-checkbox');
+      if (!cb) return;
+      const cid = cb.dataset.contractId;
+      if (!cid) return;
+      if (cb.checked) {
+        this.overviewSelectedContractIds.add(cid);
+      } else {
+        this.overviewSelectedContractIds.delete(cid);
+      }
+      this.renderOverviewCompanyReport(true);
+    });
+  }
+
+  /**
+   * Render khu vực Tra cứu Công ty & Tổng hợp Dòng tiền trên Tab Tổng quan
+   */
+  renderOverviewCompanyReport(skipInputSync = false) {
+    this.bindOverviewCompanyEvents();
+
+    const searchInput = document.getElementById('overview-company-search');
+    const clearBtn = document.getElementById('btn-clear-overview-company-search');
+    const selectEl = document.getElementById('overview-company-select');
+    const exportBtn = document.getElementById('btn-export-company-report');
+    const bodyEl = document.getElementById('overview-company-report-body');
+    if (!bodyEl || !selectEl) return;
+
+    const companies = this.getProjectCompanies();
+
+    // Kiểm tra nếu dự án đổi mà công ty cũ không còn tồn tại
+    if (
+      this.overviewSelectedCompany &&
+      !companies.some((c) => c.name === this.overviewSelectedCompany)
+    ) {
+      this.overviewSelectedCompany = '';
+      this.overviewSelectedContractIds = new Set();
+    }
+
+    if (!skipInputSync && searchInput) {
+      searchInput.value = this.overviewCompanyQuery || '';
+      if (clearBtn) {
+        clearBtn.classList.toggle('hidden', !(this.overviewCompanyQuery || '').trim());
+      }
+    }
+
+    const q = (this.overviewCompanyQuery || '').trim().toLowerCase();
+    const matchedCompanies = q
+      ? companies.filter((c) => c.name.toLowerCase().includes(q))
+      : companies;
+
+    // Cập nhật dropdown chọn công ty
+    const prevVal = this.overviewSelectedCompany;
+    selectEl.innerHTML =
+      `<option value="">-- Chọn nhanh công ty (${matchedCompanies.length}) --</option>` +
+      matchedCompanies
+        .map(
+          (c) =>
+            `<option value="${c.name.replace(/"/g, '&quot;')}" ${c.name === prevVal ? 'selected' : ''}>${c.name} (${c.count} HĐ)</option>`
+        )
+        .join('');
+
+    // Vùng chip gợi ý nhanh khi người dùng đang gõ tìm kiếm hoặc chưa chọn công ty
+    let html = '';
+    if (q || !this.overviewSelectedCompany) {
+      if (matchedCompanies.length === 0) {
+        html += `
+          <div class="overview-company-empty">
+            <i class="fa-solid fa-magnifying-glass-minus"></i>
+            <span>Không tìm thấy công ty nào khớp với "<strong>${q}</strong>".</span>
+          </div>
+        `;
+        bodyEl.innerHTML = html;
+        if (exportBtn) exportBtn.disabled = true;
+        return;
+      }
+
+      const displayChips = matchedCompanies.slice(0, 12);
+      html += `
+        <div class="overview-company-chips-wrap">
+          <div class="overview-company-chips-label">
+            <i class="fa-solid fa-buildings"></i> ${q ? `Tìm thấy ${matchedCompanies.length} công ty phù hợp:` : `Các công ty trong dự án (${companies.length}):`}
+          </div>
+          <div class="overview-company-chips-list">
+            ${displayChips
+              .map(
+                (c) => `
+              <button type="button" class="overview-company-chip ${c.name === this.overviewSelectedCompany ? 'active' : ''}" data-company="${c.name.replace(/"/g, '&quot;')}">
+                <span class="chip-name">${c.name}</span>
+                <span class="chip-count">${c.count} HĐ</span>
+              </button>
+            `
+              )
+              .join('')}
+            ${matchedCompanies.length > 12 ? `<span class="text-muted" style="font-size: 0.78rem; align-self: center;">+ ${matchedCompanies.length - 12} công ty khác (chọn trong danh sách)</span>` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    if (!this.overviewSelectedCompany) {
+      bodyEl.innerHTML = html;
+      if (exportBtn) exportBtn.disabled = true;
+      return;
+    }
+
+    const companyContracts = this.getContractsByCompany(this.overviewSelectedCompany);
+    const selectedContracts = companyContracts.filter((c) => this.overviewSelectedContractIds.has(c.id));
+
+    if (exportBtn) {
+      exportBtn.disabled = selectedContracts.length === 0;
+    }
+
+    // Banner tên công ty & danh sách hợp đồng có checkbox
+    html += `
+      <div class="overview-selected-company-panel">
+        <div class="overview-selected-company-top">
+          <div class="overview-selected-company-title">
+            <i class="fa-solid fa-building" style="color: var(--primary);"></i>
+            <strong>${this.overviewSelectedCompany}</strong>
+            <span class="badge badge-primary">${companyContracts.length} Hợp đồng / Phụ lục</span>
+            <span class="badge badge-success">Đã chọn: ${selectedContracts.length}</span>
+          </div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" id="btn-overview-select-all-contracts" class="button button-outline button-sm">
+              <i class="fa-solid fa-check-double"></i> Chọn tất cả
+            </button>
+            <button type="button" id="btn-overview-unselect-all-contracts" class="button button-outline button-sm">
+              <i class="fa-regular fa-square"></i> Bỏ chọn
+            </button>
+          </div>
+        </div>
+
+        <div class="overview-contract-checklist">
+          ${companyContracts
+            .map((c) => {
+              const checked = this.overviewSelectedContractIds.has(c.id) ? 'checked' : '';
+              const st = this.calculateTotals(c);
+              const isSub = !!c.parent_id;
+              return `
+                <label class="overview-contract-check-item ${checked ? 'is-checked' : ''}">
+                  <input type="checkbox" class="overview-contract-checkbox" data-contract-id="${c.id}" ${checked}>
+                  <div class="overview-contract-check-info">
+                    <div class="overview-contract-check-row1">
+                      <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.68rem;">Nhóm ${c.group || 'B'}</span>
+                      <strong class="overview-contract-no">${c.contract_no || c.id}</strong>
+                      ${isSub ? '<span class="badge" style="font-size: 0.65rem; background: #e2e8f0; color: #475569;">Phụ lục</span>' : ''}
+                      <span class="overview-contract-val">${this.formatCurrency(st.totalSigned)}</span>
+                    </div>
+                    <div class="overview-contract-scope">${c.scope_of_work || '—'}</div>
+                  </div>
+                </label>
+              `;
+            })
+            .join('')}
+        </div>
+      </div>
+    `;
+
+    // Bảng tổng hợp thông tin dòng tiền cho các hợp đồng đã chọn
+    if (selectedContracts.length === 0) {
+      html += `
+        <div class="overview-company-empty" style="margin-top: 10px;">
+          <i class="fa-regular fa-square-check"></i>
+          <span>Vui lòng tích chọn ít nhất 1 hợp đồng ở trên để xem tổng hợp dòng tiền và xuất báo cáo.</span>
+        </div>
+      `;
+    } else {
+      let sumSigned = 0;
+      let sumActual = 0;
+      let sumAccepted = 0;
+      let sumRequested = 0;
+      let sumPaid = 0;
+      let sumRemaining = 0;
+      let sumIpc = 0;
+
+      const rowsHtml = selectedContracts
+        .map((c, idx) => {
+          const st = this.calculateTotals(c);
+          const realPayments = this.getRealPayments(c.id);
+          const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_vol'), 0);
+
+          sumSigned += st.totalSigned;
+          sumActual += actualVnd;
+          sumAccepted += st.totalAccepted;
+          sumRequested += st.totalRequested;
+          sumPaid += st.totalPaid;
+          sumRemaining += st.remaining;
+          sumIpc += st.ipcCount;
+
+          return `
+            <tr>
+              <td style="text-align: center; font-weight: 600;">${idx + 1}</td>
+              <td>
+                <div style="font-weight: 700; color: var(--primary);">${c.contract_no || c.id}</div>
+                <div style="font-size: 0.74rem; color: var(--text-muted);">${c.scope_of_work || '—'}</div>
+              </td>
+              <td style="text-align: center;">
+                <span class="badge ${c.group === 'A' ? 'badge-primary' : 'badge-warning'}" style="font-size: 0.68rem;">Nhóm ${c.group || 'B'}</span>
+              </td>
+              <td style="text-align: right; font-weight: 600;">${this.formatMoneyPlain(st.totalSigned)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(actualVnd)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(st.totalAccepted)}</td>
+              <td style="text-align: right;">${this.formatMoneyPlain(st.totalRequested)}</td>
+              <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(st.totalPaid)}</td>
+              <td style="text-align: right; color: ${st.remaining > 0 ? 'var(--danger)' : 'var(--text-muted)'}; font-weight: 600;">${this.formatMoneyPlain(st.remaining)}</td>
+              <td style="text-align: center;">${st.ipcCount} đợt</td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      html += `
+        <div class="overview-cashflow-summary-wrap">
+          <div class="overview-cashflow-summary-title">
+            <span><i class="fa-solid fa-money-bill-trend-up" style="color: var(--success);"></i> TỔNG HỢP THÔNG TIN DÒNG TIỀN (${selectedContracts.length} hợp đồng đã chọn)</span>
+            <span style="font-size: 0.76rem; color: var(--text-muted);">Đvt: VNĐ</span>
+          </div>
+          <div class="data-table-wrap" style="overflow-x: auto;">
+            <table class="data-table overview-cashflow-table" style="width: 100%; margin: 0;">
+              <thead>
+                <tr>
+                  <th style="width: 44px; text-align: center;">TT</th>
+                  <th style="min-width: 220px;">Số hiệu HĐ & Nội dung</th>
+                  <th style="width: 80px; text-align: center;">Nhóm</th>
+                  <th style="text-align: right;">Giá trị Hợp đồng</th>
+                  <th style="text-align: right;">KL hoàn thành</th>
+                  <th style="text-align: right;">KL nghiệm thu</th>
+                  <th style="text-align: right;">Đề nghị TT</th>
+                  <th style="text-align: right;">Đã thanh toán / Tạm ứng</th>
+                  <th style="text-align: right;">Còn lại / Chênh lệch</th>
+                  <th style="width: 80px; text-align: center;">Số đợt</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="3" style="font-weight: 700;">TỔNG CỘNG (${selectedContracts.length} hợp đồng)</td>
+                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumSigned)}</td>
+                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumActual)}</td>
+                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumAccepted)}</td>
+                  <td style="text-align: right; font-weight: 700;">${this.formatMoneyPlain(sumRequested)}</td>
+                  <td style="text-align: right; font-weight: 700; color: var(--success);">${this.formatMoneyPlain(sumPaid)}</td>
+                  <td style="text-align: right; font-weight: 700; color: ${sumRemaining > 0 ? 'var(--danger)' : 'inherit'};">${this.formatMoneyPlain(sumRemaining)}</td>
+                  <td style="text-align: center; font-weight: 700;">${sumIpc} đợt</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    bodyEl.innerHTML = html;
+  }
+
+  /**
+   * Xuất Báo cáo Tình hình Thực hiện Hợp đồng và Thanh toán theo mẫu CSV (UTF-8 BOM)
+   */
+  exportCompanyCashflowReportCsv() {
+    if (!this.overviewSelectedCompany) return;
+    const companyContracts = this.getContractsByCompany(this.overviewSelectedCompany);
+    const selectedContracts = companyContracts.filter((c) => this.overviewSelectedContractIds.has(c.id));
+    if (selectedContracts.length === 0) return;
+
+    const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
+    const prjName = (curPrj?.name || this.currentProjectId || 'DỰ ÁN').toUpperCase();
+    const companyUpper = this.overviewSelectedCompany.toUpperCase();
+
+    const csvCell = (val) => {
+      const s = String(val ?? '');
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    const rows = [];
+    rows.push(['', `BÁO CÁO TÌNH HÌNH THỰC HIỆN HỢP ĐỒNG VÀ THANH TOÁN CỦA DỰ ÁN ${prjName} - ĐỐI TÁC ${companyUpper}`]);
+    rows.push([]);
+    rows.push(['', '', '', '', '', '', '', '', '', 'Đvt: VNĐ']);
+    rows.push([
+      'TT',
+      'Nội dung',
+      'Giá trị Hợp đồng (đã bao gồm VAT)',
+      'Giá trị sản lượng thực hiện (đã bao gồm VAT)',
+      'Giá trị sản lượng đã được nghiệm thu (đã bao gồm VAT)',
+      'Giá trị đề nghị thanh toán / tạm ứng (đã bao gồm VAT)',
+      'Giá trị đã được thanh toán / tạm ứng (đã bao gồm VAT)',
+      'Chênh lệch sau khi giải ngân (VNĐ - đã bao gồm VAT)',
+      'Số hóa đơn VAT',
+      'Ghi chú',
+    ]);
+
+    let sumSigned = 0;
+    let sumActual = 0;
+    let sumAccepted = 0;
+    let sumRequested = 0;
+    let sumPaid = 0;
+    let sumRemaining = 0;
+
+    selectedContracts.forEach((c, idx) => {
+      const st = this.calculateTotals(c);
+      const realPayments = this.getRealPayments(c.id);
+      const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_vol'), 0);
+
+      sumSigned += st.totalSigned;
+      sumActual += actualVnd;
+      sumAccepted += st.totalAccepted;
+      sumRequested += st.totalRequested;
+      sumPaid += st.totalPaid;
+      sumRemaining += st.remaining;
+
+      const signDateStr = c.signing_date ? ` ký ngày ${this.formatDate(c.signing_date)}` : '';
+      const contractTitle = `Hợp đồng số: ${c.contract_no || c.id}${signDateStr}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
+
+      rows.push([
+        idx + 1,
+        contractTitle,
+        st.totalSigned,
+        actualVnd,
+        st.totalAccepted,
+        st.totalRequested,
+        st.totalPaid,
+        st.remaining,
+        '',
+        c.status || '',
+      ]);
+
+      realPayments.forEach((p, pIdx) => {
+        const pAct = this.getPaymentVnd(p, 'actual_vol');
+        const pAcc = this.getPaymentVnd(p, 'accepted_vol');
+        const pReq = this.getPaymentVnd(p, 'request_amount');
+        const pPaid = this.getPaymentVnd(p, 'paid_amount');
+        const pRem = pReq - pPaid;
+        const pLabel = this.getPaymentContent(p) || `Đợt thanh toán ${pIdx + 1}`;
+        const pDateStr = p.payment_date ? ` (${this.formatDate(p.payment_date)})` : '';
+
+        rows.push([
+          `${idx + 1}.${pIdx + 1}`,
+          `${pLabel}${pDateStr}`,
+          '',
+          pAct || '',
+          pAcc || '',
+          pReq || '',
+          pPaid || '',
+          pRem || '',
+          p.invoice_ref || '',
+          p.note || '',
+        ]);
+      });
+    });
+
+    rows.push([
+      selectedContracts.length + 1,
+      'Tổng cộng',
+      sumSigned,
+      sumActual,
+      sumAccepted,
+      sumRequested,
+      sumPaid,
+      sumRemaining,
+      '',
+      '',
+    ]);
+    rows.push([]);
+    rows.push(['', '', '', 'LÃNH ĐẠO PHÊ DUYỆT', '', '', 'BAN ĐẦU TƯ VÀ QUẢN LÝ DỰ ÁN', '', '', 'Người đề nghị']);
+
+    const csvContent = '\uFEFF' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safeComp = this.overviewSelectedCompany.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+    const today = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `BaoCao_DongTien_${safeComp}_${today}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    this.showLocalSaveStatus(`Đã xuất báo cáo dòng tiền cho "${this.overviewSelectedCompany}" (${selectedContracts.length} hợp đồng)!`);
   }
 }
 

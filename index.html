@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="css/main.css?v=5.5">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=9.6">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=9.7">
   <script>
     (function () {
       try {
@@ -331,51 +331,45 @@
             </div>
           </div>
 
-          <!-- Cây cấu trúc 3 Trụ cột -->
-          <div class="grid-2">
-            <div class="card">
-              <h2 class="card-title"><i class="fa-solid fa-folder-tree" style="color: var(--primary);"></i> Cây Thư mục 3 Trụ cột Chuẩn hóa</h2>
-              <p class="card-desc">Cấu trúc đồng bộ tự động giữa thư mục máy tính và Google Drive của bạn:</p>
-              <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 14px 16px; font-family: monospace; font-size: 0.8rem; line-height: 1.7; overflow-x: auto;">
-                📁 <strong>MAIO_Data /</strong><br>
-                ├── 📁 <strong>01_QuanLy_DuAn / DuAn_{MaDA} /</strong><br>
-                │&nbsp;&nbsp;&nbsp;├── 📁 <strong>01_Nhom_A_ChuDauTu /</strong><br>
-                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>{SoHieuHD} /</strong><br>
-                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
-                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan HĐ gốc, thương thảo)<br>
-                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_PL-01 /</strong> (Thư mục riêng file PL-01)<br>
-                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>PhuLuc_PL-02 /</strong> (Thư mục riêng file PL-02)<br>
-                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ nghiệm thu & thanh toán A)<br>
-                │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Pháp lý...)<br>
-                │&nbsp;&nbsp;&nbsp;└── 📁 <strong>02_Nhom_B_ThauPhu_NCC /</strong> (Phân theo 8 nhóm chuẩn CPMS)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Construction /</strong> (Xây lắp / Thi công cọc, ngầm, thân, hoàn thiện)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Procurement /</strong> (Mua sắm vật tư, thép, nhôm kính, gạch đá)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Consultancy /</strong> (Tư vấn giám sát, thẩm tra thiết kế, kiểm định)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Design /</strong> (Thiết kế kiến trúc, kết cấu, cơ điện MEP)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Equipment /</strong> (Thiết bị cơ điện, thang máy, trạm biến áp)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Service /</strong> (Dịch vụ thí nghiệm, trắc đạc, bảo vệ, vệ sinh)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Maintenance /</strong> (Bảo trì, bảo dưỡng hệ thống kỹ thuật)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Rental /</strong> (Thuê cẩu tháp, giàn giáo, máy phát điện, cốp pha)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <em>{SoHieuHD}_{TenNhaThau} /</em><br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan hợp đồng gốc)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_{SoPL} /</strong> (Thư mục riêng từng phụ lục)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 ...<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ đề nghị & chứng từ thanh toán)<br>
-                │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Kỹ thuật...)<br>
-                ├── 📁 <strong>02_QuanLy_VanPhong /</strong> (Tài sản thiết bị, HĐ thuê văn phòng, Nội quy)<br>
-                └── 📁 <strong>03_QuanLy_ChiTieu /</strong> (Sổ quỹ công trình & Quỹ cá nhân)
+          <!-- Bộ lọc Tìm kiếm Công ty & Tổng hợp Dòng tiền / Xuất Báo cáo -->
+          <div id="overview-company-report-card" class="card overview-company-card">
+            <div class="overview-company-header">
+              <div>
+                <h2 class="card-title" style="margin-bottom: 2px;">
+                  <i class="fa-solid fa-building-magnifying-glass" style="color: var(--primary);"></i>
+                  Tra cứu Công ty & Tổng hợp Dòng tiền Hợp đồng
+                </h2>
+                <p class="card-desc" style="margin-bottom: 0;">
+                  Tìm kiếm đối tác / nhà thầu, chọn các hợp đồng cần tổng hợp để xem dòng tiền và xuất báo cáo theo mẫu.
+                </p>
+              </div>
+              <div class="overview-company-actions">
+                <button type="button" id="btn-export-company-report" class="button button-primary button-sm" disabled title="Chọn công ty và ít nhất 1 hợp đồng để xuất báo cáo">
+                  <i class="fa-solid fa-file-excel"></i> Xuất báo cáo theo mẫu
+                </button>
               </div>
             </div>
 
-            <div class="card">
-              <h2 class="card-title"><i class="fa-solid fa-shield-halved" style="color: var(--success);"></i> Trạng thái Đồng bộ & An toàn</h2>
-              <p class="card-desc">Ứng dụng hoạt động theo triết lý bảo vệ quyền sở hữu của người dùng:</p>
-              <ul style="padding-left: 20px; font-size: 0.9rem; color: var(--text-muted); line-height: 1.8;">
-                <li><strong>Sở hữu 100% dữ liệu:</strong> Toàn bộ dữ liệu nằm trên máy tính và Google Drive cá nhân của bạn.</li>
-                <li><strong>Bảo vệ chống ghi đè:</strong> Tự động phát hiện và đánh dấu xung đột (Conflict) nếu sửa cùng lúc.</li>
-                <li><strong>Làm việc đa thiết bị:</strong> Mở máy tính làm việc offline, mở điện thoại xem và duyệt file tức thì.</li>
-              </ul>
+            <!-- Thanh tìm kiếm công ty -->
+            <div class="overview-company-search-row">
+              <div class="search-input-wrap" style="flex: 1; min-width: 240px;">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="overview-company-search" class="search-input" placeholder="Nhập tên công ty / nhà thầu / chủ đầu tư để tìm kiếm...">
+                <button type="button" id="btn-clear-overview-company-search" class="btn-clear-search hidden" title="Xóa từ khóa">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+              <select id="overview-company-select" class="form-control" style="width: auto; min-width: 260px; max-width: 420px; height: 36px; font-size: 0.84rem; font-weight: 600;">
+                <option value="">-- Chọn nhanh công ty trong dự án --</option>
+              </select>
+            </div>
+
+            <!-- Vùng hiển thị kết quả công ty, danh sách hợp đồng chọn và bảng tổng hợp dòng tiền -->
+            <div id="overview-company-report-body" class="overview-company-report-body">
+              <div class="overview-company-empty">
+                <i class="fa-solid fa-building-user"></i>
+                <span>Nhập tên công ty hoặc chọn từ danh sách để xem toàn bộ hợp đồng và tổng hợp dòng tiền.</span>
+              </div>
             </div>
           </div>
         </div>
@@ -709,6 +703,41 @@
             <button id="btn-pick-local-folder" class="button button-primary">
               <i class="fa-solid fa-folder-open"></i> Chọn thư mục trên máy tính
             </button>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+          <h2 class="card-title"><i class="fa-solid fa-folder-tree" style="color: var(--primary);"></i> Cây Thư mục 3 Trụ cột Chuẩn hóa</h2>
+          <p class="card-desc">Cấu trúc đồng bộ tự động giữa thư mục máy tính và Google Drive của bạn:</p>
+          <div class="overview-tree-pre" style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 14px 16px; font-family: monospace; font-size: 0.8rem; line-height: 1.7; overflow-x: auto;">
+            📁 <strong>MAIO_Data /</strong><br>
+            ├── 📁 <strong>01_QuanLy_DuAn / DuAn_{MaDA} /</strong><br>
+            │&nbsp;&nbsp;&nbsp;├── 📁 <strong>01_Nhom_A_ChuDauTu /</strong><br>
+            │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>{SoHieuHD} /</strong><br>
+            │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
+            │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan HĐ gốc, thương thảo)<br>
+            │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_PL-01 /</strong> (Thư mục riêng file PL-01)<br>
+            │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 <strong>PhuLuc_PL-02 /</strong> (Thư mục riêng file PL-02)<br>
+            │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ nghiệm thu & thanh toán A)<br>
+            │&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Pháp lý...)<br>
+            │&nbsp;&nbsp;&nbsp;└── 📁 <strong>02_Nhom_B_ThauPhu_NCC /</strong> (Phân theo 8 nhóm chuẩn CPMS)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Construction /</strong> (Xây lắp / Thi công cọc, ngầm, thân, hoàn thiện)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Procurement /</strong> (Mua sắm vật tư, thép, nhôm kính, gạch đá)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Consultancy /</strong> (Tư vấn giám sát, thẩm tra thiết kế, kiểm định)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Design /</strong> (Thiết kế kiến trúc, kết cấu, cơ điện MEP)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Equipment /</strong> (Thiết bị cơ điện, thang máy, trạm biến áp)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Service /</strong> (Dịch vụ thí nghiệm, trắc đạc, bảo vệ, vệ sinh)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>Maintenance /</strong> (Bảo trì, bảo dưỡng hệ thống kỹ thuật)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Rental /</strong> (Thuê cẩu tháp, giàn giáo, máy phát điện, cốp pha)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <em>{SoHieuHD}_{TenNhaThau} /</em><br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_PhuLuc /</strong> (Thư mục Hợp đồng, Phụ lục)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>HopDong_Goc /</strong> (File scan hợp đồng gốc)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── 📁 <strong>PhuLuc_{SoPL} /</strong> (Thư mục riêng từng phụ lục)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── 📁 ...<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;├── 📁 <strong>ThanhToan /</strong> (Hồ sơ đề nghị & chứng từ thanh toán)<br>
+            │&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└── 📁 <strong>Doc /</strong> (Tài liệu khác: Công văn, Bảo lãnh, Kỹ thuật...)<br>
+            ├── 📁 <strong>02_QuanLy_VanPhong /</strong> (Tài sản thiết bị, HĐ thuê văn phòng, Nội quy)<br>
+            └── 📁 <strong>03_QuanLy_ChiTieu /</strong> (Sổ quỹ công trình & Quỹ cá nhân)
           </div>
         </div>
       </div>
