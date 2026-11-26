@@ -347,7 +347,7 @@
               </div>
             </div>
 
-            <!-- Thanh tìm kiếm & chọn nhanh công ty cùng 1 hàng -->
+            <!-- Thanh tìm kiếm & chọn nhiều công ty cùng 1 hàng -->
             <div class="overview-company-search-row">
               <div class="search-input-wrap overview-company-search-wrap">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
@@ -357,8 +357,16 @@
                 </button>
               </div>
               <select id="overview-company-select" class="form-control overview-company-select">
-                <option value="">-- Chọn nhanh công ty trong dự án --</option>
+                <option value="">-- Thêm công ty vào danh sách --</option>
               </select>
+              <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                <button type="button" id="btn-overview-select-all-companies" class="button button-outline button-sm" title="Chọn tất cả công ty đang hiển thị">
+                  <i class="fa-solid fa-check-double"></i> Chọn tất cả
+                </button>
+                <button type="button" id="btn-overview-unselect-all-companies" class="button button-outline button-sm" title="Bỏ chọn toàn bộ công ty">
+                  <i class="fa-regular fa-square"></i> Bỏ chọn
+                </button>
+              </div>
             </div>
 
             <!-- Vùng hiển thị kết quả công ty, danh sách hợp đồng chọn và bảng tổng hợp dòng tiền -->

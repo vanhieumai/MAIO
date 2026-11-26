@@ -38,7 +38,7 @@ export class ContractsManager {
     this.selectedReminderDocId = null;
     this.reminderEventsBound = false;
     this.overviewCompanyQuery = '';
-    this.overviewSelectedCompany = '';
+    this.overviewSelectedCompanies = new Set();
     this.overviewSelectedContractIds = new Set();
     this.overviewCompanyEventsBound = false;
     this._driveAutoSaveTimer = null;
@@ -10771,27 +10771,69 @@ export class ContractsManager {
   }
 
   /**
-   * Gắn sự kiện 1 lần cho bộ lọc công ty ở Tab Tổng quan (giữ nguyên focus input khi gõ)
+   * Lấy toàn bộ hợp đồng (gồm cả HĐ chính & phụ lục) liên quan tới nhiều công ty, loại bỏ trùng lặp và sắp xếp theo cây & ngày ký
+   */
+  getContractsByCompanies(companyNames) {
+    const targets = new Set(
+      Array.from(companyNames || [])
+        .map((n) => String(n || '').trim().toLowerCase())
+        .filter(Boolean)
+    );
+    if (targets.size === 0) return [];
+    const matched = (this.contracts || []).filter((c) => {
+      if (c.is_cpb) return false;
+      const a = String(c.company_a || '').trim().toLowerCase();
+      const b = String(c.company_b || '').trim().toLowerCase();
+      return targets.has(a) || targets.has(b);
+    });
+    return this.buildCompanyContractTreeRows(matched).map((item) => item.contract);
+  }
+
+  /**
+   * Gắn sự kiện 1 lần cho bộ lọc nhiều công ty ở Tab Tổng quan (giữ nguyên focus input khi gõ)
    */
   bindOverviewCompanyEvents() {
     if (this.overviewCompanyEventsBound) return;
     const searchInput = document.getElementById('overview-company-search');
     const clearBtn = document.getElementById('btn-clear-overview-company-search');
     const selectEl = document.getElementById('overview-company-select');
+    const selectAllCompBtn = document.getElementById('btn-overview-select-all-companies');
+    const unselectAllCompBtn = document.getElementById('btn-overview-unselect-all-companies');
     const exportBtn = document.getElementById('btn-export-company-report');
     const bodyEl = document.getElementById('overview-company-report-body');
 
     if (!searchInput || !selectEl || !bodyEl) return;
     this.overviewCompanyEventsBound = true;
 
-    const selectCompany = (companyName) => {
-      this.overviewSelectedCompany = companyName || '';
-      const related = this.getContractsByCompany(this.overviewSelectedCompany);
-      this.overviewSelectedContractIds = new Set(related.map((c) => c.id));
-      if (selectEl && selectEl.value !== this.overviewSelectedCompany) {
-        selectEl.value = this.overviewSelectedCompany;
-      }
+    const addCompany = (companyName) => {
+      const name = String(companyName || '').trim();
+      if (!name) return;
+      this.overviewSelectedCompanies.add(name);
+      this.getContractsByCompany(name).forEach((c) => this.overviewSelectedContractIds.add(c.id));
       this.renderOverviewCompanyReport(true);
+    };
+
+    const removeCompany = (companyName) => {
+      const name = String(companyName || '').trim();
+      if (!name || !this.overviewSelectedCompanies.has(name)) return;
+      this.overviewSelectedCompanies.delete(name);
+      const stillCoveredIds = new Set(
+        this.getContractsByCompanies(this.overviewSelectedCompanies).map((c) => c.id)
+      );
+      this.getContractsByCompany(name).forEach((c) => {
+        if (!stillCoveredIds.has(c.id)) {
+          this.overviewSelectedContractIds.delete(c.id);
+        }
+      });
+      this.renderOverviewCompanyReport(true);
+    };
+
+    const toggleCompany = (companyName) => {
+      if (this.overviewSelectedCompanies.has(companyName)) {
+        removeCompany(companyName);
+      } else {
+        addCompany(companyName);
+      }
     };
 
     searchInput.addEventListener('input', (e) => {
@@ -10813,8 +10855,32 @@ export class ContractsManager {
     }
 
     selectEl.addEventListener('change', (e) => {
-      selectCompany(e.target.value);
+      if (e.target.value) {
+        addCompany(e.target.value);
+        e.target.value = '';
+      }
     });
+
+    if (selectAllCompBtn) {
+      selectAllCompBtn.addEventListener('click', () => {
+        const q = (this.overviewCompanyQuery || '').trim().toLowerCase();
+        const companies = this.getProjectCompanies();
+        const matched = q ? companies.filter((c) => c.name.toLowerCase().includes(q)) : companies;
+        matched.forEach((c) => this.overviewSelectedCompanies.add(c.name));
+        this.getContractsByCompanies(this.overviewSelectedCompanies).forEach((c) =>
+          this.overviewSelectedContractIds.add(c.id)
+        );
+        this.renderOverviewCompanyReport(true);
+      });
+    }
+
+    if (unselectAllCompBtn) {
+      unselectAllCompBtn.addEventListener('click', () => {
+        this.overviewSelectedCompanies.clear();
+        this.overviewSelectedContractIds.clear();
+        this.renderOverviewCompanyReport(true);
+      });
+    }
 
     if (exportBtn) {
       exportBtn.addEventListener('click', () => {
@@ -10823,13 +10889,18 @@ export class ContractsManager {
     }
 
     bodyEl.addEventListener('click', (e) => {
+      const removeChipBtn = e.target.closest('.btn-remove-selected-company');
+      if (removeChipBtn) {
+        removeCompany(removeChipBtn.dataset.company || '');
+        return;
+      }
       const chipBtn = e.target.closest('.overview-company-chip');
       if (chipBtn) {
-        selectCompany(chipBtn.dataset.company || '');
+        toggleCompany(chipBtn.dataset.company || '');
         return;
       }
       if (e.target.closest('#btn-overview-select-all-contracts')) {
-        const related = this.getContractsByCompany(this.overviewSelectedCompany);
+        const related = this.getContractsByCompanies(this.overviewSelectedCompanies);
         this.overviewSelectedContractIds = new Set(related.map((c) => c.id));
         this.renderOverviewCompanyReport(true);
         return;
@@ -10878,14 +10949,21 @@ export class ContractsManager {
     if (!bodyEl || !selectEl) return;
 
     const companies = this.getProjectCompanies();
+    const companyNameSet = new Set(companies.map((c) => c.name));
 
-    // Kiểm tra nếu dự án đổi mà công ty cũ không còn tồn tại
-    if (
-      this.overviewSelectedCompany &&
-      !companies.some((c) => c.name === this.overviewSelectedCompany)
-    ) {
-      this.overviewSelectedCompany = '';
-      this.overviewSelectedContractIds = new Set();
+    // Loại bỏ các công ty không còn tồn tại nếu đổi dự án
+    let removedAny = false;
+    Array.from(this.overviewSelectedCompanies).forEach((name) => {
+      if (!companyNameSet.has(name)) {
+        this.overviewSelectedCompanies.delete(name);
+        removedAny = true;
+      }
+    });
+    if (removedAny) {
+      const validIds = new Set(this.getContractsByCompanies(this.overviewSelectedCompanies).map((c) => c.id));
+      this.overviewSelectedContractIds = new Set(
+        Array.from(this.overviewSelectedContractIds).filter((id) => validIds.has(id))
+      );
     }
 
     if (!skipInputSync && searchInput) {
@@ -10900,87 +10978,102 @@ export class ContractsManager {
       ? companies.filter((c) => c.name.toLowerCase().includes(q))
       : companies;
 
-    // Cập nhật dropdown chọn công ty
-    const prevVal = this.overviewSelectedCompany;
+    // Cập nhật dropdown thêm nhanh công ty
     selectEl.innerHTML =
-      `<option value="">-- Chọn nhanh công ty (${matchedCompanies.length}) --</option>` +
+      `<option value="">-- Thêm công ty vào danh sách (${matchedCompanies.length}) --</option>` +
       matchedCompanies
-        .map(
-          (c) =>
-            `<option value="${c.name.replace(/"/g, '&quot;')}" ${c.name === prevVal ? 'selected' : ''}>${c.name} (${c.count} HĐ)</option>`
-        )
+        .map((c) => {
+          const isChosen = this.overviewSelectedCompanies.has(c.name);
+          return `<option value="${c.name.replace(/"/g, '&quot;')}">${isChosen ? '✓ ' : ''}${c.name} (${c.count} HĐ)</option>`;
+        })
         .join('');
 
-    // Vùng chip gợi ý nhanh khi người dùng đang gõ tìm kiếm hoặc chưa chọn công ty
+    // Vùng chip gợi ý nhanh (luôn cho phép bấm chọn/bỏ chọn nhiều công ty)
     let html = '';
-    if (q || !this.overviewSelectedCompany) {
-      if (matchedCompanies.length === 0) {
-        html += `
-          <div class="overview-company-empty">
-            <i class="fa-solid fa-magnifying-glass-minus"></i>
-            <span>Không tìm thấy công ty nào khớp với "<strong>${q}</strong>".</span>
-          </div>
-        `;
-        bodyEl.innerHTML = html;
-        if (exportBtn) exportBtn.disabled = true;
-        return;
-      }
-
-      const displayChips = matchedCompanies.slice(0, 12);
+    if (matchedCompanies.length === 0) {
+      html += `
+        <div class="overview-company-empty">
+          <i class="fa-solid fa-magnifying-glass-minus"></i>
+          <span>Không tìm thấy công ty nào khớp với "<strong>${q}</strong>".</span>
+        </div>
+      `;
+    } else {
+      const displayChips = matchedCompanies.slice(0, 16);
       html += `
         <div class="overview-company-chips-wrap">
           <div class="overview-company-chips-label">
-            <i class="fa-solid fa-buildings"></i> ${q ? `Tìm thấy ${matchedCompanies.length} công ty phù hợp:` : `Các công ty trong dự án (${companies.length}):`}
+            <i class="fa-solid fa-buildings"></i> ${q ? `Tìm thấy ${matchedCompanies.length} công ty phù hợp (bấm để chọn / bỏ chọn):` : `Các công ty trong dự án (${companies.length} — bấm để chọn nhiều hoặc nhấn "Chọn tất cả"):`}
           </div>
           <div class="overview-company-chips-list">
             ${displayChips
-              .map(
-                (c) => `
-              <button type="button" class="overview-company-chip ${c.name === this.overviewSelectedCompany ? 'active' : ''}" data-company="${c.name.replace(/"/g, '&quot;')}">
-                <span class="chip-name">${c.name}</span>
-                <span class="chip-count">${c.count} HĐ</span>
-              </button>
-            `
-              )
+              .map((c) => {
+                const isSel = this.overviewSelectedCompanies.has(c.name);
+                return `
+                  <button type="button" class="overview-company-chip ${isSel ? 'active' : ''}" data-company="${c.name.replace(/"/g, '&quot;')}">
+                    ${isSel ? '<i class="fa-solid fa-check"></i>' : ''}
+                    <span class="chip-name">${c.name}</span>
+                    <span class="chip-count">${c.count} HĐ</span>
+                  </button>
+                `;
+              })
               .join('')}
-            ${matchedCompanies.length > 12 ? `<span class="text-muted" style="font-size: 0.78rem; align-self: center;">+ ${matchedCompanies.length - 12} công ty khác (chọn trong danh sách)</span>` : ''}
+            ${matchedCompanies.length > 16 ? `<span class="text-muted" style="font-size: 0.78rem; align-self: center;">+ ${matchedCompanies.length - 16} công ty khác (dùng ô tìm kiếm hoặc nút Chọn tất cả)</span>` : ''}
           </div>
         </div>
       `;
     }
 
-    if (!this.overviewSelectedCompany) {
+    if (this.overviewSelectedCompanies.size === 0) {
       bodyEl.innerHTML = html;
       if (exportBtn) exportBtn.disabled = true;
       return;
     }
 
-    const companyContracts = this.getContractsByCompany(this.overviewSelectedCompany);
+    const selectedCompanyList = Array.from(this.overviewSelectedCompanies);
+    const companyContracts = this.getContractsByCompanies(this.overviewSelectedCompanies);
     const selectedContracts = companyContracts.filter((c) => this.overviewSelectedContractIds.has(c.id));
+    const isMultiCompany = selectedCompanyList.length > 1;
 
     if (exportBtn) {
       exportBtn.disabled = selectedContracts.length === 0;
     }
 
-    // Banner tên công ty & danh sách hợp đồng có checkbox
+    // Banner các công ty đang chọn & danh sách hợp đồng có checkbox
     html += `
       <div class="overview-selected-company-panel">
         <div class="overview-selected-company-top">
           <div class="overview-selected-company-title">
             <i class="fa-solid fa-building" style="color: var(--primary);"></i>
-            <strong>${this.overviewSelectedCompany}</strong>
+            <strong>${isMultiCompany ? `Đã chọn ${selectedCompanyList.length} công ty` : selectedCompanyList[0]}</strong>
             <span class="badge badge-primary">${companyContracts.length} Hợp đồng / Phụ lục</span>
             <span class="badge badge-success">Đã chọn: ${selectedContracts.length}</span>
           </div>
           <div style="display: flex; gap: 6px; flex-wrap: wrap;">
             <button type="button" id="btn-overview-select-all-contracts" class="button button-outline button-sm">
-              <i class="fa-solid fa-check-double"></i> Chọn tất cả
+              <i class="fa-solid fa-check-double"></i> Chọn tất cả HĐ
             </button>
             <button type="button" id="btn-overview-unselect-all-contracts" class="button button-outline button-sm">
-              <i class="fa-regular fa-square"></i> Bỏ chọn
+              <i class="fa-regular fa-square"></i> Bỏ chọn HĐ
             </button>
           </div>
         </div>
+
+        ${
+          isMultiCompany
+            ? `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                ${selectedCompanyList
+                  .map(
+                    (name) => `
+                  <span class="badge badge-primary" style="display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; padding: 3px 8px;">
+                    ${name}
+                    <button type="button" class="btn-remove-selected-company" data-company="${name.replace(/"/g, '&quot;')}" style="background: none; border: none; color: inherit; cursor: pointer; padding: 0; font-size: 0.82rem; line-height: 1;" title="Bỏ chọn công ty này">&times;</button>
+                  </span>
+                `
+                  )
+                  .join('')}
+              </div>`
+            : ''
+        }
 
         <div class="overview-contract-checklist">
           ${this.buildCompanyContractTreeRows(companyContracts)
@@ -11121,8 +11214,9 @@ export class ContractsManager {
    * Xuất Báo cáo Tình hình Thực hiện Hợp đồng và Thanh toán theo mẫu Excel (.xlsx) định dạng chuẩn đẹp
    */
   async exportCompanyCashflowReportCsv() {
-    if (!this.overviewSelectedCompany) return;
-    const companyContracts = this.getContractsByCompany(this.overviewSelectedCompany);
+    if (!this.overviewSelectedCompanies || this.overviewSelectedCompanies.size === 0) return;
+    const selectedCompanyList = Array.from(this.overviewSelectedCompanies);
+    const companyContracts = this.getContractsByCompanies(this.overviewSelectedCompanies);
     const selectedContracts = companyContracts.filter((c) => this.overviewSelectedContractIds.has(c.id));
     if (selectedContracts.length === 0) return;
 
@@ -11135,7 +11229,14 @@ export class ContractsManager {
     const rawPrjName = String(curPrj?.name || this.currentProjectId || 'DỰ ÁN').trim();
     const prjUpper = rawPrjName.toUpperCase();
     const prjTitle = prjUpper.startsWith('DỰ ÁN') ? prjUpper : `DỰ ÁN ${prjUpper}`;
-    const companyUpper = this.overviewSelectedCompany.trim().toUpperCase();
+    const isMultiCompany = selectedCompanyList.length > 1;
+    const allCompaniesCount = this.getProjectCompanies().length;
+    const isAllCompanies = selectedCompanyList.length >= allCompaniesCount && allCompaniesCount > 1;
+    const partnerLabel = !isMultiCompany
+      ? `ĐỐI TÁC ${selectedCompanyList[0].trim().toUpperCase()}`
+      : isAllCompanies
+      ? `TẤT CẢ ĐỐI TÁC (${selectedCompanyList.length} CÔNG TY)`
+      : `TỔNG HỢP ${selectedCompanyList.length} ĐỐI TÁC (${selectedCompanyList.slice(0, 3).map((n) => n.trim().toUpperCase()).join(', ')}${selectedCompanyList.length > 3 ? ', ...' : ''})`;
 
     const wb = new window.ExcelJS.Workbook();
     wb.creator = 'MAIO CPMS';
@@ -11168,7 +11269,7 @@ export class ContractsManager {
 
     // Dòng 1: Tiêu đề báo cáo
     const titleRow = ws.addRow([
-      `BÁO CÁO TÌNH HÌNH THỰC HIỆN HỢP ĐỒNG VÀ THANH TOÁN CỦA ${prjTitle} - ĐỐI TÁC ${companyUpper}`,
+      `BÁO CÁO TÌNH HÌNH THỰC HIỆN HỢP ĐỒNG VÀ THANH TOÁN CỦA ${prjTitle} - ${partnerLabel}`,
     ]);
     ws.mergeCells('A1:J1');
     titleRow.height = 32;
@@ -11278,7 +11379,8 @@ export class ContractsManager {
       const signDateStr = c.signing_date ? ` ký ngày ${this.formatDate(c.signing_date)}` : '';
       const indentPrefix = level > 0 ? `${'  '.repeat(level)}↳ ` : '';
       const kindLabel = level > 0 ? 'Phụ lục số' : 'Hợp đồng số';
-      const contractTitle = `${indentPrefix}${kindLabel}: ${c.contract_no || c.id}${signDateStr}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
+      const partnerSuffix = isMultiCompany ? ` [${c.group === 'A' ? c.company_a : c.company_b || c.company_a || ''}]` : '';
+      const contractTitle = `${indentPrefix}${kindLabel}: ${c.contract_no || c.id}${signDateStr}${partnerSuffix}${c.scope_of_work ? ' - ' + c.scope_of_work : ''}`;
 
       const contractRow = ws.addRow([
         treeNo,
@@ -11356,15 +11458,18 @@ export class ContractsManager {
       cell.alignment = { horizontal: 'center', vertical: 'middle' };
     });
 
-    const asciiComp =
-      this.overviewSelectedCompany
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'D')
-        .replace(/[^a-zA-Z0-9]+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .slice(0, 36) || 'DoiTac';
+    const asciiComp = !isMultiCompany
+      ? selectedCompanyList[0]
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/đ/g, 'd')
+          .replace(/Đ/g, 'D')
+          .replace(/[^a-zA-Z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 36) || 'DoiTac'
+      : isAllCompanies
+      ? 'TatCa_DoiTac'
+      : `${selectedCompanyList.length}_DoiTac`;
     const today = new Date().toISOString().slice(0, 10);
     const fileName = `BaoCao_DongTien_${asciiComp}_${today}.xlsx`;
 
