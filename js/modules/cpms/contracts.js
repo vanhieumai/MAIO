@@ -11374,7 +11374,7 @@ export class ContractsManager {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
 
     this.showLocalSaveStatus(`Đã xuất báo cáo Excel "${fileName}" (${selectedContracts.length} hợp đồng)!`);
   }
