@@ -11047,7 +11047,7 @@ export class ContractsManager {
   }
 
   /**
-   * Xuất Báo cáo Tình hình Thực hiện Hợp đồng và Thanh toán theo mẫu CSV (UTF-8 BOM)
+   * Xuất Báo cáo Tình hình Thực hiện Hợp đồng và Thanh toán theo mẫu Excel (.xlsx)
    */
   exportCompanyCashflowReportCsv() {
     if (!this.overviewSelectedCompany) return;
@@ -11055,17 +11055,17 @@ export class ContractsManager {
     const selectedContracts = companyContracts.filter((c) => this.overviewSelectedContractIds.has(c.id));
     if (selectedContracts.length === 0) return;
 
+    if (!window.XLSX) {
+      this.showAppAlert?.('Thư viện xuất Excel (SheetJS) chưa sẵn sàng. Vui lòng tải lại trang.');
+      return;
+    }
+
     const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
     const prjName = (curPrj?.name || this.currentProjectId || 'DỰ ÁN').toUpperCase();
     const companyUpper = this.overviewSelectedCompany.toUpperCase();
 
-    const csvCell = (val) => {
-      const s = String(val ?? '');
-      return `"${s.replace(/"/g, '""')}"`;
-    };
-
     const rows = [];
-    rows.push(['', `BÁO CÁO TÌNH HÌNH THỰC HIỆN HỢP ĐỒNG VÀ THANH TOÁN CỦA DỰ ÁN ${prjName} - ĐỐI TÁC ${companyUpper}`]);
+    rows.push([`BÁO CÁO TÌNH HÌNH THỰC HIỆN HỢP ĐỒNG VÀ THANH TOÁN CỦA DỰ ÁN ${prjName} - ĐỐI TÁC ${companyUpper}`]);
     rows.push([]);
     rows.push(['', '', '', '', '', '', '', '', '', 'Đvt: VNĐ']);
     rows.push([
@@ -11128,12 +11128,12 @@ export class ContractsManager {
         rows.push([
           `${idx + 1}.${pIdx + 1}`,
           `${pLabel}${pDateStr}`,
-          '',
-          pAct || '',
-          pAcc || '',
-          pReq || '',
-          pPaid || '',
-          pRem || '',
+          null,
+          pAct || null,
+          pAcc || null,
+          pReq || null,
+          pPaid || null,
+          pRem || null,
           p.invoice_ref || '',
           p.note || '',
         ]);
@@ -11155,20 +11155,49 @@ export class ContractsManager {
     rows.push([]);
     rows.push(['', '', '', 'LÃNH ĐẠO PHÊ DUYỆT', '', '', 'BAN ĐẦU TƯ VÀ QUẢN LÝ DỰ ÁN', '', '', 'Người đề nghị']);
 
-    const csvContent = '\uFEFF' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    const safeComp = this.overviewSelectedCompany.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
-    const today = new Date().toISOString().slice(0, 10);
-    a.href = url;
-    a.download = `BaoCao_DongTien_${safeComp}_${today}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const ws = window.XLSX.utils.aoa_to_sheet(rows);
+    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }];
+    ws['!cols'] = [
+      { wch: 8 },
+      { wch: 52 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 28 },
+    ];
 
-    this.showLocalSaveStatus(`Đã xuất báo cáo dòng tiền cho "${this.overviewSelectedCompany}" (${selectedContracts.length} hợp đồng)!`);
+    // Định dạng số phân cách hàng nghìn cho các cột tiền (C..H, từ dòng 5 trở đi)
+    const range = window.XLSX.utils.decode_range(ws['!ref'] || 'A1:J1');
+    for (let r = 4; r <= range.e.r; r++) {
+      for (let c = 2; c <= 7; c++) {
+        const addr = window.XLSX.utils.encode_cell({ r, c });
+        if (ws[addr] && typeof ws[addr].v === 'number') {
+          ws[addr].z = '#,##0';
+        }
+      }
+    }
+
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, 'BaoCao_DongTien');
+
+    const asciiComp = this.overviewSelectedCompany
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 36) || 'DoiTac';
+    const today = new Date().toISOString().slice(0, 10);
+    const fileName = `BaoCao_DongTien_${asciiComp}_${today}.xlsx`;
+
+    window.XLSX.writeFile(wb, fileName, { bookType: 'xlsx' });
+
+    this.showLocalSaveStatus(`Đã xuất báo cáo Excel "${fileName}" (${selectedContracts.length} hợp đồng)!`);
   }
 }
 
