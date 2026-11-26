@@ -131,6 +131,20 @@ class DatabaseEngine {
   }
 
   /**
+   * Lấy một bản ghi theo khóa chính
+   */
+  async get(storeName, key) {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction([storeName], 'readonly');
+      const store = tx.objectStore(storeName);
+      const req = store.get(key);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  /**
    * Xóa một bản ghi
    */
   async delete(storeName, key) {

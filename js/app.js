@@ -1755,10 +1755,12 @@ class App {
       await db.importSnapshot(snapshotData);
       const targetId = projectId || snapshotData.active_project || snapshotData.data?.projects?.[0]?.id;
       if (targetId) {
-        const prj = await db.get('projects', targetId);
+        const allPrjs = await db.getAll('projects');
+        const prj = allPrjs.find((p) => p.id === targetId);
         if (prj) {
           prj.data_origin = 'online';
           prj.source = 'drive_sync';
+          prj.drive_synced = true;
           await db.put('projects', prj);
         }
         contractsManager.currentProjectId = targetId;
@@ -1811,9 +1813,11 @@ class App {
         if (wantPull) {
           const snapshotData = await gdrive.readJsonFile(matched.fileId);
           await db.importSnapshot(snapshotData);
-          const updatedPrj = await db.get('projects', projectId);
+          const allPrjs = await db.getAll('projects');
+          const updatedPrj = allPrjs.find((p) => p.id === projectId);
           if (updatedPrj) {
             updatedPrj.updated_at = matched.modifiedTime;
+            updatedPrj.drive_synced = true;
             await db.put('projects', updatedPrj);
           }
           await contractsManager.loadData();
