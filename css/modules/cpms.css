@@ -3986,6 +3986,53 @@ html[data-theme="dark"] .overview-cashflow-summary-title {
   color: #f1f5f9 !important;
 }
 
+/* Dark Mode cho Modal Tạo / Chỉnh sửa Hợp đồng (#form-contract) */
+html[data-theme="dark"] .form-label {
+  color: #cbd5e1 !important;
+}
+html[data-theme="dark"] .partner-card-block,
+html[data-theme="dark"] #form-contract div[style*="background: #f8fafc"],
+html[data-theme="dark"] #form-contract div[style*="background: #ffffff"],
+html[data-theme="dark"] #linked-contract-search-panel {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] #form-contract div[style*="background: #fffbeb"] {
+  background: rgba(245, 158, 11, 0.14) !important;
+  border-color: rgba(251, 191, 36, 0.4) !important;
+}
+html[data-theme="dark"] #form-contract label[style*="color: #92400e"],
+html[data-theme="dark"] #form-contract div[style*="color: #b45309"] {
+  color: #fcd34d !important;
+}
+html[data-theme="dark"] #form-contract div[style*="color: #1e40af"],
+html[data-theme="dark"] #form-contract span[style*="color: #4338ca"] {
+  color: #93c5fd !important;
+}
+html[data-theme="dark"] #form-contract div[style*="color: #334155"],
+html[data-theme="dark"] #form-contract label[style*="color: #334155"] {
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] #form-contract #input-converted-vnd {
+  background: rgba(16, 185, 129, 0.16) !important;
+  border-color: rgba(52, 211, 153, 0.45) !important;
+  color: #6ee7b7 !important;
+}
+html[data-theme="dark"] #form-contract #converted-vnd-badge {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border-color: rgba(52, 211, 153, 0.4) !important;
+  color: #6ee7b7 !important;
+}
+html[data-theme="dark"] .autocomplete-dropdown {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+html[data-theme="dark"] .autocomplete-item:hover {
+  background: #334155 !important;
+}
+
 
 
 
