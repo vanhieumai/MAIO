@@ -184,8 +184,8 @@ export class CPMSImporterExporter {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    // SheetJS hỗ trợ trực tiếp đọc nhị phân XLSB / XLSX qua ArrayBuffer
-    const workbook = window.XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+    // Đọc số serial Excel nguyên bản (cellDates: false) để tránh lệch 1 ngày do múi giờ UTC+7
+    const workbook = window.XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
 
     console.log('Các sheet tìm thấy trong file .cpms:', workbook.SheetNames);
 
