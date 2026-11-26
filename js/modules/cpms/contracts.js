@@ -11255,6 +11255,7 @@ export class ContractsManager {
     let sumRemaining = 0;
 
     const selectedTreeRows = this.buildCompanyContractTreeRows(selectedContracts);
+    const selectedIdSet = new Set(selectedContracts.map((item) => item.id));
     let rootCount = 0;
 
     selectedTreeRows.forEach(({ contract: c, level, treeNo }) => {
@@ -11262,6 +11263,10 @@ export class ContractsManager {
       const st = this.calculateTotals(c);
       const realPayments = this.getRealPayments(c.id);
       const actualVnd = realPayments.reduce((s, p) => s + this.getPaymentVnd(p, 'actual_volume', 'actual_vol'), 0);
+      // Không liệt kê lặp lại các đợt thanh toán thuộc phụ lục con đã có mặt trong báo cáo
+      const displayPayments = realPayments.filter(
+        (p) => p.contract_id === c.id || !selectedIdSet.has(p.contract_id)
+      );
 
       sumSigned += st.totalSigned;
       sumActual += actualVnd;
@@ -11289,7 +11294,7 @@ export class ContractsManager {
       ]);
       styleDataRow(contractRow, { isContract: true, isRoot: level === 0 });
 
-      realPayments.forEach((p, pIdx) => {
+      displayPayments.forEach((p, pIdx) => {
         const pAct = this.getPaymentVnd(p, 'actual_volume', 'actual_vol');
         const pAcc = this.getPaymentVnd(p, 'accepted_vol');
         const pReq = this.getPaymentVnd(p, 'request_amount');
