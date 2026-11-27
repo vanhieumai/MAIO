@@ -769,7 +769,136 @@ export class ContractsManager {
     return /\.(pdf|png|jpe?g|gif|webp|svg|txt|json|xml|html?)$/i.test(String(fileName || ''));
   }
 
-  async openFileObjectDirectly(fileObj, preOpenedWin = null) {
+  isExcelPreviewableFile(fileName) {
+    return /\.(xlsx|xlsm|xls|xlsb|csv)$/i.test(String(fileName || ''));
+  }
+
+  async showExcelPreviewModal(fileObj, doc = null) {
+    if (typeof XLSX === 'undefined') {
+      this.showToast('Thư viện đọc Excel (SheetJS) chưa sẵn sàng.', 'warning');
+      return false;
+    }
+
+    const existing = document.getElementById('maio-excel-preview-modal');
+    if (existing) existing.remove();
+
+    const buffer = await fileObj.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+    const sheetNames = workbook.SheetNames || [];
+    if (!sheetNames.length) {
+      this.showToast(`Tệp "${fileObj.name}" không có trang tính nào.`, 'warning');
+      return false;
+    }
+
+    const esc = (s) => String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const modal = document.createElement('div');
+    modal.id = 'maio-excel-preview-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.6);backdrop-filter:blur(3px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:96vw;max-width:1280px;height:88vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,0.3);overflow:hidden;">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+            <i class="fa-solid fa-file-excel" style="color:#10b981;font-size:1.2rem;"></i>
+            <span style="font-weight:700;font-size:0.98rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(fileObj.name)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+            ${doc ? `<button type="button" id="btn-excel-open-folder" class="button button-outline button-sm"><i class="fa-solid fa-folder-open" style="color:#f59e0b;"></i> Mở thư mục</button>` : ''}
+            <button type="button" id="btn-excel-download-copy" class="button button-outline button-sm"><i class="fa-solid fa-download"></i> Tải về máy</button>
+            <button type="button" id="btn-excel-preview-close" class="button button-outline button-sm"><i class="fa-solid fa-xmark"></i> Đóng</button>
+          </div>
+        </div>
+        <div id="maio-excel-sheet-tabs" style="padding:8px 14px;border-bottom:1px solid var(--border);display:flex;gap:6px;overflow-x:auto;background:var(--bg-app);">
+          ${sheetNames.map((name, idx) => `
+            <button type="button" class="button button-sm ${idx === 0 ? 'button-primary' : 'button-outline'} maio-excel-tab-btn" data-sheet="${esc(name)}" style="white-space:nowrap;">
+              ${esc(name)}
+            </button>
+          `).join('')}
+        </div>
+        <div id="maio-excel-sheet-body" style="flex:1;overflow:auto;padding:12px 16px;font-size:0.82rem;"></div>
+      </div>
+    `;
+
+    const styleId = 'maio-excel-preview-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        #maio-excel-sheet-body table { border-collapse: collapse; width: max-content; min-width: 100%; }
+        #maio-excel-sheet-body td, #maio-excel-sheet-body th {
+          border: 1px solid var(--border);
+          padding: 5px 8px;
+          white-space: pre-wrap;
+          vertical-align: middle;
+          color: var(--text-main);
+        }
+        #maio-excel-sheet-body tr:first-child td, #maio-excel-sheet-body th {
+          background: var(--bg-app);
+          font-weight: 600;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    document.body.appendChild(modal);
+
+    const renderSheet = (sheetName) => {
+      const ws = workbook.Sheets[sheetName];
+      const bodyEl = modal.querySelector('#maio-excel-sheet-body');
+      if (!ws || !bodyEl) return;
+      bodyEl.innerHTML = XLSX.utils.sheet_to_html(ws, { editable: false });
+      modal.querySelectorAll('.maio-excel-tab-btn').forEach(btn => {
+        const active = btn.dataset.sheet === sheetName;
+        btn.classList.toggle('button-primary', active);
+        btn.classList.toggle('button-outline', !active);
+      });
+    };
+
+    renderSheet(sheetNames[0]);
+
+    modal.querySelectorAll('.maio-excel-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => renderSheet(btn.dataset.sheet));
+    });
+
+    const closeModal = () => modal.remove();
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    modal.querySelector('#btn-excel-preview-close')?.addEventListener('click', closeModal);
+
+    modal.querySelector('#btn-excel-open-folder')?.addEventListener('click', async () => {
+      closeModal();
+      await this.handleOpenDocFolder(doc);
+    });
+
+    modal.querySelector('#btn-excel-download-copy')?.addEventListener('click', () => {
+      const blobUrl = URL.createObjectURL(fileObj);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileObj.name;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    });
+
+    return true;
+  }
+
+  async openFileObjectDirectly(fileObj, preOpenedWin = null, doc = null) {
+    if (this.isExcelPreviewableFile(fileObj.name)) {
+      if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
+      return await this.showExcelPreviewModal(fileObj, doc);
+    }
+
     const blobUrl = URL.createObjectURL(fileObj);
     const canPreviewInline = this.isInlinePreviewableFile(fileObj.name);
 
@@ -813,7 +942,7 @@ export class ContractsManager {
     return true;
   }
 
-  async tryOpenFileFromLocalDirHandle(targetPath, preOpenedWin = null) {
+  async tryOpenFileFromLocalDirHandle(targetPath, preOpenedWin = null, doc = null) {
     try {
       const dirHandle = await this.getAuthorizedLocalDirHandle();
       if (!dirHandle) return false;
@@ -844,7 +973,7 @@ export class ContractsManager {
       if (!fileHandle) return false;
 
       const fileObj = await fileHandle.getFile();
-      return await this.openFileObjectDirectly(fileObj, preOpenedWin);
+      return await this.openFileObjectDirectly(fileObj, preOpenedWin, doc);
     } catch (err) {
       console.warn('Không thể đọc file từ thư mục Local đã cấp quyền:', err);
       return false;
@@ -1089,7 +1218,7 @@ export class ContractsManager {
     }
   }
 
-  async openLocalPath(targetPath, isFolder = false, action = 'open', preOpenedWin = null, targetFileName = '') {
+  async openLocalPath(targetPath, isFolder = false, action = 'open', preOpenedWin = null, targetFileName = '', doc = null) {
     if (!targetPath || !String(targetPath).trim()) {
       if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
       this.showToast('Chưa có thông tin đường dẫn cục bộ trên máy tính!', 'warning');
@@ -1099,7 +1228,7 @@ export class ContractsManager {
 
     // Sử dụng trực tiếp quyền thư mục Local đã cấp trên trình duyệt (không dùng start_server)
     if (!isFolder) {
-      const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath, preOpenedWin);
+      const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath, preOpenedWin, doc);
       if (openedDirect) return true;
     } else {
       const openedFolderDirect = await this.tryOpenFolderFromLocalDirHandle(cleanPath, targetFileName);
@@ -1146,17 +1275,20 @@ export class ContractsManager {
       return;
     }
 
-    // Với các file không xem trực tiếp được trên trình duyệt (Excel, Word, zip...), chuyển thẳng sang luồng mở thư mục chứa file đó
-    if (!this.isInlinePreviewableFile(cleanLink)) {
+    const canInline = this.isInlinePreviewableFile(cleanLink);
+    const canExcel = this.isExcelPreviewableFile(cleanLink);
+
+    // Với các file không xem trực tiếp được trên trình duyệt (Word, zip, dwg...), chuyển thẳng sang luồng mở thư mục chứa file đó
+    if (!canInline && !canExcel) {
       await this.handleOpenDocFolder(doc);
       return;
     }
 
     // Mở trước tab trống đồng bộ nếu là file xem trực tiếp (PDF/ảnh/txt) để tránh bị Popup Blocker chặn
     const hasDirHandle = Boolean(window.__MAIO_APP__?.localDirectoryHandle);
-    const preOpenedWin = hasDirHandle ? window.open('', '_blank') : null;
+    const preOpenedWin = (hasDirHandle && canInline) ? window.open('', '_blank') : null;
 
-    await this.openLocalPath(cleanLink, false, 'open', preOpenedWin);
+    await this.openLocalPath(cleanLink, false, 'open', preOpenedWin, '', doc);
   }
 
   async handleOpenDocFolder(doc, contract = null) {
