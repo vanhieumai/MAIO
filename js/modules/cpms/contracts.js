@@ -894,11 +894,6 @@ export class ContractsManager {
   }
 
   async openFileObjectDirectly(fileObj, preOpenedWin = null, doc = null) {
-    if (this.isExcelPreviewableFile(fileObj.name)) {
-      if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
-      return await this.showExcelPreviewModal(fileObj, doc);
-    }
-
     const blobUrl = URL.createObjectURL(fileObj);
     const canPreviewInline = this.isInlinePreviewableFile(fileObj.name);
 
@@ -1276,17 +1271,16 @@ export class ContractsManager {
     }
 
     const canInline = this.isInlinePreviewableFile(cleanLink);
-    const canExcel = this.isExcelPreviewableFile(cleanLink);
 
-    // Với các file không xem trực tiếp được trên trình duyệt (Word, zip, dwg...), chuyển thẳng sang luồng mở thư mục chứa file đó
-    if (!canInline && !canExcel) {
+    // Với các file không xem trực tiếp được trên trình duyệt (Excel, Word, zip, dwg...), chuyển thẳng sang mở thư mục chứa file đó để chuột phải -> Open làm việc trực tiếp
+    if (!canInline) {
       await this.handleOpenDocFolder(doc);
       return;
     }
 
     // Mở trước tab trống đồng bộ nếu là file xem trực tiếp (PDF/ảnh/txt) để tránh bị Popup Blocker chặn
     const hasDirHandle = Boolean(window.__MAIO_APP__?.localDirectoryHandle);
-    const preOpenedWin = (hasDirHandle && canInline) ? window.open('', '_blank') : null;
+    const preOpenedWin = hasDirHandle ? window.open('', '_blank') : null;
 
     await this.openLocalPath(cleanLink, false, 'open', preOpenedWin, '', doc);
   }
