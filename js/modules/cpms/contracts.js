@@ -2715,8 +2715,9 @@ export class ContractsManager {
         <div class="modal-body" style="padding: 16px 20px;">
           <form id="form-edit-project">
             <div class="form-group" style="margin-bottom: 12px;">
-              <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Mã dự án (Project ID)</label>
-              <input type="text" class="form-control" name="project_id" value="${project.id}" readonly style="background: #f1f5f9; cursor: not-allowed;">
+              <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Mã dự án (Project Code / ID) <span style="color: var(--danger);">*</span></label>
+              <input type="text" class="form-control" name="project_id" value="${project.code || project.id}" required style="font-weight: 600; text-transform: uppercase;">
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Trùng khớp với trường <code>PROJ</code> / <code>ProjectID</code> trong sheet <code>PROJECT_SETTINGS</code> của file <code>.cpms</code> local.</div>
             </div>
             <div class="form-group" style="margin-bottom: 12px;">
               <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Tên dự án <span style="color: var(--danger);">*</span></label>
@@ -2750,18 +2751,55 @@ export class ContractsManager {
     modal.querySelector('#form-edit-project').onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
+      const oldId = project.id;
+      const rawNewId = String(fd.get('project_id') || oldId).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
+      const newId = rawNewId || oldId;
+
       const updatedPrj = {
         ...project,
+        id: newId,
+        code: newId,
         name: fd.get('project_name').trim(),
         client: fd.get('client').trim(),
         location: fd.get('location').trim(),
         contractor: fd.get('contractor').trim(),
         updated_at: new Date().toISOString(),
       };
+
+      if (newId !== oldId) {
+        const allPrjs = await db.getAll('projects');
+        if (allPrjs.some((p) => p.id === newId)) {
+          alert(`Mã dự án "${newId}" đã tồn tại. Vui lòng chọn mã khác!`);
+          return;
+        }
+        const [allC, allP, allD] = await Promise.all([
+          db.getAll('contracts'),
+          db.getAll('payments'),
+          db.getAll('documents'),
+        ]);
+        for (const c of allC.filter((x) => x.project_id === oldId)) {
+          c.project_id = newId;
+          await db.put('contracts', c);
+        }
+        for (const p of allP.filter((x) => x.project_id === oldId)) {
+          p.project_id = newId;
+          await db.put('payments', p);
+        }
+        for (const d of allD.filter((x) => x.project_id === oldId)) {
+          d.project_id = newId;
+          await db.put('documents', d);
+        }
+        await db.delete('projects', oldId);
+        this.currentProjectId = newId;
+      }
+
       await db.put('projects', updatedPrj);
       await this.loadData();
       closeModal();
       this.render();
+      if (typeof window.__MAIO_APP__?.updateDashboardStats === 'function') {
+        await window.__MAIO_APP__.updateDashboardStats();
+      }
       await this.syncToLocalFile();
       alert('Đã cập nhật thông tin dự án thành công!');
     };
@@ -5283,7 +5321,7 @@ export class ContractsManager {
 
       try {
         const fd = new FormData(e.target);
-        const newId = fd.get('project_id').trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+        const newId = fd.get('project_id').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
         const newName = fd.get('project_name').trim();
         const client = fd.get('client')?.trim() || 'Chủ đầu tư Bên A';
         const contractor = fd.get('contractor')?.trim() || 'Nhà thầu Bên B';
