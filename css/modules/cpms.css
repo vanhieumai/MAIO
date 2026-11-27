@@ -4033,6 +4033,22 @@ html[data-theme="dark"] .autocomplete-item:hover {
   background: #334155 !important;
 }
 
+/* Chế độ Ẩn các thanh điều khiển/bộ lọc/bảng tổng hợp trên cùng */
+html[data-compact-header="true"] .top-header-banner,
+html[data-compact-header="true"] #project-info-bar,
+html[data-compact-header="true"] .cpms-sticky-controls,
+html[data-compact-header="true"] #disburse-summary-container,
+html[data-compact-header="true"] .reminder-filter-card {
+  display: none !important;
+}
+html[data-compact-header="true"] .disburse-scroll-contract-list {
+  height: calc(100vh - 295px) !important;
+  max-height: calc(100vh - 295px) !important;
+}
+html[data-compact-header="true"] .reminder-table-scroll {
+  max-height: calc(100vh - 150px) !important;
+}
+
 
 
 

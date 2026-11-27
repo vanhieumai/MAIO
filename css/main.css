@@ -52,8 +52,15 @@
 }
 
 /* Nút chuyển đổi giao diện Sáng / Tối */
-.btn-theme-toggle {
+.subnav-right-actions {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-theme-toggle {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -74,6 +81,11 @@
   border-color: var(--primary);
   color: var(--primary);
   background: var(--primary-subtle);
+}
+.btn-top-controls-toggle.is-compact {
+  background: var(--primary-subtle);
+  border-color: var(--primary);
+  color: var(--primary);
 }
 
 /* Dark Mode overrides cho các thành phần sử dụng màu nền/chữ cố định */

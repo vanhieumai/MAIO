@@ -8,8 +8,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/main.css?v=5.6">
-  <link rel="stylesheet" href="css/modules/cpms.css?v=9.9">
+  <link rel="stylesheet" href="css/main.css?v=5.7">
+  <link rel="stylesheet" href="css/modules/cpms.css?v=10.0">
   <script>
     (function () {
       try {
@@ -154,10 +154,16 @@
           <button class="cpms-subtab-btn" data-cpms-tab="reminder" id="tab-btn-reminder">
             <i class="fa-solid fa-bell"></i> Reminder <span class="badge-reminder-count" id="reminder-tab-badge">0</span>
           </button>
-          <button type="button" id="btn-theme-toggle" class="btn-theme-toggle" title="Chuyển giao diện Sáng / Tối">
-            <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
-            <span id="theme-toggle-label">Tối</span>
-          </button>
+          <div class="subnav-right-actions">
+            <button type="button" id="btn-toggle-top-controls" class="btn-theme-toggle btn-top-controls-toggle" title="Ẩn / Hiện thanh dự án, bảng tổng hợp và bộ lọc">
+              <i id="top-controls-toggle-icon" class="fa-solid fa-eye-slash"></i>
+              <span id="top-controls-toggle-label">Ẩn</span>
+            </button>
+            <button type="button" id="btn-theme-toggle" class="btn-theme-toggle" title="Chuyển giao diện Sáng / Tối">
+              <i id="theme-toggle-icon" class="fa-solid fa-moon"></i>
+              <span id="theme-toggle-label">Tối</span>
+            </button>
+          </div>
         </div>
 
         <!-- Top Banner: Thông tin cơ bản Dự án đang mở (Trái) & Nút Thao tác Dự án + Icon Push/Pull Cloud (Phải) -->
@@ -752,6 +758,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=12.4"></script>
+  <script type="module" src="js/app.js?v=12.5"></script>
 </body>
 </html>

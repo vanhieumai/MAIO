@@ -19,6 +19,7 @@ class App {
 
     // 0. Khởi tạo Giao diện Sáng / Tối
     this.initTheme();
+    this.initTopControlsToggle();
 
     // 1. Thiết lập điều hướng (Navigation)
     this.bindNavigation();
@@ -65,6 +66,41 @@ class App {
     const label = document.getElementById('theme-toggle-label');
     if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
     if (label) label.textContent = isDark ? 'Sáng' : 'Tối';
+  }
+
+  /**
+   * Ẩn / Hiện các khu vực thanh dự án, bảng tổng hợp và bộ lọc trên cùng
+   */
+  initTopControlsToggle() {
+    let saved = false;
+    try {
+      saved = localStorage.getItem('maio_compact_header') === '1';
+    } catch (_) {}
+    this.applyTopControlsCompact(saved);
+
+    document.getElementById('btn-toggle-top-controls')?.addEventListener('click', () => {
+      const isCompact = document.documentElement.getAttribute('data-compact-header') === 'true';
+      const next = !isCompact;
+      this.applyTopControlsCompact(next);
+      try {
+        localStorage.setItem('maio_compact_header', next ? '1' : '0');
+      } catch (_) {}
+    });
+  }
+
+  applyTopControlsCompact(isCompact) {
+    if (isCompact) {
+      document.documentElement.setAttribute('data-compact-header', 'true');
+    } else {
+      document.documentElement.removeAttribute('data-compact-header');
+    }
+
+    const btn = document.getElementById('btn-toggle-top-controls');
+    const icon = document.getElementById('top-controls-toggle-icon');
+    const label = document.getElementById('top-controls-toggle-label');
+    if (btn) btn.classList.toggle('is-compact', isCompact);
+    if (icon) icon.className = isCompact ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
+    if (label) label.textContent = isCompact ? 'Hiện' : 'Ẩn';
   }
 
   async handleUserAuthChange(user) {
