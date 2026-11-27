@@ -157,12 +157,12 @@ class App {
     if (el('stat-group-a-count')) el('stat-group-a-count').textContent = '0 Hợp đồng';
     if (el('stat-group-a-val')) el('stat-group-a-val').textContent = '0 ₫';
     if (el('stat-group-a-paid')) el('stat-group-a-paid').textContent = '0 ₫';
-    if (el('stat-group-a-rate')) el('stat-group-a-rate').textContent = 'Đạt 0% giá trị HĐ';
+    if (el('stat-group-a-rate')) el('stat-group-a-rate').textContent = 'Đạt 0%';
     if (el('stat-group-a-ipc')) el('stat-group-a-ipc').textContent = '0 đợt';
     if (el('stat-group-b-count')) el('stat-group-b-count').textContent = '0 Hợp đồng';
     if (el('stat-group-b-val')) el('stat-group-b-val').textContent = '0 ₫';
     if (el('stat-group-b-paid')) el('stat-group-b-paid').textContent = '0 ₫';
-    if (el('stat-group-b-rate')) el('stat-group-b-rate').textContent = 'Đạt 0% giá trị giao thầu';
+    if (el('stat-group-b-rate')) el('stat-group-b-rate').textContent = 'Đạt 0%';
     if (el('stat-group-b-ipc')) el('stat-group-b-ipc').textContent = '0 đợt';
     if (el('stat-cash-in')) el('stat-cash-in').textContent = '0 ₫';
     if (el('stat-cash-out')) el('stat-cash-out').textContent = '0 ₫';
@@ -249,7 +249,7 @@ class App {
     }
     if (el('stat-group-a-rate')) {
       const rateA = totalSignedA > 0 ? ((totalPaidA / totalSignedA) * 100).toFixed(1) : 0;
-      el('stat-group-a-rate').textContent = `Đạt ${rateA}% giá trị hợp đồng A`;
+      el('stat-group-a-rate').textContent = `Đạt ${rateA}%`;
     }
     if (el('stat-group-a-ipc')) {
       el('stat-group-a-ipc').textContent = `${paymentsA.length} đợt`;
@@ -266,7 +266,7 @@ class App {
     }
     if (el('stat-group-b-rate')) {
       const rateB = totalSignedB > 0 ? ((totalPaidB / totalSignedB) * 100).toFixed(1) : 0;
-      el('stat-group-b-rate').textContent = `Đạt ${rateB}% giá trị giao thầu B`;
+      el('stat-group-b-rate').textContent = `Đạt ${rateB}%`;
     }
     if (el('stat-group-b-ipc')) {
       el('stat-group-b-ipc').textContent = `${paymentsB.length} đợt`;
