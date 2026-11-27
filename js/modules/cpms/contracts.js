@@ -848,7 +848,7 @@ export class ContractsManager {
     }
   }
 
-  async resolveSubDirHandleByPath(rootHandle, folderPath) {
+  async resolveSubDirHandleByPath(rootHandle, folderPath, targetFileName = '') {
     const segments = String(folderPath || '')
       .replace(/\\/g, '/')
       .split('/')
@@ -879,17 +879,41 @@ export class ContractsManager {
       if (matchedAll) return cur;
     }
 
-    // Fallback: tìm theo tên thư mục đích cuối cùng trong cây thư mục đã cấp quyền
+    // Fallback 1: Nếu biết tên file, tìm chính xác thư mục cha chứa file đó trong dirHandle
+    const fileLower = String(targetFileName || '').trim().toLowerCase();
+    const normFolder = `/${String(folderPath || '').replace(/\\/g, '/').toLowerCase()}/`;
+    if (fileLower) {
+      const findParentOfFile = async (handle, depth = 0) => {
+        if (depth > 8) return null;
+        for await (const [name, entry] of handle.entries()) {
+          if (entry.kind === 'file' && name.toLowerCase() === fileLower) {
+            return handle;
+          }
+        }
+        for await (const [name, entry] of handle.entries()) {
+          if (entry.kind === 'directory') {
+            if (normFolder.includes(`/${name.toLowerCase()}/`) || depth < 4) {
+              const found = await findParentOfFile(entry, depth + 1);
+              if (found) return found;
+            }
+          }
+        }
+        return null;
+      };
+      const parentByFile = await findParentOfFile(rootHandle);
+      if (parentByFile) return parentByFile;
+    }
+
+    // Fallback 2: Tìm theo tên thư mục đích cuối cùng trong cây thư mục đã cấp quyền
     const targetFolderName = segments[segments.length - 1].toLowerCase();
     if (targetFolderName === rootNameLower) return rootHandle;
 
-    const normFolder = String(folderPath || '').replace(/\\/g, '/').toLowerCase();
     const findDirByName = async (handle, depth = 0) => {
-      if (depth > 6) return null;
+      if (depth > 8) return null;
       for await (const [name, entry] of handle.entries()) {
         if (entry.kind === 'directory') {
           if (name.toLowerCase() === targetFolderName) return entry;
-          if (normFolder.includes(`/${name.toLowerCase()}/`) || depth < 3) {
+          if (normFolder.includes(`/${name.toLowerCase()}/`) || depth < 4) {
             const found = await findDirByName(entry, depth + 1);
             if (found) return found;
           }
@@ -898,7 +922,7 @@ export class ContractsManager {
       return null;
     };
 
-    return await findDirByName(rootHandle);
+    return (await findDirByName(rootHandle)) || rootHandle;
   }
 
   async showLocalDirectoryBrowserModal(dirHandle, originalPath = '', parentStack = []) {
@@ -1025,12 +1049,12 @@ export class ContractsManager {
     });
   }
 
-  async tryOpenFolderFromLocalDirHandle(folderPath) {
+  async tryOpenFolderFromLocalDirHandle(folderPath, targetFileName = '') {
     try {
       const dirHandle = await this.getAuthorizedLocalDirHandle();
       if (!dirHandle) return false;
 
-      const targetDir = await this.resolveSubDirHandleByPath(dirHandle, folderPath);
+      const targetDir = await this.resolveSubDirHandleByPath(dirHandle, folderPath, targetFileName);
       if (!targetDir) return false;
 
       await this.showLocalDirectoryBrowserModal(targetDir, folderPath, []);
@@ -1076,7 +1100,7 @@ export class ContractsManager {
     return false;
   }
 
-  async openLocalPath(targetPath, isFolder = false, action = 'open', preOpenedWin = null) {
+  async openLocalPath(targetPath, isFolder = false, action = 'open', preOpenedWin = null, targetFileName = '') {
     if (!targetPath || !String(targetPath).trim()) {
       if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
       this.showToast('Chưa có thông tin đường dẫn cục bộ trên máy tính!', 'warning');
@@ -1096,7 +1120,7 @@ export class ContractsManager {
       const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath, preOpenedWin);
       if (openedDirect) return true;
     } else {
-      const openedFolderDirect = await this.tryOpenFolderFromLocalDirHandle(cleanPath);
+      const openedFolderDirect = await this.tryOpenFolderFromLocalDirHandle(cleanPath, targetFileName);
       if (openedFolderDirect) return true;
     }
 
@@ -1176,8 +1200,9 @@ export class ContractsManager {
       return;
     }
 
-    // Gửi lệnh mở File Explorer hoặc hiển thị thông báo đồng bộ MAIO đã copy đường dẫn
-    await this.openLocalPath(folderPath, true, 'open');
+    // Gửi lệnh mở File Explorer hoặc hiển thị cửa sổ duyệt thư mục đã cấp quyền
+    const targetFileName = (rawLink && !rawLink.startsWith('http')) ? this.getBaseName(rawLink) : '';
+    await this.openLocalPath(folderPath, true, 'open', null, targetFileName);
   }
 
   /**
