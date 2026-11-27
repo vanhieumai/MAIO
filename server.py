@@ -12,6 +12,18 @@ from http.server import SimpleHTTPRequestHandler
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
 HOST = "127.0.0.1"
 
+def win_open_normal(target, params=None):
+    """Mở tệp tin hoặc thư mục với SW_SHOWNORMAL (1), không kế thừa SW_HIDE từ tiến trình nền."""
+    import ctypes
+    SW_SHOWNORMAL = 1
+    res = ctypes.windll.shell32.ShellExecuteW(None, "open", str(target), str(params) if params else None, None, SW_SHOWNORMAL)
+    if res <= 32:
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = SW_SHOWNORMAL
+        cmd = [str(target)] + ([str(params)] if params else [])
+        subprocess.Popen(cmd, startupinfo=si, creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+
 def bring_window_to_front(target_name):
     """Kích hoạt và đưa cửa sổ vừa mở lên Foreground trên Windows"""
     if platform.system() != "Windows" or not target_name:
@@ -127,8 +139,8 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                             p = np
                         final_folder = p if (p and os.path.exists(p)) else folder_to_open
 
-                        # Mở Explorer
-                        subprocess.Popen(['explorer.exe', final_folder])
+                        # Mở Explorer với SW_SHOWNORMAL
+                        win_open_normal('explorer.exe', f'"{final_folder}"')
                         # Kích hoạt cửa sổ Explorer lên trên cùng
                         bring_window_to_front(os.path.basename(final_folder))
 
@@ -142,7 +154,7 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
 
                     # 2. Chọn file trong thư mục
                     if action == 'select' and os.path.isfile(clean_path):
-                        subprocess.Popen(['explorer.exe', f'/select,{clean_path}'])
+                        win_open_normal('explorer.exe', f'/select,"{clean_path}"')
                         bring_window_to_front(os.path.basename(os.path.dirname(clean_path)))
                         self._send_json(200, {
                             "success": True,
@@ -155,9 +167,12 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                     # 3. Mở tệp tin
                     if os.path.isfile(clean_path):
                         try:
-                            os.startfile(clean_path)
+                            win_open_normal(clean_path)
                         except Exception:
-                            subprocess.Popen(f'cmd.exe /c start "" "{clean_path}"', shell=True)
+                            si = subprocess.STARTUPINFO()
+                            si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                            si.wShowWindow = 1
+                            subprocess.Popen(f'cmd.exe /c start "" "{clean_path}"', shell=True, startupinfo=si)
                         
                         bring_window_to_front(os.path.basename(clean_path))
                         self._send_json(200, {
@@ -177,7 +192,7 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                             break
                         p = np
                     if p and os.path.exists(p):
-                        subprocess.Popen(['explorer.exe', p])
+                        win_open_normal('explorer.exe', f'"{p}"')
                         bring_window_to_front(os.path.basename(p))
                         self._send_json(200, {
                             "success": True,
@@ -187,7 +202,7 @@ class MAIORequestHandler(SimpleHTTPRequestHandler):
                             "warning": "Tệp tin chưa tồn tại, đã mở thư mục lưu trữ!"
                         })
                     else:
-                        subprocess.Popen(['explorer.exe', clean_path])
+                        win_open_normal('explorer.exe', f'"{clean_path}"')
                         self._send_json(200, {"success": True, "path": clean_path})
 
                 elif platform.system() == "Darwin":
