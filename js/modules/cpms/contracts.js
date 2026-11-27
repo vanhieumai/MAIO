@@ -747,15 +747,73 @@ export class ContractsManager {
   /**
    * Tìm và mở file trực tiếp trong trình duyệt từ thư mục Local đã cấp quyền (File System Access API)
    */
-  async tryOpenFileFromLocalDirHandle(targetPath) {
-    try {
-      let dirHandle = window.__MAIO_APP__?.localDirectoryHandle || null;
-      if (!dirHandle && this.currentProjectId && typeof db.getProjectDirHandle === 'function') {
-        dirHandle = await db.getProjectDirHandle(this.currentProjectId);
+  async getAuthorizedLocalDirHandle() {
+    let dirHandle = window.__MAIO_APP__?.localDirectoryHandle || null;
+    if (!dirHandle && this.currentProjectId && typeof db.getProjectDirHandle === 'function') {
+      dirHandle = await db.getProjectDirHandle(this.currentProjectId);
+      if (dirHandle && window.__MAIO_APP__) {
+        window.__MAIO_APP__.localDirectoryHandle = dirHandle;
       }
-      if (!dirHandle || typeof dirHandle.queryPermission !== 'function') return false;
-      const perm = await dirHandle.queryPermission({ mode: 'read' });
-      if (perm !== 'granted') return false;
+    }
+    if (!dirHandle || typeof dirHandle.queryPermission !== 'function') return null;
+
+    let perm = await dirHandle.queryPermission({ mode: 'read' });
+    if (perm === 'prompt' && typeof dirHandle.requestPermission === 'function') {
+      perm = await dirHandle.requestPermission({ mode: 'read' });
+    }
+    if (perm !== 'granted') return null;
+    return dirHandle;
+  }
+
+  isInlinePreviewableFile(fileName) {
+    return /\.(pdf|png|jpe?g|gif|webp|svg|txt|json|xml|html?)$/i.test(String(fileName || ''));
+  }
+
+  async openFileObjectDirectly(fileObj, preOpenedWin = null) {
+    const blobUrl = URL.createObjectURL(fileObj);
+    const canPreviewInline = this.isInlinePreviewableFile(fileObj.name);
+
+    if (canPreviewInline) {
+      if (preOpenedWin && !preOpenedWin.closed) {
+        preOpenedWin.location.href = blobUrl;
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        this.showToast(`Đã mở tệp tin trực tiếp: "${fileObj.name}"`, 'success');
+        return true;
+      }
+
+      const openedWin = window.open(blobUrl, '_blank');
+      if (openedWin) {
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+        this.showToast(`Đã mở tệp tin trực tiếp: "${fileObj.name}"`, 'success');
+        return true;
+      }
+    } else if (preOpenedWin && !preOpenedWin.closed) {
+      preOpenedWin.close();
+    }
+
+    // Với file Office (.xlsx, .docx, ...) hoặc khi Popup bị chặn: tải trực tiếp về máy để mở ngay
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = fileObj.name;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+
+    this.showToast(
+      canPreviewInline
+        ? `Trình duyệt chặn mở tab mới, đã tải xuống: "${fileObj.name}"`
+        : `Đã tải trực tiếp tệp tin: "${fileObj.name}" (bấm mở ở thanh tải xuống)`,
+      'success'
+    );
+    return true;
+  }
+
+  async tryOpenFileFromLocalDirHandle(targetPath, preOpenedWin = null) {
+    try {
+      const dirHandle = await this.getAuthorizedLocalDirHandle();
+      if (!dirHandle) return false;
 
       const normTarget = String(targetPath || '').replace(/\\/g, '/').toLowerCase();
       const targetName = this.getBaseName(targetPath).toLowerCase();
@@ -783,27 +841,219 @@ export class ContractsManager {
       if (!fileHandle) return false;
 
       const fileObj = await fileHandle.getFile();
-      const blobUrl = URL.createObjectURL(fileObj);
-      window.open(blobUrl, '_blank');
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
-      this.showToast(`Đã mở tệp tin trực tiếp: "${fileObj.name}"`, 'success');
-      return true;
+      return await this.openFileObjectDirectly(fileObj, preOpenedWin);
     } catch (err) {
       console.warn('Không thể đọc file từ thư mục Local đã cấp quyền:', err);
       return false;
     }
   }
 
-  async openLocalPath(targetPath, isFolder = false, action = 'open') {
+  async resolveSubDirHandleByPath(rootHandle, folderPath) {
+    const segments = String(folderPath || '')
+      .replace(/\\/g, '/')
+      .split('/')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (!segments.length) return rootHandle;
+
+    const rootNameLower = String(rootHandle.name || '').toLowerCase();
+    const rootIdx = segments.findIndex(s => s.toLowerCase() === rootNameLower);
+    if (rootIdx >= 0) {
+      let cur = rootHandle;
+      let matchedAll = true;
+      for (let i = rootIdx + 1; i < segments.length; i++) {
+        const segLower = segments[i].toLowerCase();
+        let nextDir = null;
+        for await (const [name, entry] of cur.entries()) {
+          if (entry.kind === 'directory' && name.toLowerCase() === segLower) {
+            nextDir = entry;
+            break;
+          }
+        }
+        if (!nextDir) {
+          matchedAll = false;
+          break;
+        }
+        cur = nextDir;
+      }
+      if (matchedAll) return cur;
+    }
+
+    // Fallback: tìm theo tên thư mục đích cuối cùng trong cây thư mục đã cấp quyền
+    const targetFolderName = segments[segments.length - 1].toLowerCase();
+    if (targetFolderName === rootNameLower) return rootHandle;
+
+    const normFolder = String(folderPath || '').replace(/\\/g, '/').toLowerCase();
+    const findDirByName = async (handle, depth = 0) => {
+      if (depth > 6) return null;
+      for await (const [name, entry] of handle.entries()) {
+        if (entry.kind === 'directory') {
+          if (name.toLowerCase() === targetFolderName) return entry;
+          if (normFolder.includes(`/${name.toLowerCase()}/`) || depth < 3) {
+            const found = await findDirByName(entry, depth + 1);
+            if (found) return found;
+          }
+        }
+      }
+      return null;
+    };
+
+    return await findDirByName(rootHandle);
+  }
+
+  async showLocalDirectoryBrowserModal(dirHandle, originalPath = '', parentStack = []) {
+    const existing = document.getElementById('maio-local-folder-modal');
+    if (existing) existing.remove();
+
+    const dirs = [];
+    const files = [];
+    for await (const [name, entry] of dirHandle.entries()) {
+      if (entry.kind === 'directory') {
+        dirs.push({ name, handle: entry });
+      } else if (entry.kind === 'file') {
+        files.push({ name, handle: entry });
+      }
+    }
+    dirs.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    files.sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+
+    const modal = document.createElement('div');
+    modal.id = 'maio-local-folder-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+    const esc = (s) => this.escapeHtml(s || '');
+    const itemsHtml = [
+      ...dirs.map((d, idx) => `
+        <div class="local-dir-row" data-kind="dir" data-idx="${idx}" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;">
+          <i class="fa-solid fa-folder" style="color:#f59e0b;font-size:1.05rem;"></i>
+          <span style="flex:1;font-weight:600;color:var(--text-main);word-break:break-word;">${esc(d.name)}</span>
+          <span style="font-size:0.75rem;color:var(--text-muted);">Thư mục</span>
+        </div>
+      `),
+      ...files.map((f, idx) => `
+        <div class="local-file-row" data-kind="file" data-idx="${idx}" style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:6px;">
+          <i class="fa-regular fa-file-lines" style="color:#3b82f6;font-size:1.05rem;"></i>
+          <span style="flex:1;color:var(--text-main);word-break:break-word;">${esc(f.name)}</span>
+          <button type="button" class="button button-outline button-sm" style="pointer-events:none;font-size:0.75rem;">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở
+          </button>
+        </div>
+      `)
+    ].join('');
+
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:100%;max-width:680px;max-height:82vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;">
+          <div style="min-width:0;">
+            <div style="font-weight:700;font-size:1rem;display:flex;align-items:center;gap:8px;">
+              <i class="fa-solid fa-folder-open" style="color:#f59e0b;"></i>
+              <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(dirHandle.name)}</span>
+            </div>
+            ${originalPath ? `<div style="font-size:0.76rem;color:var(--text-muted);margin-top:2px;word-break:break-all;">${esc(originalPath)}</div>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            ${parentStack.length > 0 ? `<button type="button" id="btn-local-dir-back" class="button button-outline button-sm"><i class="fa-solid fa-arrow-left"></i> Lên</button>` : ''}
+            <button type="button" id="btn-local-dir-close" class="button button-outline button-sm"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+        </div>
+        <div style="padding:10px 14px;overflow-y:auto;flex:1;">
+          ${itemsHtml || '<div style="padding:24px;text-align:center;color:var(--text-muted);">Thư mục này đang trống.</div>'}
+        </div>
+        <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bg-app);">
+          <span style="font-size:0.78rem;color:var(--text-muted);">${dirs.length} thư mục • ${files.length} tệp tin</span>
+          <div style="display:flex;gap:8px;">
+            ${originalPath ? `<button type="button" id="btn-local-dir-copy" class="button button-outline button-sm"><i class="fa-regular fa-copy"></i> Copy đường dẫn</button>` : ''}
+            <button type="button" id="btn-local-dir-done" class="button button-primary button-sm">Đóng</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => modal.remove();
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    modal.querySelector('#btn-local-dir-close')?.addEventListener('click', closeModal);
+    modal.querySelector('#btn-local-dir-done')?.addEventListener('click', closeModal);
+
+    modal.querySelector('#btn-local-dir-back')?.addEventListener('click', () => {
+      const prev = parentStack[parentStack.length - 1];
+      if (prev) {
+        this.showLocalDirectoryBrowserModal(prev, originalPath, parentStack.slice(0, -1));
+      }
+    });
+
+    modal.querySelector('#btn-local-dir-copy')?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(originalPath);
+        this.showToast('Đã sao chép đường dẫn thư mục vào Clipboard!', 'success');
+      } catch (_) {}
+    });
+
+    modal.querySelectorAll('.local-dir-row').forEach(row => {
+      row.addEventListener('click', () => {
+        const idx = Number(row.dataset.idx);
+        const target = dirs[idx];
+        if (target) {
+          this.showLocalDirectoryBrowserModal(target.handle, originalPath, [...parentStack, dirHandle]);
+        }
+      });
+    });
+
+    modal.querySelectorAll('.local-file-row').forEach(row => {
+      row.addEventListener('click', async () => {
+        const idx = Number(row.dataset.idx);
+        const target = files[idx];
+        if (!target) return;
+        const preWin = this.isInlinePreviewableFile(target.name) ? window.open('', '_blank') : null;
+        try {
+          const fileObj = await target.handle.getFile();
+          await this.openFileObjectDirectly(fileObj, preWin);
+        } catch (err) {
+          if (preWin && !preWin.closed) preWin.close();
+          this.showToast('Không thể đọc tệp tin từ thư mục đã chọn.', 'error');
+        }
+      });
+    });
+  }
+
+  async tryOpenFolderFromLocalDirHandle(folderPath) {
+    try {
+      const dirHandle = await this.getAuthorizedLocalDirHandle();
+      if (!dirHandle) return false;
+
+      const targetDir = await this.resolveSubDirHandleByPath(dirHandle, folderPath);
+      if (!targetDir) return false;
+
+      await this.showLocalDirectoryBrowserModal(targetDir, folderPath, []);
+      return true;
+    } catch (err) {
+      console.warn('Không thể mở thư mục từ quyền Local đã cấp:', err);
+      return false;
+    }
+  }
+
+  async openLocalPath(targetPath, isFolder = false, action = 'open', preOpenedWin = null) {
     if (!targetPath || !String(targetPath).trim()) {
+      if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
       this.showToast('Chưa có thông tin đường dẫn cục bộ trên máy tính!', 'warning');
       return false;
     }
     const cleanPath = String(targetPath).trim();
 
     if (!isFolder) {
-      const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath);
+      const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath, preOpenedWin);
       if (openedDirect) return true;
+    } else {
+      const openedFolderDirect = await this.tryOpenFolderFromLocalDirHandle(cleanPath);
+      if (openedFolderDirect) return true;
+    }
+
+    if (preOpenedWin && !preOpenedWin.closed) {
+      preOpenedWin.close();
     }
 
     try {
@@ -838,7 +1088,7 @@ export class ContractsManager {
         : `Đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'} trên máy tính`,
       type: copied ? 'success' : 'info',
       message: copied
-        ? `Đường dẫn đã được sao chép vào Clipboard:\n\n${cleanPath}\n\nNhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở trên máy tính.\n(Lưu ý: Trình duyệt web bảo mật không cho phép tự mở trực tiếp thư mục ổ cứng; bạn có thể dùng link Drive Online hoặc chọn thư mục máy tính trong Cài đặt để mở file trực tiếp.)`
+        ? `Đường dẫn đã được sao chép vào Clipboard:\n\n${cleanPath}\n\nNhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở trên máy tính.\n(Lưu ý: Hãy kiểm tra lại thư mục đã cấp quyền trong Cài đặt có chứa đường dẫn này hay không.)`
         : `Vui lòng sao chép đường dẫn dưới đây để mở trên File Explorer:\n\n${cleanPath}`,
     });
     return false;
@@ -861,8 +1111,13 @@ export class ContractsManager {
       return;
     }
 
-    // Mở trực tiếp từ thư mục đã cấp quyền hoặc qua local helper (không mở tab 404 /api/view-file)
-    await this.openLocalPath(cleanLink, false, 'open');
+    // Mở trước tab trống đồng bộ trong sự kiện click nếu là file xem trực tiếp (PDF/ảnh/txt) và đã có dirHandle để tránh bị Popup Blocker chặn
+    const hasDirHandle = Boolean(window.__MAIO_APP__?.localDirectoryHandle);
+    const preOpenedWin = (hasDirHandle && this.isInlinePreviewableFile(cleanLink))
+      ? window.open('', '_blank')
+      : null;
+
+    await this.openLocalPath(cleanLink, false, 'open', preOpenedWin);
   }
 
   async handleOpenDocFolder(doc, contract = null) {

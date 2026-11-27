@@ -5,7 +5,7 @@
 
 import { gdrive } from './core/gdrive.js?v=5.3';
 import { db } from './core/db.js?v=5.3';
-import { contractsManager } from './modules/cpms/contracts.js?v=9.8';
+import { contractsManager } from './modules/cpms/contracts.js?v=9.9';
 
 class App {
   constructor() {
@@ -543,17 +543,36 @@ class App {
 
     pickBtn?.addEventListener('click', async () => {
       if (!('showDirectoryPicker' in window)) {
-        alert('Trình duyệt của bạn chưa hỗ trợ File System Access API. Vui lòng sử dụng Chrome hoặc Edge trên máy tính.');
+        if (typeof window.maioAlert === 'function') {
+          await window.maioAlert({
+            title: 'Trình duyệt chưa hỗ trợ',
+            type: 'warning',
+            message: 'Trình duyệt của bạn chưa hỗ trợ File System Access API. Vui lòng sử dụng Chrome hoặc Edge trên máy tính.'
+          });
+        } else {
+          alert('Trình duyệt của bạn chưa hỗ trợ File System Access API. Vui lòng sử dụng Chrome hoặc Edge trên máy tính.');
+        }
         return;
       }
 
       try {
-        this.localDirectoryHandle = await window.showDirectoryPicker();
+        this.localDirectoryHandle = await window.showDirectoryPicker({ mode: 'read' });
+        if (this.localDirectoryHandle && contractsManager?.currentProjectId && typeof db.saveProjectDirHandle === 'function') {
+          await db.saveProjectDirHandle(contractsManager.currentProjectId, this.localDirectoryHandle);
+        }
         if (pathLabel && this.localDirectoryHandle) {
-          pathLabel.textContent = `Thư mục đã chọn: ${this.localDirectoryHandle.name} (Sẵn sàng đồng bộ 2 chiều)`;
+          pathLabel.textContent = `Thư mục đã chọn: ${this.localDirectoryHandle.name} (Đã cấp quyền đọc trực tiếp)`;
           pathLabel.style.color = 'var(--success)';
         }
-        alert(`Đã liên kết thành công với thư mục máy tính: ${this.localDirectoryHandle.name}`);
+        if (typeof window.maioAlert === 'function') {
+          await window.maioAlert({
+            title: 'Đã liên kết thư mục máy tính',
+            type: 'success',
+            message: `Đã cấp quyền đọc thư mục "${this.localDirectoryHandle.name}". Từ giờ bạn có thể mở file và duyệt thư mục trực tiếp trên MAIO.`
+          });
+        } else {
+          alert(`Đã liên kết thành công với thư mục máy tính: ${this.localDirectoryHandle.name}`);
+        }
       } catch (err) {
         if (err.name !== 'AbortError') {
           console.error('Lỗi chọn thư mục:', err);
