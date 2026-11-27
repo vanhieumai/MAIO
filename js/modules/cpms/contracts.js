@@ -1554,6 +1554,7 @@ export class ContractsManager {
       } else {
         emptyOptionsHtml += `<option value="" disabled selected>-- Chưa có dự án nào --</option>`;
       }
+      emptyOptionsHtml += `<option value="CREATE_NEW">+ Tạo dự án mới...</option>`;
       emptyOptionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
       selector.innerHTML = emptyOptionsHtml;
 
@@ -1604,6 +1605,7 @@ export class ContractsManager {
       optionsHtml += `<option value="DRIVE_ONLINE:${item.fileId}" data-drive-prj-id="${item.projectId}">☁️ [Online] Dự án ${item.projectId}</option>`;
     });
 
+    optionsHtml += `<option value="CREATE_NEW">+ Tạo dự án mới...</option>`;
     optionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
     selector.innerHTML = optionsHtml;
     selector.value = this.currentProjectId;
@@ -1682,7 +1684,10 @@ export class ContractsManager {
     const projectSelector = document.getElementById('project-selector');
     projectSelector?.addEventListener('change', async (e) => {
       const val = e.target.value;
-      if (val === 'IMPORT_NEW') {
+      if (val === 'CREATE_NEW') {
+        projectSelector.value = this.currentProjectId || '';
+        this.openCreateProjectModal();
+      } else if (val === 'IMPORT_NEW') {
         // Trả lại giá trị trước đó trên UI
         projectSelector.value = this.currentProjectId;
         this.pickAndLoadLocalCPMSFile();
@@ -1703,6 +1708,11 @@ export class ContractsManager {
           window.__MAIO_APP__.checkDriveProjectUpdates(val);
         }
       }
+    });
+
+    // Nút Tạo dự án mới
+    document.getElementById('btn-create-project')?.addEventListener('click', () => {
+      this.openCreateProjectModal();
     });
 
     // Nút Import .cpms (Dẫn file Local trực tiếp)

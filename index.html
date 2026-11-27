@@ -177,6 +177,7 @@
               <div class="top-project-heading">
                 <select id="project-selector" class="top-project-select" title="Chọn dự án đang làm việc">
                   <option value="" disabled selected>-- Chọn dự án --</option>
+                  <option value="CREATE_NEW">+ Tạo dự án mới...</option>
                   <option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>
                 </select>
                 <span id="top-project-source-badge" class="project-source-badge source-local" title="Nguồn dữ liệu dự án đang mở">
@@ -192,8 +193,11 @@
 
           <!-- Vùng PHẢI: Cụm Nút Thao tác Dự án (Icon Only) + Khối Đồng bộ Google Drive -->
           <div class="top-header-actions-group">
-            <!-- Cụm Icon Thao tác Dự án (Nhập file, Mở thư mục, Xuất CPMS, Xóa) luôn hiện trên cả 4 tab -->
+            <!-- Cụm Icon Thao tác Dự án (Tạo mới, Nhập file, Mở thư mục, Xuất CPMS, Xóa) luôn hiện trên cả 4 tab -->
             <div class="project-action-icons">
+              <button id="btn-create-project" class="button button-outline btn-banner-action" title="Tạo dự án mới">
+                <i class="fa-solid fa-folder-plus" style="color: var(--primary);"></i>
+              </button>
               <button id="btn-import-project" class="button button-outline btn-banner-action" title="Nhập dữ liệu CPMS (Dẫn file Local từ máy tính)">
                 <i class="fa-solid fa-laptop-file" style="color: var(--primary);"></i>
               </button>
@@ -780,6 +784,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=13.9"></script>
+  <script type="module" src="js/app.js?v=14.0"></script>
 </body>
 </html>
