@@ -11,7 +11,7 @@
  */
 
 import { db } from '../../core/db.js?v=5.3';
-import { maioOpen } from '../../core/maio-open.js?v=1.0';
+import { maioOpen } from '../../core/maio-open.js?v=1.1';
 import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.5';
 
 export class ContractsManager {
@@ -1223,8 +1223,9 @@ export class ContractsManager {
     const cleanPath = String(targetPath).trim();
     const protocolAction = isFolder ? 'folder' : (action === 'select' ? 'select' : 'open');
 
-    // Nếu là Windows Desktop: kiểm tra MAIO-Open (đã cài -> mở thẳng; lần đầu -> nhắc cài)
-    if (maioOpen.isWindowsDesktop()) {
+    // Nếu là Windows Desktop và đang Mở file (!isFolder): kiểm tra MAIO-Open (đã cài -> mở thẳng; lần đầu -> nhắc cài)
+    // Tùy chọn Mở thư mục (isFolder) giữ nguyên luồng cũ (showOpenFilePicker)
+    if (!isFolder && maioOpen.isWindowsDesktop()) {
       const maioOpenStatus = maioOpen.getStatus();
       if (maioOpenStatus === 'installed') {
         if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
@@ -1236,7 +1237,7 @@ export class ContractsManager {
       if (!maioOpenStatus) {
         if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
         const choice = await maioOpen.promptInstallModal({
-          actionLabel: isFolder ? 'Mở thư mục' : 'Mở file',
+          actionLabel: 'Mở file',
         });
         if (choice === 'installed') {
           maioOpen.openViaProtocol(protocolAction, cleanPath);
@@ -1247,14 +1248,12 @@ export class ContractsManager {
           return false;
         }
         if (choice === 'browser_only') {
-          // Nếu là file không xem inline được (Excel, Word...) trong chế độ trình duyệt -> mở thư mục chứa file
-          if (!isFolder && !this.isInlinePreviewableFile(cleanPath)) {
+          if (!this.isInlinePreviewableFile(cleanPath)) {
             const folderPath = this.getFolderPath(cleanPath) || cleanPath;
             const openedFolder = await this.tryOpenFolderFromLocalDirHandle(folderPath, this.getBaseName(cleanPath));
             if (openedFolder) return true;
           }
         }
-        // choice === 'browser_only' -> tiếp tục xuống luồng trình duyệt bên dưới
       }
     }
 

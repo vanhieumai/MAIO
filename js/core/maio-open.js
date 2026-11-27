@@ -139,7 +139,7 @@ class MaioOpenHelper {
       "reg add \"HKCU\\Software\\Classes\\maio-open\" /ve /d \"URL:MAIO Open Protocol\" /f >nul",
       "reg add \"HKCU\\Software\\Classes\\maio-open\" /v \"URL Protocol\" /d \"\" /f >nul",
       "reg add \"HKCU\\Software\\Classes\\maio-open\\DefaultIcon\" /ve /d \"explorer.exe,0\" /f >nul",
-      "reg add \"HKCU\\Software\\Classes\\maio-open\\shell\\open\\command\" /ve /d \"wscript.exe \\\"%VBS_FILE%\\\" \\\"%1\\\"\" /f >nul",
+      "reg add \"HKCU\\Software\\Classes\\maio-open\\shell\\open\\command\" /ve /d \"wscript.exe \\\"%VBS_FILE%\\\" \\\"%%1\\\"\" /f >nul",
       "",
       "echo ========================================================",
       "echo  MAIO-Open installed successfully!",
@@ -165,11 +165,12 @@ class MaioOpenHelper {
   }
 
   triggerUri(uri) {
-    const iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;border:0;';
-    iframe.src = uri;
-    document.body.appendChild(iframe);
-    setTimeout(() => iframe.remove(), 3000);
+    const a = document.createElement('a');
+    a.href = uri;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => a.remove(), 1000);
   }
 
   openViaProtocol(action, localPath) {
