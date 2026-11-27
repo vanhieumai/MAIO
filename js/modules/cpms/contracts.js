@@ -744,12 +744,67 @@ export class ContractsManager {
     return clean;
   }
 
+  /**
+   * Tìm và mở file trực tiếp trong trình duyệt từ thư mục Local đã cấp quyền (File System Access API)
+   */
+  async tryOpenFileFromLocalDirHandle(targetPath) {
+    try {
+      let dirHandle = window.__MAIO_APP__?.localDirectoryHandle || null;
+      if (!dirHandle && this.currentProjectId && typeof db.getProjectDirHandle === 'function') {
+        dirHandle = await db.getProjectDirHandle(this.currentProjectId);
+      }
+      if (!dirHandle || typeof dirHandle.queryPermission !== 'function') return false;
+      const perm = await dirHandle.queryPermission({ mode: 'read' });
+      if (perm !== 'granted') return false;
+
+      const normTarget = String(targetPath || '').replace(/\\/g, '/').toLowerCase();
+      const targetName = this.getBaseName(targetPath).toLowerCase();
+      if (!targetName) return false;
+
+      const searchInDir = async (handle, relPrefix = '', depth = 0) => {
+        if (depth > 8) return null;
+        for await (const [name, entry] of handle.entries()) {
+          const entryRel = relPrefix ? `${relPrefix}/${name}` : name;
+          if (entry.kind === 'file') {
+            if (name.toLowerCase() === targetName) {
+              return entry;
+            }
+          } else if (entry.kind === 'directory') {
+            if (normTarget.includes(`/${name.toLowerCase()}/`) || depth < 4) {
+              const found = await searchInDir(entry, entryRel, depth + 1);
+              if (found) return found;
+            }
+          }
+        }
+        return null;
+      };
+
+      const fileHandle = await searchInDir(dirHandle);
+      if (!fileHandle) return false;
+
+      const fileObj = await fileHandle.getFile();
+      const blobUrl = URL.createObjectURL(fileObj);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      this.showToast(`Đã mở tệp tin trực tiếp: "${fileObj.name}"`, 'success');
+      return true;
+    } catch (err) {
+      console.warn('Không thể đọc file từ thư mục Local đã cấp quyền:', err);
+      return false;
+    }
+  }
+
   async openLocalPath(targetPath, isFolder = false, action = 'open') {
     if (!targetPath || !String(targetPath).trim()) {
       this.showToast('Chưa có thông tin đường dẫn cục bộ trên máy tính!', 'warning');
       return false;
     }
     const cleanPath = String(targetPath).trim();
+
+    if (!isFolder) {
+      const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath);
+      if (openedDirect) return true;
+    }
 
     try {
       const res = await fetch('/api/open-local', {
@@ -770,21 +825,34 @@ export class ContractsManager {
       console.warn('Local helper server unavailable:', err);
     }
 
-    // Fallback nếu chạy web tĩnh thuần túy không có local server hỗ trợ
+    // Fallback nếu chạy web tĩnh (trình duyệt không cho phép tự khởi chạy Explorer/ứng dụng ổ cứng nếu không có Local Helper)
+    let copied = false;
     try {
       await navigator.clipboard.writeText(cleanPath);
-      alert(`Đã sao chép đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'} vào Clipboard:\n\n${cleanPath}\n\nBạn hãy nhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở trên máy tính!`);
-    } catch {
-      prompt(`Đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'} (Ctrl+C để sao chép):`, cleanPath);
-    }
+      copied = true;
+    } catch (_) {}
+
+    await this.alertAsync({
+      title: copied
+        ? `Đã sao chép đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'}`
+        : `Đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'} trên máy tính`,
+      type: copied ? 'success' : 'info',
+      message: copied
+        ? `Đường dẫn đã được sao chép vào Clipboard:\n\n${cleanPath}\n\nNhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở trên máy tính.\n(Lưu ý: Trình duyệt web bảo mật không cho phép tự mở trực tiếp thư mục ổ cứng; bạn có thể dùng link Drive Online hoặc chọn thư mục máy tính trong Cài đặt để mở file trực tiếp.)`
+        : `Vui lòng sao chép đường dẫn dưới đây để mở trên File Explorer:\n\n${cleanPath}`,
+    });
     return false;
   }
 
   async handleOpenDocFile(doc) {
     if (!doc) return;
-    const link = doc.drive_link || doc.file_link || doc.local_link;
+    const link = doc.local_link || doc.file_link || doc.drive_link;
     if (!link || !String(link).trim()) {
-      alert('Hồ sơ này chưa có đường dẫn tệp tin (File Link)!\n\nVui lòng bấm nút Chỉnh sửa (hình cây bút) để cập nhật đường dẫn tệp tin lưu trữ.');
+      await this.alertAsync({
+        title: 'Chưa có đường dẫn tệp tin',
+        type: 'warning',
+        message: 'Hồ sơ này chưa có đường dẫn tệp tin (File Link)!\n\nVui lòng bấm nút Chỉnh sửa (hình cây bút) để cập nhật đường dẫn tệp tin lưu trữ.',
+      });
       return;
     }
     const cleanLink = String(link).trim();
@@ -793,10 +861,7 @@ export class ContractsManager {
       return;
     }
 
-    // 1. Mở xem trực tiếp trong tab mới của trình duyệt qua localhost API
-    window.open(`/api/view-file?path=${encodeURIComponent(cleanLink)}`, '_blank');
-
-    // 2. Đồng thời gọi ứng dụng mặc định trên máy tính mở file
+    // Mở trực tiếp từ thư mục đã cấp quyền hoặc qua local helper (không mở tab 404 /api/view-file)
     await this.openLocalPath(cleanLink, false, 'open');
   }
 
@@ -807,26 +872,26 @@ export class ContractsManager {
     if (rawLink && !rawLink.startsWith('http')) {
       folderPath = this.getFolderPath(rawLink);
     }
-    if (!folderPath && contract) {
-      folderPath = this.getDriveDocPathForContract(contract);
-    }
 
-    if (doc.drive_link && doc.drive_link.startsWith('http')) {
+    if (!folderPath && doc.drive_link && doc.drive_link.startsWith('http')) {
       window.open(doc.drive_link, '_blank');
       return;
     }
 
+    if (!folderPath && contract) {
+      folderPath = this.getDriveDocPathForContract(contract);
+    }
+
     if (!folderPath) {
-      alert('Chưa có thông tin thư mục lưu trữ cho hồ sơ này.');
+      await this.alertAsync({
+        title: 'Chưa có thư mục lưu trữ',
+        type: 'warning',
+        message: 'Chưa có thông tin thư mục lưu trữ cho hồ sơ này.',
+      });
       return;
     }
 
-    // Tự động sao chép đường dẫn thư mục vào Clipboard để tiện dùng ngay
-    try {
-      await navigator.clipboard.writeText(folderPath);
-    } catch {}
-
-    // Gửi lệnh mở File Explorer
+    // Gửi lệnh mở File Explorer hoặc hiển thị thông báo đồng bộ MAIO đã copy đường dẫn
     await this.openLocalPath(folderPath, true, 'open');
   }
 
