@@ -144,9 +144,10 @@ class App {
       // Cập nhật số liệu Dashboard
       await this.updateDashboardStats();
 
-      // Cập nhật giao diện Header & Cloud & Badge nguồn dữ liệu
+      // Cập nhật giao diện Header & Cloud & Badge nguồn dữ liệu & Hồ sơ cá nhân
       this.updateGoogleDriveUI(user);
       this.updateProjectSourceBadge();
+      this.updateProfileView(user);
 
       // Khi đăng nhập Google Drive thật -> tải danh sách dự án Online & kiểm tra bản cập nhật mới nhất
       if (!user.isOffline) {
@@ -447,6 +448,7 @@ class App {
       : Promise.resolve(confirm('Bạn có chắc muốn thoát phiên làm việc hiện tại không?')));
     if (ok) {
       gdrive.signOut();
+      contractsManager?.showLocalSaveStatus?.('Đã đăng xuất khỏi tài khoản Google Drive!');
     }
   }
 
@@ -1880,6 +1882,7 @@ class App {
     const pIcon = document.getElementById('profile-avatar-icon');
     const pLoginBtn = document.getElementById('btn-profile-login-gdrive');
     const pLoginText = document.getElementById('btn-profile-login-text');
+    const pLogoutBtn = document.getElementById('btn-profile-logout');
     const statProjects = document.getElementById('profile-stat-projects');
     const statStorage = document.getElementById('profile-stat-storage');
 
@@ -1895,6 +1898,7 @@ class App {
         if (pIcon) pIcon.classList.remove('hidden');
         if (pLoginBtn) pLoginBtn.classList.remove('hidden');
         if (pLoginText) pLoginText.textContent = 'Đăng nhập Google Drive để Đồng bộ Online';
+        if (pLogoutBtn) pLogoutBtn.classList.add('hidden');
       } else {
         if (pName) pName.textContent = user.name || 'Người dùng Google';
         if (pEmail) pEmail.textContent = user.email || '—';
@@ -1909,6 +1913,7 @@ class App {
         if (pIcon) pIcon.classList.add('hidden');
         if (pLoginBtn) pLoginBtn.classList.remove('hidden');
         if (pLoginText) pLoginText.textContent = 'Đổi / Đăng nhập tài khoản Google khác';
+        if (pLogoutBtn) pLogoutBtn.classList.remove('hidden');
       }
     } else {
       if (pName) pName.textContent = 'Chưa đăng nhập';
