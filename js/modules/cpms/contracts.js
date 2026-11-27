@@ -773,6 +773,7 @@ export class ContractsManager {
     const blobUrl = URL.createObjectURL(fileObj);
     const canPreviewInline = this.isInlinePreviewableFile(fileObj.name);
 
+    // Chỉ mở xem trực tiếp các định dạng trình duyệt hỗ trợ (PDF, ảnh, TXT, HTML...)
     if (canPreviewInline) {
       if (preOpenedWin && !preOpenedWin.closed) {
         preOpenedWin.location.href = blobUrl;
@@ -791,22 +792,24 @@ export class ContractsManager {
       preOpenedWin.close();
     }
 
-    // Với file Office (.xlsx, .docx, ...) hoặc khi Popup bị chặn: tải trực tiếp về máy để mở ngay
+    URL.revokeObjectURL(blobUrl);
+    if (!canPreviewInline) {
+      this.showToast(`Định dạng "${fileObj.name}" không xem trực tiếp trên web. Hãy chuột phải vào file trong cửa sổ thư mục và chọn Open để mở bằng ứng dụng máy tính.`, 'info');
+      return false;
+    }
+
+    // Chỉ fallback tải xuống nếu là file xem inline nhưng Popup Blocker chặn mở tab mới
+    const fallbackBlobUrl = URL.createObjectURL(fileObj);
     const a = document.createElement('a');
-    a.href = blobUrl;
+    a.href = fallbackBlobUrl;
     a.download = fileObj.name;
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    setTimeout(() => URL.revokeObjectURL(fallbackBlobUrl), 60000);
 
-    this.showToast(
-      canPreviewInline
-        ? `Trình duyệt chặn mở tab mới, đã tải xuống: "${fileObj.name}"`
-        : `Đã tải trực tiếp tệp tin: "${fileObj.name}" (bấm mở ở thanh tải xuống)`,
-      'success'
-    );
+    this.showToast(`Trình duyệt chặn mở tab mới, đã tải xuống: "${fileObj.name}"`, 'warning');
     return true;
   }
 
@@ -1143,11 +1146,9 @@ export class ContractsManager {
       return;
     }
 
-    // Với các file không xem trực tiếp được trên trình duyệt (Excel, Word, zip...), chuyển sang mở thư mục chứa file đó
+    // Với các file không xem trực tiếp được trên trình duyệt (Excel, Word, zip...), chuyển thẳng sang luồng mở thư mục chứa file đó
     if (!this.isInlinePreviewableFile(cleanLink)) {
-      const folderPath = this.getFolderPath(cleanLink) || cleanLink;
-      const fileName = this.getBaseName(cleanLink);
-      await this.openLocalPath(folderPath, true, 'open', null, fileName);
+      await this.handleOpenDocFolder(doc);
       return;
     }
 
