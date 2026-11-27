@@ -1143,11 +1143,17 @@ export class ContractsManager {
       return;
     }
 
+    // Với các file không xem trực tiếp được trên trình duyệt (Excel, Word, zip...), chuyển sang mở thư mục chứa file đó
+    if (!this.isInlinePreviewableFile(cleanLink)) {
+      const folderPath = this.getFolderPath(cleanLink) || cleanLink;
+      const fileName = this.getBaseName(cleanLink);
+      await this.openLocalPath(folderPath, true, 'open', null, fileName);
+      return;
+    }
+
     // Mở trước tab trống đồng bộ nếu là file xem trực tiếp (PDF/ảnh/txt) để tránh bị Popup Blocker chặn
     const hasDirHandle = Boolean(window.__MAIO_APP__?.localDirectoryHandle);
-    const preOpenedWin = (hasDirHandle && this.isInlinePreviewableFile(cleanLink))
-      ? window.open('', '_blank')
-      : null;
+    const preOpenedWin = hasDirHandle ? window.open('', '_blank') : null;
 
     await this.openLocalPath(cleanLink, false, 'open', preOpenedWin);
   }
