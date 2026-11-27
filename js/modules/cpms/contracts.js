@@ -1057,47 +1057,33 @@ export class ContractsManager {
       const targetDir = await this.resolveSubDirHandleByPath(dirHandle, folderPath, targetFileName);
       if (!targetDir) return false;
 
+      // Mở thẳng cửa sổ File Explorer chuẩn của Windows tại đúng thư mục đã tìm thấy (giống nút mở thư mục CPMS)
+      if ('showOpenFilePicker' in window) {
+        try {
+          const [picked] = await window.showOpenFilePicker({
+            startIn: targetDir,
+            multiple: false
+          });
+          if (picked) {
+            const fileObj = await picked.getFile();
+            const preWin = this.isInlinePreviewableFile(fileObj.name) ? window.open('', '_blank') : null;
+            await this.openFileObjectDirectly(fileObj, preWin);
+          }
+          return true;
+        } catch (pickerErr) {
+          if (pickerErr.name === 'AbortError') {
+            return true;
+          }
+          console.warn('showOpenFilePicker fallback sang Modal duyệt thư mục:', pickerErr);
+        }
+      }
+
       await this.showLocalDirectoryBrowserModal(targetDir, folderPath, []);
       return true;
     } catch (err) {
       console.warn('Không thể mở thư mục từ quyền Local đã cấp:', err);
       return false;
     }
-  }
-
-  async tryOpenViaLocalServer(cleanPath, isFolder = false, action = 'open') {
-    const isLocalHost = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
-    const endpoints = isLocalHost
-      ? ['/api/open-local']
-      : ['http://127.0.0.1:5500/api/open-local'];
-
-    for (const url of endpoints) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), isLocalHost ? 3000 : 1200);
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ path: cleanPath, is_folder: isFolder, action }),
-          signal: controller.signal
-        });
-        clearTimeout(timer);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.success) {
-            window.__MAIO_LOCAL_HELPER_AVAILABLE__ = true;
-            const baseName = data.name || this.getBaseName(data.path || cleanPath);
-            const typeStr = isFolder ? 'thư mục' : 'tệp tin';
-            this.showToast(`Đã mở ${typeStr}: "${baseName}" (vui lòng kiểm tra thanh tác vụ Taskbar nếu cửa sổ bị che)`, 'success');
-            return true;
-          }
-        }
-      } catch (err) {
-        clearTimeout(timer);
-      }
-    }
-    window.__MAIO_LOCAL_HELPER_AVAILABLE__ = false;
-    return false;
   }
 
   async openLocalPath(targetPath, isFolder = false, action = 'open', preOpenedWin = null, targetFileName = '') {
@@ -1108,14 +1094,7 @@ export class ContractsManager {
     }
     const cleanPath = String(targetPath).trim();
 
-    // Ưu tiên 1: Mở trực tiếp bằng ứng dụng Windows / File Explorer qua MAIO Local Server (server.py)
-    const openedByServer = await this.tryOpenViaLocalServer(cleanPath, isFolder, action);
-    if (openedByServer) {
-      if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
-      return true;
-    }
-
-    // Ưu tiên 2: Nếu không bật server.py, dùng quyền thư mục đã cấp trên trình duyệt (File System Access API)
+    // Sử dụng trực tiếp quyền thư mục Local đã cấp trên trình duyệt (không dùng start_server)
     if (!isFolder) {
       const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath, preOpenedWin);
       if (openedDirect) return true;
@@ -1128,7 +1107,7 @@ export class ContractsManager {
       preOpenedWin.close();
     }
 
-    // Fallback nếu chạy web tĩnh và chưa cấp quyền thư mục khớp đường dẫn
+    // Fallback nếu chưa cấp quyền thư mục Local hoặc trình duyệt không hỗ trợ File System Access API
     let copied = false;
     try {
       await navigator.clipboard.writeText(cleanPath);
@@ -1141,7 +1120,7 @@ export class ContractsManager {
         : `Đường dẫn ${isFolder ? 'thư mục' : 'tệp tin'} trên máy tính`,
       type: copied ? 'success' : 'info',
       message: copied
-        ? `Đường dẫn đã được sao chép vào Clipboard:\n\n${cleanPath}\n\nNhấn [Windows + R] hoặc dán (Ctrl+V) vào thanh địa chỉ File Explorer để mở trên máy tính.\n(Mẹo: Chạy file start_server.bat trên máy để mở thẳng File Explorer & Excel/Word không cần tải về.)`
+        ? `Đường dẫn đã được sao chép vào Clipboard:\n\n${cleanPath}\n\nHãy vào Cài đặt -> Chọn thư mục máy tính gốc để cấp quyền mở trực tiếp trên trình duyệt, hoặc nhấn [Windows + R] / dán (Ctrl+V) vào File Explorer.`
         : `Vui lòng sao chép đường dẫn dưới đây để mở trên File Explorer:\n\n${cleanPath}`,
     });
     return false;
@@ -1164,10 +1143,9 @@ export class ContractsManager {
       return;
     }
 
-    // Chỉ mở trước tab trống nếu đã biết chắc không có Local Helper và đang dùng dirHandle cho file xem inline
+    // Mở trước tab trống đồng bộ nếu là file xem trực tiếp (PDF/ảnh/txt) để tránh bị Popup Blocker chặn
     const hasDirHandle = Boolean(window.__MAIO_APP__?.localDirectoryHandle);
-    const knownNoHelper = window.__MAIO_LOCAL_HELPER_AVAILABLE__ === false;
-    const preOpenedWin = (knownNoHelper && hasDirHandle && this.isInlinePreviewableFile(cleanLink))
+    const preOpenedWin = (hasDirHandle && this.isInlinePreviewableFile(cleanLink))
       ? window.open('', '_blank')
       : null;
 
