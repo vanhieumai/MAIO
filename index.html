@@ -706,6 +706,28 @@
             <button id="btn-pick-local-folder" class="button button-primary">
               <i class="fa-solid fa-folder-open"></i> Chọn thư mục trên máy tính
             </button>
+
+            <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
+              <div style="font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-bolt" style="color: var(--primary);"></i>
+                <span>MAIO-Open (Mở thẳng file Excel/Word/PDF & File Explorer)</span>
+              </div>
+              <p class="card-desc" style="margin-bottom: 10px;">Cài đặt 1 lần duy nhất trên Windows (không cần quyền Admin, không cần chạy server nền) để bấm là mở thẳng file gốc trên máy tính.</p>
+              <div style="background: var(--bg-card-subtle); border-radius: var(--radius-sm); padding: 10px 14px; margin-bottom: 12px; font-size: 0.85rem;">
+                <strong>Trạng thái:</strong> <span id="maio-open-status-badge">Chưa cài đặt</span>
+              </div>
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <button id="btn-download-maio-open" type="button" class="button button-primary button-sm">
+                  <i class="fa-solid fa-download"></i> Tải bộ cài MAIO-Open (.bat)
+                </button>
+                <button id="btn-verify-maio-open" type="button" class="button button-outline button-sm" style="border-color: var(--success); color: var(--success);">
+                  <i class="fa-solid fa-check"></i> Đã cài xong / Kích hoạt
+                </button>
+                <button id="btn-reset-maio-open" type="button" class="button button-outline button-sm hidden">
+                  <i class="fa-solid fa-rotate-left"></i> Đặt lại
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -758,6 +780,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=13.5"></script>
+  <script type="module" src="js/app.js?v=13.6"></script>
 </body>
 </html>

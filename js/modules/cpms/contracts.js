@@ -11,6 +11,7 @@
  */
 
 import { db } from '../../core/db.js?v=5.3';
+import { maioOpen } from '../../core/maio-open.js?v=1.0';
 import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.5';
 
 export class ContractsManager {
@@ -1220,8 +1221,44 @@ export class ContractsManager {
       return false;
     }
     const cleanPath = String(targetPath).trim();
+    const protocolAction = isFolder ? 'folder' : (action === 'select' ? 'select' : 'open');
 
-    // Sử dụng trực tiếp quyền thư mục Local đã cấp trên trình duyệt (không dùng start_server)
+    // Nếu là Windows Desktop: kiểm tra MAIO-Open (đã cài -> mở thẳng; lần đầu -> nhắc cài)
+    if (maioOpen.isWindowsDesktop()) {
+      const maioOpenStatus = maioOpen.getStatus();
+      if (maioOpenStatus === 'installed') {
+        if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
+        maioOpen.openViaProtocol(protocolAction, cleanPath);
+        this.showToast(`Đang mở trực tiếp trên máy tính qua MAIO-Open: "${this.getBaseName(cleanPath)}"`, 'success');
+        return true;
+      }
+
+      if (!maioOpenStatus) {
+        if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.close();
+        const choice = await maioOpen.promptInstallModal({
+          actionLabel: isFolder ? 'Mở thư mục' : 'Mở file',
+        });
+        if (choice === 'installed') {
+          maioOpen.openViaProtocol(protocolAction, cleanPath);
+          this.showToast(`Đang mở trực tiếp trên máy tính qua MAIO-Open: "${this.getBaseName(cleanPath)}"`, 'success');
+          return true;
+        }
+        if (choice === 'cancel') {
+          return false;
+        }
+        if (choice === 'browser_only') {
+          // Nếu là file không xem inline được (Excel, Word...) trong chế độ trình duyệt -> mở thư mục chứa file
+          if (!isFolder && !this.isInlinePreviewableFile(cleanPath)) {
+            const folderPath = this.getFolderPath(cleanPath) || cleanPath;
+            const openedFolder = await this.tryOpenFolderFromLocalDirHandle(folderPath, this.getBaseName(cleanPath));
+            if (openedFolder) return true;
+          }
+        }
+        // choice === 'browser_only' -> tiếp tục xuống luồng trình duyệt bên dưới
+      }
+    }
+
+    // Sử dụng trực tiếp quyền thư mục Local đã cấp trên trình duyệt (chế độ trình duyệt)
     if (!isFolder) {
       const openedDirect = await this.tryOpenFileFromLocalDirHandle(cleanPath, preOpenedWin, doc);
       if (openedDirect) return true;
@@ -1271,6 +1308,14 @@ export class ContractsManager {
     }
 
     const canInline = this.isInlinePreviewableFile(cleanLink);
+    const isWinDesktop = maioOpen.isWindowsDesktop();
+    const maioStatus = maioOpen.getStatus();
+
+    // Nếu là Windows Desktop và đã cài (hoặc chưa chọn bỏ qua) MAIO-Open: ưu tiên mở thẳng file gốc hoặc nhắc cài 1 lần
+    if (isWinDesktop && maioStatus !== 'browser_only') {
+      await this.openLocalPath(cleanLink, false, 'open', null, '', doc);
+      return;
+    }
 
     // Với các file không xem trực tiếp được trên trình duyệt (Excel, Word, zip, dwg...), chuyển thẳng sang mở thư mục chứa file đó để chuột phải -> Open làm việc trực tiếp
     if (!canInline) {

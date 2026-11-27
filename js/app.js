@@ -5,7 +5,8 @@
 
 import { gdrive } from './core/gdrive.js?v=5.3';
 import { db } from './core/db.js?v=5.3';
-import { contractsManager } from './modules/cpms/contracts.js?v=10.6';
+import { maioOpen } from './core/maio-open.js?v=1.0';
+import { contractsManager } from './modules/cpms/contracts.js?v=10.7';
 
 class App {
   constructor() {
@@ -537,7 +538,39 @@ class App {
     }
   }
 
+  setupMaioOpenSettings() {
+    maioOpen.updateSettingsUI();
+
+    document.getElementById('btn-download-maio-open')?.addEventListener('click', async () => {
+      maioOpen.downloadInstaller();
+      if (typeof window.maioAlert === 'function') {
+        await window.maioAlert({
+          title: 'Đã tải bộ cài install-maio-open.bat',
+          type: 'info',
+          message: 'Hãy mở file install-maio-open.bat vừa tải về để cài đặt 1 lần duy nhất (không cần quyền Admin).\n\nSau khi cài xong, bấm nút "Đã cài xong / Kích hoạt" ngay bên cạnh.'
+        });
+      }
+    });
+
+    document.getElementById('btn-verify-maio-open')?.addEventListener('click', async () => {
+      maioOpen.triggerUri('maio-open://ping');
+      maioOpen.setStatus('installed');
+      if (typeof window.maioAlert === 'function') {
+        await window.maioAlert({
+          title: 'Đã kích hoạt MAIO-Open',
+          type: 'success',
+          message: 'Nếu trình duyệt hiện hộp thoại hỏi mở ứng dụng, hãy tick "Always allow" rồi bấm Open.\n\nTừ giờ khi bấm Mở file hoặc Mở thư mục, MAIO sẽ mở thẳng bằng ứng dụng Windows trên máy tính!'
+        });
+      }
+    });
+
+    document.getElementById('btn-reset-maio-open')?.addEventListener('click', () => {
+      maioOpen.setStatus('');
+    });
+  }
+
   setupLocalDirectoryPicker() {
+    this.setupMaioOpenSettings();
     const pickBtn = document.getElementById('btn-pick-local-folder');
     const pathLabel = document.getElementById('local-folder-path');
 
