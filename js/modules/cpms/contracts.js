@@ -1607,6 +1607,10 @@ export class ContractsManager {
     if (activePrjName) {
       if (curPrj) activePrjName.textContent = curPrj.name || curPrj.id;
     }
+
+    if (typeof window.__MAIO_APP__?.updateProjectSourceBadge === 'function') {
+      window.__MAIO_APP__.updateProjectSourceBadge();
+    }
   }
 
   bindEvents() {

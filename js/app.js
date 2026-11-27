@@ -3,10 +3,10 @@
  * Quản lý khởi tạo IndexedDB, nạp dữ liệu hạt giống CHC1, điều hướng phân hệ và kết nối đồng bộ.
  */
 
-import { gdrive } from './core/gdrive.js?v=5.3';
+import { gdrive } from './core/gdrive.js?v=5.4';
 import { db } from './core/db.js?v=5.3';
 import { maioOpen } from './core/maio-open.js?v=1.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=10.8';
+import { contractsManager } from './modules/cpms/contracts.js?v=10.9';
 
 class App {
   constructor() {
@@ -1822,8 +1822,11 @@ class App {
    */
   async refreshOnlineDriveProjects() {
     if (!gdrive.isSignedIn()) {
-      this.onlineDriveProjects = [];
-      return [];
+      const refreshed = await gdrive.trySilentRefreshToken();
+      if (!refreshed || !gdrive.isSignedIn()) {
+        this.onlineDriveProjects = [];
+        return [];
+      }
     }
     try {
       this.onlineDriveProjects = await gdrive.listOnlineProjects();
@@ -1835,15 +1838,38 @@ class App {
   }
 
   /**
-   * Mở một dự án Online từ Google Drive (tải snapshot về IndexedDB & giữ local_root_path riêng của máy)
+   * Mở một dự án Online từ Google Drive (tải snapshot hoặc .cpms về IndexedDB & giữ local_root_path riêng của máy)
    */
   async openOnlineDriveProject(fileId, projectId) {
-    if (!fileId || !gdrive.isSignedIn()) return;
+    if (!fileId) return;
+    if (!gdrive.isSignedIn()) {
+      const refreshed = await gdrive.trySilentRefreshToken();
+      if (!refreshed) return;
+    }
     try {
       contractsManager.showLocalSaveStatus('Đang tải dữ liệu dự án từ Google Drive...');
-      const snapshotData = await gdrive.readJsonFile(fileId);
-      await db.importSnapshot(snapshotData);
-      const targetId = projectId || snapshotData.active_project || snapshotData.data?.projects?.[0]?.id;
+      const matchedItem = (this.onlineDriveProjects || []).find((o) => o.fileId === fileId);
+      let targetId = projectId;
+
+      if (matchedItem?.sourceType === 'cpms') {
+        const blob = await gdrive.downloadBlobFile(fileId);
+        const fileObj = new File([blob], matchedItem.fileName || `${projectId}.cpms`);
+        const { CPMSImporterExporter } = await import('./core/cpms-importer.js?v=5.5');
+        const result = await CPMSImporterExporter.importCPMSFile(fileObj);
+        result.projectData.data_origin = 'online';
+        result.projectData.source = 'drive_sync';
+        result.projectData.drive_synced = true;
+        await db.put('projects', result.projectData);
+        for (const c of (result.contracts || [])) await db.put('contracts', c);
+        for (const p of (result.payments || [])) await db.put('payments', p);
+        for (const d of (result.documents || [])) await db.put('documents', d);
+        targetId = result.projectData.id;
+      } else {
+        const snapshotData = await gdrive.readJsonFile(fileId);
+        await db.importSnapshot(snapshotData);
+        targetId = projectId || snapshotData.active_project || snapshotData.data?.projects?.[0]?.id;
+      }
+
       if (targetId) {
         const allPrjs = await db.getAll('projects');
         const prj = allPrjs.find((p) => p.id === targetId);

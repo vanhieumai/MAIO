@@ -242,6 +242,57 @@ export class GoogleDriveService {
     this.signInOffline();
   }
 
+  async trySilentRefreshToken() {
+    if (this.accessToken && this.isSignedIn()) return true;
+    if (!this.tokenClient || !this.currentUser || this.currentUser.isOffline) return false;
+    if (this._silentRefreshPromise) return this._silentRefreshPromise;
+
+    this._silentRefreshPromise = new Promise((resolve) => {
+      const prevCallback = this.tokenClient.callback;
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          this.tokenClient.callback = prevCallback;
+          this._silentRefreshPromise = null;
+          resolve(false);
+        }
+      }, 3500);
+
+      this.tokenClient.callback = (tokenResponse) => {
+        clearTimeout(timer);
+        this.tokenClient.callback = prevCallback;
+        this._silentRefreshPromise = null;
+        if (!settled) {
+          settled = true;
+          if (tokenResponse && !tokenResponse.error && tokenResponse.access_token) {
+            this.accessToken = tokenResponse.access_token;
+            const expiresInSec = Number(tokenResponse.expires_in || 3600);
+            sessionStorage.setItem('maio_gdrive_token', this.accessToken);
+            sessionStorage.setItem('maio_gdrive_token_exp', String(Date.now() + expiresInSec * 1000));
+            resolve(true);
+          } else {
+            resolve(false);
+          }
+        }
+      };
+
+      try {
+        this.tokenClient.requestAccessToken({ prompt: '' });
+      } catch (_) {
+        clearTimeout(timer);
+        this.tokenClient.callback = prevCallback;
+        this._silentRefreshPromise = null;
+        if (!settled) {
+          settled = true;
+          resolve(false);
+        }
+      }
+    });
+
+    return this._silentRefreshPromise;
+  }
+
   isSignedIn() {
     if (!this.accessToken || this.accessToken === 'saved_session' || this.accessToken === 'offline_local_session') {
       return false;
@@ -689,10 +740,33 @@ export class GoogleDriveService {
   }
 
   /**
+   * Tìm tất cả file .cpms dự án trên Google Drive
+   */
+  async listCpmsFiles() {
+    if (!this.accessToken) return [];
+    const query = `name contains '.cpms' and trashed=false`;
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime,parents)&orderBy=modifiedTime desc`,
+        { headers: { Authorization: `Bearer ${this.accessToken}` } }
+      );
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.files || []).filter((f) => String(f.name || '').toLowerCase().endsWith('.cpms'));
+    } catch (e) {
+      console.warn('Lỗi tìm file .cpms trên Drive:', e);
+      return [];
+    }
+  }
+
+  /**
    * Liệt kê danh sách các dự án duy nhất đang có bản sao lưu Online trên Google Drive
    */
   async listOnlineProjects() {
-    const snapshots = await this.listProjectSnapshots();
+    const [snapshots, cpmsFiles] = await Promise.all([
+      this.listProjectSnapshots(),
+      this.listCpmsFiles(),
+    ]);
     const byPrj = new Map();
     for (const f of snapshots) {
       const m = String(f.name || '').match(/^MAIO_CPMS_Snapshot_(.+)\.json$/i);
@@ -703,6 +777,20 @@ export class GoogleDriveService {
           fileId: f.id,
           fileName: f.name,
           modifiedTime: f.modifiedTime,
+          sourceType: 'snapshot',
+        });
+      }
+    }
+    for (const f of cpmsFiles) {
+      const m = String(f.name || '').match(/^MAIO_Data_(.+)\.cpms$/i);
+      const projectId = m ? m[1] : String(f.name || '').replace(/\.cpms$/i, '');
+      if (!byPrj.has(projectId)) {
+        byPrj.set(projectId, {
+          projectId,
+          fileId: f.id,
+          fileName: f.name,
+          modifiedTime: f.modifiedTime,
+          sourceType: 'cpms',
         });
       }
     }
