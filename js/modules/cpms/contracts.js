@@ -1582,10 +1582,26 @@ export class ContractsManager {
 
     // Bổ sung các dự án Online trên Google Drive chưa có bản local trên máy này
     const localIds = new Set(this.projects.map((p) => p.id));
+    const localFileNames = new Set(
+      this.projects
+        .flatMap((p) => [
+          p.source_filename,
+          p.id === this.currentProjectId ? this.activeFileHandle?.name : '',
+        ])
+        .filter(Boolean)
+        .map((n) => String(n).trim().toLowerCase())
+    );
     onlineList.forEach((item) => {
-      if (!localIds.has(item.projectId)) {
-        optionsHtml += `<option value="DRIVE_ONLINE:${item.fileId}" data-drive-prj-id="${item.projectId}">☁️ [Online] Dự án ${item.projectId}</option>`;
+      const itemFileLower = String(item.fileName || '').trim().toLowerCase();
+      const itemIdAsCpmsLower = `${String(item.projectId || '').trim().toLowerCase()}.cpms`;
+      if (
+        localIds.has(item.projectId) ||
+        (itemFileLower && localFileNames.has(itemFileLower)) ||
+        localFileNames.has(itemIdAsCpmsLower)
+      ) {
+        return;
       }
+      optionsHtml += `<option value="DRIVE_ONLINE:${item.fileId}" data-drive-prj-id="${item.projectId}">☁️ [Online] Dự án ${item.projectId}</option>`;
     });
 
     optionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;

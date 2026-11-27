@@ -6,7 +6,7 @@
 import { gdrive } from './core/gdrive.js?v=5.4';
 import { db } from './core/db.js?v=5.3';
 import { maioOpen } from './core/maio-open.js?v=1.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=10.9';
+import { contractsManager } from './modules/cpms/contracts.js?v=11.0';
 
 class App {
   constructor() {
@@ -1375,13 +1375,28 @@ class App {
 
       const docsToUpload = [];
       for (const doc of projectDocs) {
-        if (skipExisting && doc.drive_link && String(doc.drive_link).includes('drive.google.com')) {
-          skippedAlreadySynced++;
-          continue;
-        }
         const entry =
           (manualPickedFiles && manualPickedFiles.get(doc.id)) ||
           (activeLocalIndex ? this.matchLocalFileEntry(doc.local_link, activeLocalIndex) : null);
+
+        if (skipExisting && doc.drive_link && String(doc.drive_link).includes('drive.google.com')) {
+          if (!entry) {
+            skippedAlreadySynced++;
+            continue;
+          }
+          const fileObj = typeof entry.getFile === 'function' ? await entry.getFile() : entry;
+          const hasSyncedMeta = doc.local_synced_size !== undefined && doc.local_synced_mtime !== undefined;
+          const isUnchangedLocal = hasSyncedMeta &&
+            Number(fileObj.size || 0) === Number(doc.local_synced_size) &&
+            Math.abs(Number(fileObj.lastModified || 0) - Number(doc.local_synced_mtime)) <= 2000;
+          if (isUnchangedLocal) {
+            skippedAlreadySynced++;
+            continue;
+          }
+          // Nếu chưa có local_synced_* hoặc file trên máy vừa sửa -> đưa vào danh sách kiểm tra/cập nhật
+          docsToUpload.push({ doc, entry, fileObj });
+          continue;
+        }
 
         if (!entry) {
           missingDocs.push(doc);
@@ -1406,12 +1421,27 @@ class App {
       const worker = async () => {
         while (nextIdx < totalToUpload && !authExpiredDuringSync) {
           const currentIndex = nextIdx++;
-          const { doc, entry } = docsToUpload[currentIndex];
+          const { doc, entry, fileObj: preloadedFileObj } = docsToUpload[currentIndex];
           try {
-            const fileObj = typeof entry.getFile === 'function' ? await entry.getFile() : entry;
+            const fileObj = preloadedFileObj || (typeof entry.getFile === 'function' ? await entry.getFile() : entry);
             const pathSegs = contractsManager.getDrivePathSegmentsForDoc(doc);
             const targetFolderId = await gdrive.ensureFolderPath(pathSegs, targetProjectFolderId, pathCache, inFlightMap);
             const preloadedFiles = await getCachedFolderFiles(targetFolderId);
+
+            // Kiểm tra trên Drive xem file cùng tên có thay đổi (size hoặc thời gian sửa) không để tránh upload lại file không đổi
+            const existingDriveFile = (preloadedFiles || []).find((f) => f.name === fileObj.name);
+            if (existingDriveFile && Number(existingDriveFile.size || -1) === Number(fileObj.size || 0)) {
+              const driveMs = new Date(existingDriveFile.modifiedTime || 0).getTime();
+              const localMs = Number(fileObj.lastModified || 0);
+              if (driveMs >= localMs - 2000) {
+                doc.local_synced_size = fileObj.size || 0;
+                doc.local_synced_mtime = localMs;
+                if (!doc.drive_file_id) doc.drive_file_id = existingDriveFile.id;
+                await db.put('documents', doc);
+                skippedAlreadySynced++;
+                continue;
+              }
+            }
 
             const uploaded = await gdrive.uploadBinaryFile(
               fileObj.name,
@@ -1424,6 +1454,8 @@ class App {
             if (uploaded && uploaded.webViewLink) {
               doc.drive_link = uploaded.webViewLink;
               doc.drive_file_id = uploaded.id;
+              doc.local_synced_size = fileObj.size || 0;
+              doc.local_synced_mtime = Number(fileObj.lastModified || 0);
               doc.updated_at = new Date().toISOString();
               await db.put('documents', doc);
               uploadedDocsCount++;
