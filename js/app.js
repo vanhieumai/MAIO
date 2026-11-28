@@ -2321,17 +2321,37 @@ class App {
 
       const localTime = localPrj.updated_at || localPrj.source_file_updated || localPrj.created_at;
       const onlineTime = onlineSummary?.modifiedTime;
+      const linkedIds = Array.isArray(localPrj.linked_online_file_ids) ? localPrj.linked_online_file_ids : [];
+      const isAlreadyLinked = Boolean(
+        localPrj.drive_synced &&
+        (
+          localPrj.linked_online_file_id === onlineItem.fileId ||
+          linkedIds.includes(onlineItem.fileId) ||
+          linkedIds.includes(onlineItem.projectId) ||
+          onlineItem.projectId === localPrj.id ||
+          onlineItem.projectId === localPrj.code
+        )
+      );
 
       modal.innerHTML = `
-        <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:100%;max-width:780px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-            <div style="font-weight:700;font-size:1.02rem;display:flex;align-items:center;gap:8px;">
+        <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:100%;max-width:860px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <div style="font-weight:700;font-size:1.02rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               <i class="fa-solid fa-code-compare" style="color:#6366f1;"></i>
               <span>So sánh & Liên kết Dự án Local ↔ Online</span>
+              ${isAlreadyLinked
+                ? '<span class="badge badge-success" style="font-size:0.74rem;"><i class="fa-solid fa-link"></i> Đang liên kết</span>'
+                : '<span class="badge" style="font-size:0.74rem;background:var(--bg-app);color:var(--text-muted);border:1px solid var(--border);">Chưa liên kết</span>'}
             </div>
             <button type="button" id="btn-close-compare" class="button button-outline button-sm"><i class="fa-solid fa-xmark"></i></button>
           </div>
           <div style="padding:16px 18px;overflow-y:auto;">
+            ${isAlreadyLinked
+              ? `<div style="margin-bottom:12px;padding:9px 12px;border-radius:8px;background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;font-size:0.84rem;display:flex;align-items:center;gap:8px;">
+                   <i class="fa-solid fa-circle-check"></i>
+                   <span>File Online này <strong>đang được liên kết</strong> với dự án Local hiện tại. Bạn có thể chọn đồng bộ cập nhật chiều đi/về hoặc giữ nguyên liên kết.</span>
+                 </div>`
+              : ''}
             <table style="width:100%;border-collapse:collapse;font-size:0.86rem;">
               <thead>
                 <tr style="background:var(--bg-app);">
@@ -2374,11 +2394,11 @@ class App {
               </tbody>
             </table>
           </div>
-          <div style="padding:14px 18px;border-top:1px solid var(--border);background:var(--bg-app);display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">
-            <button type="button" id="btn-cmp-unlink" class="button button-outline button-sm">Không liên kết</button>
-            <button type="button" id="btn-cmp-link-only" class="button button-outline button-sm">Chỉ liên kết (Không ghi đè)</button>
-            <button type="button" id="btn-cmp-pull" class="button button-outline button-sm" style="border-color:#2563eb;color:#1d4ed8;"><i class="fa-solid fa-cloud-arrow-down"></i> Lấy Online cập nhật Local</button>
-            <button type="button" id="btn-cmp-push" class="button button-primary button-sm"><i class="fa-solid fa-cloud-arrow-up"></i> Đẩy Local cập nhật Online</button>
+          <div style="padding:14px 18px;border-top:1px solid var(--border);background:var(--bg-app);display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;width:100%;box-sizing:border-box;">
+            <button type="button" id="btn-cmp-unlink" class="button button-outline button-sm" style="justify-content:center;white-space:nowrap;">${isAlreadyLinked ? 'Hủy liên kết' : 'Không liên kết'}</button>
+            <button type="button" id="btn-cmp-link-only" class="button button-outline button-sm" style="justify-content:center;white-space:nowrap;">${isAlreadyLinked ? 'Giữ liên kết (Đóng)' : 'Chỉ liên kết (Không ghi đè)'}</button>
+            <button type="button" id="btn-cmp-pull" class="button button-outline button-sm" style="border-color:#2563eb;color:#1d4ed8;justify-content:center;white-space:nowrap;"><i class="fa-solid fa-cloud-arrow-down"></i> Lấy Online về Local</button>
+            <button type="button" id="btn-cmp-push" class="button button-primary button-sm" style="justify-content:center;white-space:nowrap;"><i class="fa-solid fa-cloud-arrow-up"></i> Đẩy Local lên Online</button>
           </div>
         </div>
       `;
@@ -2397,7 +2417,23 @@ class App {
 
       modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
       modal.querySelector('#btn-close-compare')?.addEventListener('click', () => modal.remove());
-      modal.querySelector('#btn-cmp-unlink')?.addEventListener('click', () => modal.remove());
+      modal.querySelector('#btn-cmp-unlink')?.addEventListener('click', async () => {
+        if (isAlreadyLinked) {
+          const allPrjs = await db.getAll('projects');
+          const p = allPrjs.find((x) => x.id === localPrj.id);
+          if (p) {
+            p.drive_synced = false;
+            p.linked_online_file_id = '';
+            p.linked_online_file_ids = [];
+            await db.put('projects', p);
+          }
+          await contractsManager.loadData();
+          contractsManager.render();
+          this.updateProjectSourceBadge();
+          contractsManager.showToast('Đã hủy liên kết dự án Local với bản Online này.', 'info');
+        }
+        modal.remove();
+      });
 
       modal.querySelector('#btn-cmp-link-only')?.addEventListener('click', async () => {
         await linkMetadataToLocal();
