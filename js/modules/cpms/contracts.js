@@ -12,7 +12,7 @@
 
 import { db } from '../../core/db.js?v=5.3';
 import { maioOpen } from '../../core/maio-open.js?v=1.1';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.7';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.8';
 
 export class ContractsManager {
   constructor() {
@@ -2745,9 +2745,9 @@ export class ContractsManager {
         <div class="modal-body" style="padding: 16px 20px;">
           <form id="form-edit-project">
             <div class="form-group" style="margin-bottom: 12px;">
-              <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Mã dự án (Project Code / ID) <span style="color: var(--danger);">*</span></label>
-              <input type="text" class="form-control" name="project_id" value="${project.code || project.id}" required style="font-weight: 600; text-transform: uppercase;">
-              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Trùng khớp với trường <code>PROJ</code> / <code>ProjectID</code> trong sheet <code>PROJECT_SETTINGS</code> của file <code>.cpms</code> local.</div>
+              <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Mã dự án (PROJ) <span style="color: var(--danger);">*</span></label>
+              <input type="text" class="form-control" name="project_code" value="${project.code || project.id}" required style="font-weight: 600; text-transform: uppercase;">
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">Lưu vào trường <code>PROJ</code> trong sheet <code>PROJECT_SETTINGS</code> của file <code>.cpms</code> local (ID nội bộ: <code>${project.id}</code>).</div>
             </div>
             <div class="form-group" style="margin-bottom: 12px;">
               <label class="form-label" style="font-size: 0.8rem; font-weight: 600;">Tên dự án <span style="color: var(--danger);">*</span></label>
@@ -2781,20 +2781,18 @@ export class ContractsManager {
     modal.querySelector('#form-edit-project').onsubmit = async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
-      const oldId = project.id;
-      const rawNewId = String(fd.get('project_id') || oldId).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
-      const newId = rawNewId || oldId;
+      const rawNewCode = String(fd.get('project_code') || project.code || project.id).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
+      const newCode = rawNewCode || project.code || project.id;
 
       const wasOnlineLinked = Boolean(
         project.drive_synced ||
         project.data_origin === 'online' ||
-        (window.__MAIO_APP__?.onlineDriveProjects || []).some((o) => o.projectId === oldId)
+        (window.__MAIO_APP__?.onlineDriveProjects || []).some((o) => o.projectId === project.id)
       );
 
       const updatedPrj = {
         ...project,
-        id: newId,
-        code: newId,
+        code: newCode,
         name: fd.get('project_name').trim(),
         client: fd.get('client').trim(),
         location: fd.get('location').trim(),
@@ -2803,51 +2801,7 @@ export class ContractsManager {
         updated_at: new Date().toISOString(),
       };
 
-      if (newId !== oldId) {
-        const allPrjs = await db.getAll('projects');
-        if (allPrjs.some((p) => p.id === newId)) {
-          await this.alertAsync({
-            title: 'Trùng mã dự án',
-            type: 'warning',
-            message: `Mã dự án "${newId}" đã tồn tại. Vui lòng chọn mã khác!`,
-          });
-          return;
-        }
-        const [allC, allP, allD] = await Promise.all([
-          db.getAll('contracts'),
-          db.getAll('payments'),
-          db.getAll('documents'),
-        ]);
-        for (const c of allC.filter((x) => x.project_id === oldId)) {
-          c.project_id = newId;
-          await db.put('contracts', c);
-        }
-        for (const p of allP.filter((x) => x.project_id === oldId)) {
-          p.project_id = newId;
-          await db.put('payments', p);
-        }
-        for (const d of allD.filter((x) => x.project_id === oldId)) {
-          d.project_id = newId;
-          await db.put('documents', d);
-        }
-        const oldFileHandle = this.activeFileHandle || (await db.getProjectFileHandle?.(oldId));
-        if (oldFileHandle && typeof db.saveProjectFileHandle === 'function') {
-          this.activeFileHandle = oldFileHandle;
-          await db.saveProjectFileHandle(newId, oldFileHandle);
-        }
-        const oldDirHandle = await db.getProjectDirHandle?.(oldId);
-        if (oldDirHandle && typeof db.saveProjectDirHandle === 'function') {
-          await db.saveProjectDirHandle(newId, oldDirHandle);
-        }
-        await db.delete('projects', oldId);
-        this.currentProjectId = newId;
-      }
-
       await db.put('projects', updatedPrj);
-      if (newId !== oldId && this._driveFolderCache?.has(oldId)) {
-        this._driveFolderCache.set(newId, this._driveFolderCache.get(oldId));
-        this._driveFolderCache.delete(oldId);
-      }
       await this.loadData();
       closeModal();
       this.render();

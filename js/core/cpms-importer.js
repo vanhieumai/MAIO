@@ -236,6 +236,7 @@ export class CPMSImporterExporter {
 
     // 1. Quét thông tin dự án từ các sheet có thể chứa cài đặt / thông tin dự án (PROJECT_SETTINGS, SYS_INFO, SETTINGS, v.v.)
     let projectId = '';
+    let projectCode = '';
     let projectName = '';
     let clientName = '';
     let location = '';
@@ -284,7 +285,10 @@ export class CPMSImporterExporter {
         const val = String(rawVal).trim();
         if (!val) continue;
 
-        if (!projectId && (key.includes('projectid') || key.includes('mã dự án') || key === 'proj' || key.includes('mã da'))) {
+        if (!projectCode && (key === 'proj' || key === 'project_code' || key.includes('mã dự án') || key.includes('mã da'))) {
+          projectCode = val;
+        }
+        if (!projectId && (key.includes('projectid') || key === 'project_id')) {
           projectId = val;
         }
         if (!projectName && (key.includes('projectname') || key.includes('tên dự án') || key === 'proj_name' || key.includes('tên công trình') || key === 'project_name')) {
@@ -311,7 +315,10 @@ export class CPMSImporterExporter {
           const val = String(rawVal).trim();
           if (!val) return;
 
-          if (!projectId && (h.includes('projectid') || h.includes('mã dự án') || h === 'proj' || h.includes('mã da'))) {
+          if (!projectCode && (h === 'proj' || h === 'project_code' || h.includes('mã dự án') || h.includes('mã da'))) {
+            projectCode = val;
+          }
+          if (!projectId && (h.includes('projectid') || h === 'project_id')) {
             projectId = val;
           }
           if (!projectName && (h.includes('projectname') || h.includes('tên dự án') || h === 'proj_name' || h.includes('tên công trình') || h === 'project_name')) {
@@ -598,9 +605,12 @@ export class CPMSImporterExporter {
       }
     }
 
+    const resolvedId = projectId || projectCode || 'CHC1';
+    const resolvedCode = projectCode || projectId || 'CHC1';
+
     const projectData = {
-      id: projectId,
-      code: projectId,
+      id: resolvedId,
+      code: resolvedCode,
       name: projectName,
       client: clientName,
       location: location,
@@ -648,7 +658,8 @@ export class CPMSImporterExporter {
     const wb = window.XLSX.utils.book_new();
 
     // 1. Sheet PROJECT_SETTINGS (Khớp chính xác với cơ chế đọc metadata của CPMS Plus)
-    const prjCode = project.id || project.code || 'CHC1';
+    const prjId = project.id || project.code || 'CHC1';
+    const prjCode = project.code || project.id || 'CHC1';
     const prjName = project.name || 'Dự án ' + prjCode;
     const prjLoc = project.location || '';
     const prjClient = project.client || '';
@@ -677,7 +688,7 @@ export class CPMSImporterExporter {
       ['MAINCON', prjMainConCode],
       ['SUPCON', 'ART'],
       ['COMPANY_CODES', Array.from(allCompanyCodesSet).join(';')],
-      ['ProjectID', prjCode],
+      ['ProjectID', prjId],
       ['ProjectName', prjName],
       ['Location', prjLoc],
       ['Client', prjClient],
@@ -919,7 +930,7 @@ export class CPMSImporterExporter {
     // 5. Sheet SYS_INFO (Chứa metadata hệ thống và thông tin dự án đồng bộ)
     const sysInfoData = [
       ['Key', 'Value'],
-      ['ProjectID', prjCode],
+      ['ProjectID', prjId],
       ['PROJ', prjCode],
       ['PROJ_NAME', prjName],
       ['ProjectName', prjName],
