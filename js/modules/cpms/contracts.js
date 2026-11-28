@@ -723,6 +723,13 @@ export class ContractsManager {
         }
         if (migratedCount > 0) {
           console.log(`[MAIO Migration] Đã khôi phục supporting_docs cho ${migratedCount} hồ sơ.`);
+          this.showToast(`Đã khôi phục dữ liệu hồ sơ đính kèm cho ${migratedCount} hồ sơ!`, 'success');
+          if (this.activeFileHandle && typeof this.activeFileHandle.queryPermission === 'function') {
+            const perm = await this.activeFileHandle.queryPermission({ mode: 'readwrite' });
+            if (perm === 'granted') {
+              await this.syncToLocalFile();
+            }
+          }
         }
       } catch (e) {
         console.warn('[MAIO Migration] Không thể tự động đọc dữ liệu bổ sung cho hồ sơ:', e);
