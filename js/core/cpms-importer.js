@@ -632,6 +632,7 @@ export class CPMSImporterExporter {
       ['ProjectName', prjName],
       ['Location', prjLoc],
       ['Client', prjClient],
+      ['Contractor', project.contractor || ''],
       ['CreatedDate', project.created_at || new Date().toISOString().slice(0, 10)],
       ['LastOpened', new Date().toISOString().slice(0, 10)],
       ['DataVersion', '1.0'],

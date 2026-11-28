@@ -12,7 +12,7 @@
 
 import { db } from '../../core/db.js?v=5.3';
 import { maioOpen } from '../../core/maio-open.js?v=1.1';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.5';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.6';
 
 export class ContractsManager {
   constructor() {
@@ -1715,6 +1715,16 @@ export class ContractsManager {
       this.openCreateProjectModal();
     });
 
+    // Nút Chỉnh sửa thông tin dự án trên thanh dự án (luôn hiện ở cả 4 tab)
+    document.getElementById('btn-top-edit-project')?.addEventListener('click', () => {
+      const curPrj = this.projects.find((p) => p.id === this.currentProjectId);
+      if (!curPrj) {
+        this.showToast('Vui lòng chọn hoặc tạo dự án trước khi chỉnh sửa!', 'warning');
+        return;
+      }
+      this.openEditProjectModal(curPrj);
+    });
+
     // Nút Import .cpms (Dẫn file Local trực tiếp)
     document.getElementById('btn-import-project')?.addEventListener('click', () => {
       this.pickAndLoadLocalCPMSFile();
@@ -2769,7 +2779,11 @@ export class ContractsManager {
       if (newId !== oldId) {
         const allPrjs = await db.getAll('projects');
         if (allPrjs.some((p) => p.id === newId)) {
-          alert(`Mã dự án "${newId}" đã tồn tại. Vui lòng chọn mã khác!`);
+          await this.alertAsync({
+            title: 'Trùng mã dự án',
+            type: 'warning',
+            message: `Mã dự án "${newId}" đã tồn tại. Vui lòng chọn mã khác!`,
+          });
           return;
         }
         const [allC, allP, allD] = await Promise.all([
@@ -2789,6 +2803,15 @@ export class ContractsManager {
           d.project_id = newId;
           await db.put('documents', d);
         }
+        const oldFileHandle = this.activeFileHandle || (await db.getProjectFileHandle?.(oldId));
+        if (oldFileHandle && typeof db.saveProjectFileHandle === 'function') {
+          this.activeFileHandle = oldFileHandle;
+          await db.saveProjectFileHandle(newId, oldFileHandle);
+        }
+        const oldDirHandle = await db.getProjectDirHandle?.(oldId);
+        if (oldDirHandle && typeof db.saveProjectDirHandle === 'function') {
+          await db.saveProjectDirHandle(newId, oldDirHandle);
+        }
         await db.delete('projects', oldId);
         this.currentProjectId = newId;
       }
@@ -2801,7 +2824,7 @@ export class ContractsManager {
         await window.__MAIO_APP__.updateDashboardStats();
       }
       await this.syncToLocalFile();
-      alert('Đã cập nhật thông tin dự án thành công!');
+      this.showToast('Đã cập nhật thông tin dự án và lưu đồng bộ!', 'success');
     };
   }
 
