@@ -7159,18 +7159,28 @@ export class ContractsManager {
   // ==========================================
   // FORM THÊM / CHỈNH SỬA HỒ SƠ (CHUẨN frmDocumentEdit CPMS PLUS)
   // ==========================================
-  openDocumentFormModal(targetContract, editDoc = null) {
+  openDocumentFormModal(targetContract, editDoc = null, options = {}) {
     const isEdit = !!editDoc;
-    const docs = this.getDocuments(targetContract.id);
+    const projectContracts = (this.contracts || []).filter(
+      (c) => (!c.project_id || c.project_id === this.currentProjectId) && !c.is_cpb && c.contract_type !== 'CPB'
+    );
+    let activeContract = targetContract || projectContracts[0] || this.contracts[0] || null;
+    if (!activeContract) {
+      this.showToast('Chưa có hợp đồng nào trong dự án để tạo hồ sơ!', 'warning');
+      return;
+    }
+
+    const allowContractSelect = !isEdit && (Boolean(options?.allowContractSelect) || !targetContract);
+    const docs = this.getDocuments(activeContract.id);
     const docId = isEdit
       ? editDoc.id
       : `DOC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(docs.length + 1).padStart(3, '0')}`;
 
     // Thu thập danh sách mã đối tác trong dự án để gợi ý Issuer / Recipient
     const companyCodes = Array.from(new Set([
-      targetContract.code_a,
-      targetContract.code_b,
-      targetContract.code_b2,
+      activeContract.code_a,
+      activeContract.code_b,
+      activeContract.code_b2,
       'CLI', 'VEC', 'VNCN', 'CTC', 'KD', 'NSH', 'TID', 'HHG', 'HD', 'EC-KD', 'PMU'
     ].filter(Boolean)));
 
@@ -7226,21 +7236,21 @@ export class ContractsManager {
         <div class="modal-header" style="flex-shrink: 0; border-bottom: 1px solid var(--border-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; background: #faf5ff; flex-wrap: nowrap !important; gap: 14px;">
           <div style="flex: 1; min-width: 0;">
             <div style="display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-              <span style="font-size: 0.88rem; font-weight: 700; color: #7e22ce; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                <i class="fa-solid fa-file-invoice"></i> ${targetContract.contract_no || targetContract.id}
+              <span id="doc-modal-hdr-no" style="font-size: 0.88rem; font-weight: 700; color: #7e22ce; display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                <i class="fa-solid fa-file-invoice"></i> ${activeContract.contract_no || activeContract.id}
               </span>
               <span style="color: #cbd5e1; flex-shrink: 0;">|</span>
-              <span style="color: #475569; font-weight: 600; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;" title="${targetContract.company_b || targetContract.company_a || '—'}">
-                ${targetContract.company_b || targetContract.company_a || '—'}
+              <span id="doc-modal-hdr-company" style="color: #475569; font-weight: 600; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px;" title="${activeContract.company_b || activeContract.company_a || '—'}">
+                ${activeContract.company_b || activeContract.company_a || '—'}
               </span>
               <span style="color: #cbd5e1; flex-shrink: 0;">|</span>
-              <span style="color: #15803d; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">
-                ${this.formatCurrency(targetContract.contract_val || 0)}
+              <span id="doc-modal-hdr-val" style="color: #15803d; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;">
+                ${this.formatCurrency(activeContract.contract_val || 0)}
               </span>
-              ${targetContract.signing_date ? `<span style="color: #cbd5e1; flex-shrink: 0;">|</span><span style="color: #64748b; font-size: 0.78rem; flex-shrink: 0;"><i class="fa-regular fa-calendar-check" style="margin-right: 3px;"></i>${this.formatDate(targetContract.signing_date)}</span>` : ''}
+              <span id="doc-modal-hdr-date-wrap" style="${activeContract.signing_date ? '' : 'display:none;'}"><span style="color: #cbd5e1; flex-shrink: 0;">|</span> <span id="doc-modal-hdr-date" style="color: #64748b; font-size: 0.78rem; flex-shrink: 0;"><i class="fa-regular fa-calendar-check" style="margin-right: 3px;"></i>${activeContract.signing_date ? this.formatDate(activeContract.signing_date) : ''}</span></span>
             </div>
-            <div style="font-size: 0.78rem; color: #64748b; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${targetContract.scope_of_work || ''}">
-              ${targetContract.scope_of_work || 'Hồ sơ tài liệu chứng từ theo dõi (Document Tracker)'}
+            <div id="doc-modal-hdr-scope" style="font-size: 0.78rem; color: #64748b; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${activeContract.scope_of_work || ''}">
+              ${activeContract.scope_of_work || 'Hồ sơ tài liệu chứng từ theo dõi (Document Tracker)'}
             </div>
           </div>
 
@@ -7259,8 +7269,26 @@ export class ContractsManager {
         <div class="modal-body" style="overflow-y: auto; padding: 20px; box-sizing: border-box;">
           <form id="form-doc-edit">
             <input type="hidden" name="id" value="${docId}">
-            <input type="hidden" name="contract_id" value="${targetContract.id}">
+            <input type="hidden" name="contract_id" value="${activeContract.id}">
             <input type="file" id="doc-file-hidden-picker" style="display: none;">
+
+            ${allowContractSelect ? `
+              <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;">
+                <label class="form-label" style="font-weight: 700; color: #1e1b4b; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; font-size: 0.84rem;">
+                  <i class="fa-solid fa-magnifying-glass" style="color: var(--primary);"></i> Tìm kiếm & Chọn Hợp đồng / Công ty cho hồ sơ mới <span style="color: var(--danger);">*</span>
+                </label>
+                <div style="display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px;">
+                  <input type="text" id="doc-contract-search" class="form-control" placeholder="Tìm số hiệu HĐ, tên công ty, phạm vi..." style="font-size: 0.84rem;">
+                  <select id="doc-contract-select" class="form-control" style="font-size: 0.84rem; font-weight: 600;">
+                    ${projectContracts.map((c) => {
+                      const party = c.company_b || c.company_a || 'Chưa rõ công ty';
+                      const scope = c.scope_of_work ? ` — ${c.scope_of_work}` : '';
+                      return `<option value="${c.id}" ${c.id === activeContract.id ? 'selected' : ''}>[Nhóm ${c.group}] ${c.contract_no || c.id} | ${party}${scope}</option>`;
+                    }).join('')}
+                  </select>
+                </div>
+              </div>
+            ` : ''}
 
             <div style="display: grid; grid-template-columns: 1.25fr 1fr; gap: 18px; align-items: start;">
               <!-- CỘT TRÁI: THÔNG TIN HỒ SƠ VÀ LƯU TRỮ -->
@@ -8018,8 +8046,8 @@ export class ContractsManager {
       const docData = {
         ...(editDoc || {}),
         id: formData.get('id'),
-        project_id: targetContract.project_id || this.currentProjectId,
-        contract_id: targetContract.id,
+        project_id: activeContract.project_id || this.currentProjectId,
+        contract_id: activeContract.id,
         category: finalCategory,
         other_doctype: otherDocType,
         sub_type1: (formData.get('sub_type1') || '').trim().toUpperCase(),
@@ -8045,11 +8073,100 @@ export class ContractsManager {
 
       await db.put('documents', docData);
       await this.loadData();
+      this.updateReminderBadge();
       closeSubModal();
       await this.syncToLocalFile();
-      this.openContractDetail(targetContract.id);
-      alert(`Đã lưu thành công thông tin Hồ sơ "${docData.doc_no || docData.id}"!`);
+      if (this.currentCpmsTab === 'reminder' || document.getElementById('reminder-table-tbody')) {
+        this.selectedReminderDocId = docData.id;
+        this.refreshReminderListAndDetail();
+      } else {
+        this.openContractDetail(activeContract.id);
+      }
+      this.showToast(`Đã lưu thành công Hồ sơ "${docData.doc_no || docData.id}"!`, 'success');
     });
+
+    // Tìm kiếm & chuyển nhanh Hợp đồng / Công ty khi tạo mới hồ sơ
+    if (allowContractSelect) {
+      const searchEl = modal.querySelector('#doc-contract-search');
+      const selectEl = modal.querySelector('#doc-contract-select');
+
+      const updateActiveContractUI = (c) => {
+        if (!c) return;
+        activeContract = c;
+        targetContract = c;
+        const hiddenContractInput = modal.querySelector('input[name="contract_id"]');
+        if (hiddenContractInput) hiddenContractInput.value = c.id;
+
+        const hdrNo = modal.querySelector('#doc-modal-hdr-no');
+        const hdrCompany = modal.querySelector('#doc-modal-hdr-company');
+        const hdrVal = modal.querySelector('#doc-modal-hdr-val');
+        const hdrDateWrap = modal.querySelector('#doc-modal-hdr-date-wrap');
+        const hdrDate = modal.querySelector('#doc-modal-hdr-date');
+        const hdrScope = modal.querySelector('#doc-modal-hdr-scope');
+        if (hdrNo) hdrNo.innerHTML = `<i class="fa-solid fa-file-invoice"></i> ${c.contract_no || c.id}`;
+        if (hdrCompany) {
+          hdrCompany.textContent = c.company_b || c.company_a || '—';
+          hdrCompany.title = c.company_b || c.company_a || '—';
+        }
+        if (hdrVal) hdrVal.textContent = this.formatCurrency(c.contract_val || 0);
+        if (hdrDateWrap && hdrDate) {
+          if (c.signing_date) {
+            hdrDateWrap.style.display = '';
+            hdrDate.innerHTML = `<i class="fa-regular fa-calendar-check" style="margin-right: 3px;"></i>${this.formatDate(c.signing_date)}`;
+          } else {
+            hdrDateWrap.style.display = 'none';
+          }
+        }
+        if (hdrScope) {
+          hdrScope.textContent = c.scope_of_work || 'Hồ sơ tài liệu chứng từ theo dõi (Document Tracker)';
+          hdrScope.title = c.scope_of_work || '';
+        }
+
+        const cDocs = this.getDocuments(c.id);
+        const newDocId = `DOC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(cDocs.length + 1).padStart(3, '0')}`;
+        const idInput = modal.querySelector('input[name="id"]');
+        if (idInput) idInput.value = newDocId;
+
+        const issuerInput = modal.querySelector('input[name="issuer"]');
+        const recipInput = modal.querySelector('input[name="recipients"]');
+        if (issuerInput && !issuerInput.dataset.userEdited) {
+          issuerInput.value = (c.code_b || c.code_a || '').toUpperCase();
+        }
+        if (recipInput && !recipInput.dataset.userEdited) {
+          recipInput.value = (c.code_a || 'CLI').toUpperCase();
+        }
+      };
+
+      searchEl?.addEventListener('input', (ev) => {
+        const q = String(ev.target.value || '').trim().toLowerCase();
+        const filtered = q
+          ? projectContracts.filter((c) => {
+              const hay = `${c.contract_no || ''} ${c.company_b || ''} ${c.company_a || ''} ${c.code_b || ''} ${c.code_a || ''} ${c.scope_of_work || ''}`.toLowerCase();
+              return hay.includes(q);
+            })
+          : projectContracts;
+
+        selectEl.innerHTML = filtered.length
+          ? filtered
+              .map((c) => {
+                const party = c.company_b || c.company_a || 'Chưa rõ công ty';
+                const scope = c.scope_of_work ? ` — ${c.scope_of_work}` : '';
+                return `<option value="${c.id}" ${c.id === activeContract.id ? 'selected' : ''}>[Nhóm ${c.group}] ${c.contract_no || c.id} | ${party}${scope}</option>`;
+              })
+              .join('')
+          : '<option value="" disabled>Không tìm thấy hợp đồng phù hợp</option>';
+
+        if (filtered.length && !filtered.some((c) => c.id === activeContract.id)) {
+          selectEl.value = filtered[0].id;
+          updateActiveContractUI(filtered[0]);
+        }
+      });
+
+      selectEl?.addEventListener('change', (ev) => {
+        const picked = projectContracts.find((c) => c.id === ev.target.value);
+        if (picked) updateActiveContractUI(picked);
+      });
+    }
   }
 
   // ==========================================
@@ -10785,11 +10902,11 @@ export class ContractsManager {
 
               <!-- FOOTER THAO TÁC (ACTIONS) -->
               <div class="reminder-detail-actions ${isOrphanDoc ? 'is-orphan-actions' : ''}">
-                <button type="button" id="btn-reminder-refresh" class="button button-outline" title="Làm mới danh sách dữ liệu">
-                  <i class="fa-solid fa-rotate-right"></i> Làm mới
+                <button type="button" id="btn-reminder-create-doc" class="button button-outline" title="Tạo mới hồ sơ cho hợp đồng trong dự án">
+                  <i class="fa-solid fa-plus"></i> Tạo mới HS
                 </button>
                 <button type="button" id="btn-reminder-goto" class="button button-primary" ${isOrphanDoc ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} title="${isOrphanDoc ? 'Tài liệu chưa gắn hợp đồng, vui lòng gán hợp đồng trước' : 'Mở chi tiết Hợp đồng và trỏ đến hồ sơ này'}">
-                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở HĐ
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở HS
                 </button>
                 ${
                   isOrphanDoc
@@ -10994,11 +11111,11 @@ export class ContractsManager {
             </div>
           </div>
           <div class="reminder-detail-actions ${isOrphanDoc ? 'is-orphan-actions' : ''}">
-            <button type="button" id="btn-reminder-refresh" class="button button-outline" title="Làm mới danh sách dữ liệu">
-              <i class="fa-solid fa-rotate-right"></i> Làm mới
+            <button type="button" id="btn-reminder-create-doc" class="button button-outline" title="Tạo mới hồ sơ cho hợp đồng trong dự án">
+              <i class="fa-solid fa-plus"></i> Tạo mới HS
             </button>
             <button type="button" id="btn-reminder-goto" class="button button-primary" ${isOrphanDoc ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} title="${isOrphanDoc ? 'Tài liệu chưa gắn hợp đồng, vui lòng gán hợp đồng trước' : 'Mở chi tiết Hợp đồng và trỏ đến hồ sơ này'}">
-              <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở HĐ
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Mở HS
             </button>
             ${
               isOrphanDoc
@@ -11107,13 +11224,9 @@ export class ContractsManager {
     const rightCol = document.getElementById('reminder-right-col');
     if (!rightCol) return;
 
-    document.getElementById('btn-reminder-refresh')?.addEventListener('click', async () => {
-      const btn = document.getElementById('btn-reminder-refresh');
-      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...';
-      await this.loadData();
-      this.updateReminderBadge();
-      this.refreshReminderListAndDetail();
-      this.showLocalSaveStatus('Đã làm mới danh sách hồ sơ nhắc việc!');
+    document.getElementById('btn-reminder-create-doc')?.addEventListener('click', () => {
+      const defaultContract = targetContract || (this.contracts || []).find((c) => !c.is_cpb && c.contract_type !== 'CPB') || this.contracts[0];
+      this.openDocumentFormModal(defaultContract, null, { allowContractSelect: true });
     });
 
     document.getElementById('btn-reminder-goto')?.addEventListener('click', () => {
