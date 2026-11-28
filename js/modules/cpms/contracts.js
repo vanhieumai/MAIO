@@ -12,7 +12,7 @@
 
 import { db } from '../../core/db.js?v=5.3';
 import { maioOpen } from '../../core/maio-open.js?v=1.1';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.6';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.7';
 
 export class ContractsManager {
   constructor() {
@@ -672,7 +672,7 @@ export class ContractsManager {
           const ab = await file.arrayBuffer();
           wb = window.XLSX.read(ab, { type: 'array' });
         } else {
-          const resp = await fetch('/legacy/cpms-plus/excel/CHC1_20261118_103621.cpms');
+          const resp = await fetch('./legacy/cpms-plus/excel/CHC1_20261118_103621.cpms');
           if (resp.ok) {
             const ab = await resp.arrayBuffer();
             wb = window.XLSX.read(ab, { type: 'array' });

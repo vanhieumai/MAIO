@@ -51,38 +51,83 @@ export class CPMSImporterExporter {
   }
 
   /**
-   * Chuyển đổi chuỗi ngày thành ô Date chuẩn cho SheetJS với NumberFormat d/mm/yyyy
+   * Chuyển đổi chuỗi ngày thành ô Excel Date serial nguyên (không phần thập phân) với NumberFormat dd/mm/yyyy
    */
   static dateToExcelCell(val) {
     if (!val) return '';
-    let d = null;
-    if (val instanceof Date) {
-      d = val;
-    } else if (typeof val === 'number') {
-      const utcD = new Date(Math.round((val - 25569) * 86400 * 1000));
-      if (!isNaN(utcD.getTime())) {
-        d = new Date(utcD.getUTCFullYear(), utcD.getUTCMonth(), utcD.getUTCDate());
+    let y = null;
+    let m = null;
+    let day = null;
+
+    if (val instanceof Date && !isNaN(val.getTime())) {
+      y = val.getFullYear();
+      m = val.getMonth() + 1;
+      day = val.getDate();
+    } else if (typeof val === 'number' && !isNaN(val)) {
+      const wholeSerial = Math.floor(val);
+      if (wholeSerial > 0) {
+        return { t: 'n', v: wholeSerial, z: 'dd/mm/yyyy' };
       }
     } else if (typeof val === 'string') {
       const trimmed = val.trim();
       if (!trimmed) return '';
+      if (/^\d+(\.\d+)?$/.test(trimmed)) {
+        const wholeSerial = Math.floor(Number(trimmed));
+        if (wholeSerial > 0) {
+          return { t: 'n', v: wholeSerial, z: 'dd/mm/yyyy' };
+        }
+      }
       if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
-        const [y, m, day] = trimmed.slice(0, 10).split('-').map(Number);
-        d = new Date(y, m - 1, day);
+        const parts = trimmed.slice(0, 10).split('-').map(Number);
+        y = parts[0];
+        m = parts[1];
+        day = parts[2];
       } else {
         const dmY = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (dmY) {
-          d = new Date(Number(dmY[3]), Number(dmY[2]) - 1, Number(dmY[1]));
+          day = Number(dmY[1]);
+          m = Number(dmY[2]);
+          y = Number(dmY[3]);
         } else {
           const parsed = new Date(trimmed);
-          if (!isNaN(parsed.getTime())) d = parsed;
+          if (!isNaN(parsed.getTime())) {
+            y = parsed.getFullYear();
+            m = parsed.getMonth() + 1;
+            day = parsed.getDate();
+          }
         }
       }
     }
-    if (d && !isNaN(d.getTime())) {
-      return { t: 'd', v: d, z: 'd/mm/yyyy' };
+
+    if (y && m && day) {
+      const serial = Math.floor(Date.UTC(y, m - 1, day) / 86400000) + 25569;
+      if (!isNaN(serial) && serial > 0) {
+        return { t: 'n', v: serial, z: 'dd/mm/yyyy' };
+      }
     }
-    return val;
+    return '';
+  }
+
+  /**
+   * Làm sạch chuỗi mã công ty (loại bỏ các token rác như VEC|SUBCON, CLI|SUBCON...)
+   */
+  static extractCleanCompanyCodes(rawVal) {
+    if (!rawVal) return [];
+    const results = [];
+    String(rawVal)
+      .split(/[|;,\s]+/)
+      .forEach((token) => {
+        let s = token.trim().toUpperCase();
+        if (!s) return;
+        if (s.includes('=')) {
+          s = s.split('=').pop().trim();
+        }
+        if (!s || ['CLIENT', 'MAINCON', 'SUBCON', 'SUBCON2', 'SUPCON'].includes(s)) return;
+        if (/^[A-Z0-9_-]{2,20}$/.test(s)) {
+          results.push(s);
+        }
+      });
+    return results;
   }
 
   /**
@@ -535,10 +580,10 @@ export class CPMSImporterExporter {
           local_link: isOnlineDrive ? '' : rawLink,
           drive_link: extraDriveLink || (isOnlineDrive ? rawLink : ''),
           relative_path: extraRelPath,
-          start_date: r[6] || null,
-          due_date: r[7] || null,
-          received_date: r[8] || null,
-          return_date: r[9] || null,
+          start_date: this.parseExcelDate(r[6]),
+          due_date: this.parseExcelDate(r[7]),
+          received_date: this.parseExcelDate(r[8]),
+          return_date: this.parseExcelDate(r[9]),
           recipient: String(r[10] || ''),
           quantity: parseFloat(r[11] || 1) || 1,
           supporting_docs: String(r[12] || ''),
@@ -614,16 +659,20 @@ export class CPMSImporterExporter {
     let prjMainConCode = 'VEC';
 
     allContracts.forEach((c) => {
-      if (c.code_a) allCompanyCodesSet.add(c.code_a.toUpperCase());
-      if (c.code_b) allCompanyCodesSet.add(c.code_b.toUpperCase());
-      if (c.code_b2) allCompanyCodesSet.add(c.code_b2.toUpperCase());
-      if (c.group === 'A' && c.code_a) prjClientCode = c.code_a.toUpperCase();
-      if (c.group === 'A' && c.code_b) prjMainConCode = c.code_b.toUpperCase();
+      this.extractCleanCompanyCodes(c.code_a).forEach((cd) => allCompanyCodesSet.add(cd));
+      this.extractCleanCompanyCodes(c.code_b).forEach((cd) => allCompanyCodesSet.add(cd));
+      this.extractCleanCompanyCodes(c.code_b2).forEach((cd) => allCompanyCodesSet.add(cd));
+      const cleanA = this.extractCleanCompanyCodes(c.code_a)[0];
+      const cleanB = this.extractCleanCompanyCodes(c.code_b)[0];
+      if (c.group === 'A' && cleanA) prjClientCode = cleanA;
+      if (c.group === 'A' && cleanB) prjMainConCode = cleanB;
     });
 
     const prjSettingsData = [
       ['Key', 'Value'],
       ['PROJ', prjCode],
+      ['PROJ_NAME', prjName],
+      ['PROJECT_NAME', prjName],
       ['CLIENT', prjClientCode],
       ['MAINCON', prjMainConCode],
       ['SUPCON', 'ART'],
@@ -633,8 +682,8 @@ export class CPMSImporterExporter {
       ['Location', prjLoc],
       ['Client', prjClient],
       ['Contractor', project.contractor || ''],
-      ['CreatedDate', project.created_at || new Date().toISOString().slice(0, 10)],
-      ['LastOpened', new Date().toISOString().slice(0, 10)],
+      ['CreatedDate', this.dateToExcelCell(project.created_at) || new Date().toISOString().slice(0, 10)],
+      ['LastOpened', this.dateToExcelCell(new Date())],
       ['DataVersion', '1.0'],
       ['ExportDate', new Date().toISOString()],
     ];
@@ -651,9 +700,9 @@ export class CPMSImporterExporter {
     const contractRows = [contractHeaders];
 
     const formatCompanyCodeCell = (c) => {
-      const codeA = c.code_a ? String(c.code_a).trim().toUpperCase() : '';
-      const codeB = c.code_b ? String(c.code_b).trim().toUpperCase() : (c.company_code ? String(c.company_code).trim().toUpperCase() : '');
-      const codeB2 = c.code_b2 ? String(c.code_b2).trim().toUpperCase() : '';
+      const codeA = this.extractCleanCompanyCodes(c.code_a)[0] || '';
+      const codeB = this.extractCleanCompanyCodes(c.code_b)[0] || this.extractCleanCompanyCodes(c.company_code)[0] || '';
+      const codeB2 = this.extractCleanCompanyCodes(c.code_b2)[0] || '';
 
       let parts = [];
       if (codeA) parts.push(`CLIENT=${codeA}`);
@@ -661,7 +710,7 @@ export class CPMSImporterExporter {
       if (codeB2) parts.push(`SUBCON2=${codeB2}`);
 
       if (parts.length > 0) return parts.join('|');
-      return c.company_code || '';
+      return codeB || '';
     };
 
     // Nhóm A
@@ -847,10 +896,10 @@ export class CPMSImporterExporter {
         d.doc_no || '',
         d.title || '',
         d.local_link || d.file_link || d.drive_link || '',
-        d.start_date || '',
-        d.due_date || '',
-        d.received_date || '',
-        d.return_date || '',
+        this.dateToExcelCell(d.start_date),
+        this.dateToExcelCell(d.due_date),
+        this.dateToExcelCell(d.received_date),
+        this.dateToExcelCell(d.return_date),
         d.recipient || '',
         d.quantity || 1,
         d.supporting_docs || '',
