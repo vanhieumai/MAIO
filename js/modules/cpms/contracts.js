@@ -666,28 +666,19 @@ export class ContractsManager {
     const docsNeedingMigration = this.documents.filter((d) => !d.supporting_docs);
     if (docsNeedingMigration.length > 0 && window.XLSX) {
       try {
-        let wb = null;
-        if (this.activeFileHandle) {
-          const file = await this.activeFileHandle.getFile();
-          const ab = await file.arrayBuffer();
-          wb = window.XLSX.read(ab, { type: 'array' });
-        } else {
-          const resp = await fetch('./legacy/cpms-plus/excel/CHC1_20261118_103621.cpms');
-          if (resp.ok) {
-            const ab = await resp.arrayBuffer();
-            wb = window.XLSX.read(ab, { type: 'array' });
-          }
-        }
-        if (wb && wb.SheetNames.includes('DOCUMENT_TRACKER')) {
+        const docMap = new Map();
+        const collectFromWb = (wb) => {
+          if (!wb || !wb.SheetNames.includes('DOCUMENT_TRACKER')) return;
           const ws = wb.Sheets['DOCUMENT_TRACKER'];
           const rows = window.XLSX.utils.sheet_to_json(ws, { header: 1 });
-          const docMap = new Map();
           for (let i = 1; i < rows.length; i++) {
             const r = rows[i];
             if (!r || !r[0]) continue;
             const dId = String(r[0]).trim();
+            const supStr = String(r[12] || '').trim();
+            if (!supStr && docMap.has(dId)) continue;
             docMap.set(dId, {
-              supporting_docs: String(r[12] || ''),
+              supporting_docs: supStr,
               lan_val: r[13] || 1,
               issuer: String(r[16] || ''),
               recipients: String(r[17] || ''),
@@ -695,17 +686,33 @@ export class ContractsManager {
               sub_type2: String(r[19] || ''),
             });
           }
-          for (const d of docsNeedingMigration) {
-            const info = docMap.get(d.id);
-            if (info && info.supporting_docs) {
-              d.supporting_docs = info.supporting_docs;
-              if (!d.lan_val) d.lan_val = info.lan_val;
-              if (!d.issuer) d.issuer = info.issuer;
-              if (!d.recipients) d.recipients = info.recipients;
-              if (!d.sub_type1) d.sub_type1 = info.sub_type1;
-              if (!d.sub_type2) d.sub_type2 = info.sub_type2;
-              await db.put('documents', d);
-            }
+        };
+
+        if (this.activeFileHandle) {
+          const file = await this.activeFileHandle.getFile();
+          const ab = await file.arrayBuffer();
+          collectFromWb(window.XLSX.read(ab, { type: 'array' }));
+        }
+
+        const stillMissing = docsNeedingMigration.some((d) => !docMap.get(d.id)?.supporting_docs);
+        if (stillMissing) {
+          const resp = await fetch('./legacy/cpms-plus/excel/CHC1_20261118_103621.cpms');
+          if (resp.ok) {
+            const ab = await resp.arrayBuffer();
+            collectFromWb(window.XLSX.read(ab, { type: 'array' }));
+          }
+        }
+
+        for (const d of docsNeedingMigration) {
+          const info = docMap.get(d.id);
+          if (info && info.supporting_docs) {
+            d.supporting_docs = info.supporting_docs;
+            if (!d.lan_val) d.lan_val = info.lan_val;
+            if (!d.issuer) d.issuer = info.issuer;
+            if (!d.recipients) d.recipients = info.recipients;
+            if (!d.sub_type1) d.sub_type1 = info.sub_type1;
+            if (!d.sub_type2) d.sub_type2 = info.sub_type2;
+            await db.put('documents', d);
           }
         }
       } catch (e) {
@@ -7215,12 +7222,12 @@ export class ContractsManager {
     const supportingObj = {};
     let supportingNote = '';
     if (editDoc && editDoc.supporting_docs) {
-      String(editDoc.supporting_docs).split('|').forEach((part) => {
+      String(editDoc.supporting_docs).split(/[|;]+/).forEach((part) => {
         if (!part) return;
-        const colonIdx = part.indexOf(':');
-        if (colonIdx > 0) {
-          const code = part.slice(0, colonIdx).trim().toUpperCase();
-          const val = part.slice(colonIdx + 1).trim();
+        const sepIdx = part.indexOf(':') > 0 ? part.indexOf(':') : part.indexOf('=');
+        if (sepIdx > 0) {
+          const code = part.slice(0, sepIdx).trim().toUpperCase();
+          const val = part.slice(sepIdx + 1).trim();
           if (code === 'NOTE') {
             supportingNote = val;
           } else {
@@ -7228,7 +7235,7 @@ export class ContractsManager {
             if (code === 'ASB' || code === 'HC') normalizedCode = 'HC';
             if (code === 'NTTVL' || code === 'NTVL') normalizedCode = 'NTVL';
             if (code === 'HSKHAC' || code === 'OTHER' || code === 'HSK') normalizedCode = 'HSK';
-            supportingObj[normalizedCode] = parseInt(val) || 1;
+            supportingObj[normalizedCode] = parseInt(val, 10) || 1;
           }
         }
       });
@@ -7893,35 +7900,38 @@ export class ContractsManager {
         if (st2) fullDocType += '-' + st2;
       }
 
-      // Ngày YYMMDD
+      // Ngày YYMMDD & Mã dự án (ưu tiên PROJ ngắn như CHC1)
       const dateVal = modal.querySelector('#input-doc-start-date')?.value || new Date().toISOString().slice(0, 10);
       const yymmdd = dateVal.slice(2, 4) + dateVal.slice(5, 7) + dateVal.slice(8, 10);
-      const projCode = this.currentProjectId || 'CHC1';
+      const curPrj = (this.projects || []).find((p) => p.id === (activeContract.project_id || this.currentProjectId));
+      const projCode = curPrj?.code || this.currentProjectId || 'CHC1';
 
-      // Tính serial cuối cùng theo đúng phân loại hồ sơ (targetContract.id, docTypeCode, issuer, recip)
+      // Tính serial lớn nhất theo đúng hợp đồng và loại hồ sơ (không khóa cứng chiều gửi Issuer/Recipient)
       const allDocs = this.documents || [];
       let maxSerial = 0;
+      let latestDocNo = '';
       allDocs.forEach((d) => {
-        if (d.contract_id !== targetContract.id) return;
-        const dIssuer = String(d.issuer || '').split(';')[0].trim().toUpperCase();
-        if (dIssuer !== issuer) return;
-        const dRecip = String(d.recipients || '').split(';')[0].trim().toUpperCase();
-        if (dRecip !== recip) return;
+        if (d.contract_id !== activeContract.id) return;
 
         let dCat = String(d.category || '').trim().toUpperCase();
         if (dCat === 'CONTRACT') dCat = 'CON';
-        if (dCat !== docTypeCode && dCat !== 'OTHER') return;
-        if (dCat === 'OTHER') {
+        if (dCat === 'IPC' || docTypeCode === 'IPC') {
+          if (dCat !== docTypeCode) return;
+        } else if (dCat !== docTypeCode) {
           const dOtherType = String(d.other_doctype || d.sub_type1 || '').trim().toUpperCase();
-          if (dOtherType && dOtherType !== docTypeCode) return;
+          if (dCat !== 'OTHER' || (dOtherType && dOtherType !== docTypeCode)) return;
         }
 
         const dNo = String(d.doc_no || '').trim();
+        if (!dNo) return;
         const parts = dNo.split('.');
-        for (let p of parts) {
+        for (const p of parts) {
           if (/^\d{3}$/.test(p)) {
             const sn = parseInt(p, 10);
-            if (sn > maxSerial) maxSerial = sn;
+            if (sn >= maxSerial) {
+              maxSerial = sn;
+              latestDocNo = dNo;
+            }
             break;
           }
         }
@@ -7929,10 +7939,12 @@ export class ContractsManager {
 
       if (maxSerial === 0) {
         if (chkNew) {
-          chkNew.checked = true;
-          chkNew.disabled = true;
+          chkNew.disabled = false;
         }
-        docNoInput.value = `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.001`;
+        const isNew = chkNew ? chkNew.checked : true;
+        docNoInput.value = isNew
+          ? `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.001`
+          : `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.001.A`;
       } else {
         if (chkNew) chkNew.disabled = false;
         const isNew = chkNew ? chkNew.checked : true;
@@ -7940,17 +7952,13 @@ export class ContractsManager {
           const nextSerial = String(maxSerial + 1).padStart(3, '0');
           docNoInput.value = `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.${nextSerial}`;
         } else {
-          // Tìm version suffix tiếp theo (A, B, C...)
+          // Bỏ check Tạo số mới: dùng số cũ gần nhất và thêm mã A, B, C... cho các lần tiếp theo
+          const serialStr = String(maxSerial).padStart(3, '0');
           const usedSuffixes = new Set();
           allDocs.forEach((d) => {
-            if (d.contract_id !== targetContract.id) return;
-            const dIssuer = String(d.issuer || '').split(';')[0].trim().toUpperCase();
-            if (dIssuer !== issuer) return;
-            const dRecip = String(d.recipients || '').split(';')[0].trim().toUpperCase();
-            if (dRecip !== recip) return;
-
+            if (d.contract_id !== activeContract.id) return;
             const parts = String(d.doc_no || '').split('.');
-            const sIdx = parts.findIndex((p) => p === String(maxSerial).padStart(3, '0'));
+            const sIdx = parts.findIndex((p) => p === serialStr);
             if (sIdx !== -1 && sIdx + 1 < parts.length) {
               const suf = parts[sIdx + 1].trim().toUpperCase();
               if (/^[A-Z]$/.test(suf)) usedSuffixes.add(suf);
@@ -7965,7 +7973,14 @@ export class ContractsManager {
               break;
             }
           }
-          docNoInput.value = `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.${String(maxSerial).padStart(3, '0')}.${verSuffix}`;
+
+          let baseLatest = latestDocNo || `${yymmdd}.${projCode}.${issuer}.${fullDocType}.${recip}.${serialStr}`;
+          const latestParts = baseLatest.split('.');
+          const latestSerialIdx = latestParts.findIndex((p) => p === serialStr);
+          if (latestSerialIdx !== -1) {
+            baseLatest = latestParts.slice(0, latestSerialIdx + 1).join('.');
+          }
+          docNoInput.value = `${baseLatest}.${verSuffix}`;
         }
       }
     };
