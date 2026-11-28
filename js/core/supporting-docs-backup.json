@@ -1,0 +1,738 @@
+{
+  "DOC-20260603-001": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260603-002": {
+    "supporting_docs": "THKL:3|DGKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "EUS",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260603-003": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1|NTVL:1|HSK:1|NOTE:(Báo cáo tiến độ)x5;(Hồ sơ Prelims)x4",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-015": {
+    "supporting_docs": "GTTT:4|THKL:4",
+    "lan_val": "L1",
+    "issuer": "KD",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-020": {
+    "supporting_docs": "GTTT:10|THKL:10|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "HHG",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-021": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "ACIT",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-022": {
+    "supporting_docs": "THKL:3|NTVL:8",
+    "lan_val": "L1",
+    "issuer": "ACIT",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-023": {
+    "supporting_docs": "THKL:4|NTVL:10",
+    "lan_val": "L1",
+    "issuer": "ACIT",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-024": {
+    "supporting_docs": "GTTT:8|THKL:8|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "HDA",
+    "recipients": "VEC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-025": {
+    "supporting_docs": "GTTT:8|THKL:8|NTVL:8",
+    "lan_val": "L1",
+    "issuer": "HTL",
+    "recipients": "VEC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-026": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "HTL",
+    "recipients": "VEC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-027": {
+    "supporting_docs": "GTTT:8|THKL:8|NTVL:8",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-030": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC;CTC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-031": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC;CTC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-032": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC;CTC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-033": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-034": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-035": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-036": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-037": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-038": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-039": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "VEC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-040": {
+    "supporting_docs": "GTTT:8|THKL:8|NTVL:8",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-041": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-042": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-043": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-044": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-045": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-046": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-047": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260605-048": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260610-001": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC;CTC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260611-001": {
+    "supporting_docs": "GTTT:6|THKL:6|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "ACIT",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260612-001": {
+    "supporting_docs": "GTTT:10|THKL:10|NTVL:1|HSK:1|NOTE:Phiếu bảo hành x 1",
+    "lan_val": "L1",
+    "issuer": "HHG",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260612-003": {
+    "supporting_docs": "THKL:4|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "",
+    "recipients": "",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260612-004": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "VEC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260616-001": {
+    "supporting_docs": "GTTT:3|THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "CVL;VEC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260619-001": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10|NTCL:1|NTVL:1|HSK:1|NOTE:...",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260619-002": {
+    "supporting_docs": "GTTT:9|THKL:9|NTVL:1",
+    "lan_val": "L2",
+    "issuer": "MN",
+    "recipients": "VEC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260619-003": {
+    "supporting_docs": "THKL:8|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "HDA",
+    "recipients": "VEC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260619-004": {
+    "supporting_docs": "THKL:8|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "HDA",
+    "recipients": "VEC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260624-001": {
+    "supporting_docs": "GTTT:4|THKL:4|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "CVL;VEC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260625-001": {
+    "supporting_docs": "THKL:10|NTVL:1|HSK:1|NOTE:Phiếu bảo hành x 1",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "ART",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260625-002": {
+    "supporting_docs": "THKL:10|NTVL:1|HSK:1|NOTE:Phiếu bảo hành x 1",
+    "lan_val": "L1",
+    "issuer": "ART",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260706-002": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "EUS",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260708-001": {
+    "supporting_docs": "GTTT:10|THKL:10|NTCL:1|HSK:1|NOTE:Đề nghị thanh toán x2",
+    "lan_val": "L1",
+    "issuer": "HHG",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260710-002": {
+    "supporting_docs": "THKL:3|DGKL:1",
+    "lan_val": "L1",
+    "issuer": "EUS",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260715-001": {
+    "supporting_docs": "GTTT:10|THKL:10|NTVL:1|HSK:1|NOTE:Bộ CO CQ gốc x1",
+    "lan_val": "L1",
+    "issuer": "NSH",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260716-001": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260716-002": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260722-001": {
+    "supporting_docs": "GTTT:9|THKL:9|NTVL:1|HSK:1|NOTE:Hóa đơn GTGT x 2",
+    "lan_val": "L1",
+    "issuer": "MSP",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260723-001": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "MIK",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260723-002": {
+    "supporting_docs": "GTTT:10|THKL:10|NTCL:1|NTVL:1|NOTE:Báo cáo tiến độ thi công đến 30/9/2026 x5",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260723-003": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260723-004": {
+    "supporting_docs": "HSK:1|NOTE:VO2, VO3, VO4-PA1 x1 | VO2, VO3, VO4-PA2 x1",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "TID",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260724-001": {
+    "supporting_docs": "THKL:8|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "HDA",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260727-001": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260727-002": {
+    "supporting_docs": "THKL:6|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "ACIT",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260729-001": {
+    "supporting_docs": "HSK:1|NOTE:https://drive.google.com/drive/folders/1VDUMC6Zr5qLM3LeUubYKQpTBgkuSYb_U?usp=sharing",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CTC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260810-001": {
+    "supporting_docs": "GTTT:4|THKL:4",
+    "lan_val": "L1",
+    "issuer": "CLI",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260810-002": {
+    "supporting_docs": "GTTT:4|THKL:4",
+    "lan_val": "L1",
+    "issuer": "CLI",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260815-001": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260817-001": {
+    "supporting_docs": "GTTT:10|THKL:10|HSK:1|NOTE:Biên bản xác nhận nhân sự tháng 1-7/2026",
+    "lan_val": "L1",
+    "issuer": "KD",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260817-002": {
+    "supporting_docs": "GTTT:10|THKL:10",
+    "lan_val": "L1",
+    "issuer": "KD",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260825-001": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "CMM",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260825-002": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "MV2",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260827-001": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "MIK",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260827-002": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "MIK",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260904-001": {
+    "supporting_docs": "THKL:8|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "HDA",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260908-001": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "MSP",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260918-010": {
+    "supporting_docs": "THKL:8|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "HDA",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260924-001": {
+    "supporting_docs": "THKL:3|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "MIK",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260924-002": {
+    "supporting_docs": "THKL:10|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "VNG",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260925-004": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260929-005": {
+    "supporting_docs": "THKL:3|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "GTS",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261002-001": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261002-002": {
+    "supporting_docs": "GTTT:10|THKL:10|HSK:1|NOTE:Đề nghị thanh toán x2 | Danh mục hs x1",
+    "lan_val": "L1",
+    "issuer": "HHG",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261005-001": {
+    "supporting_docs": "GTTT:10",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261014-001": {
+    "supporting_docs": "GTTT:4",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261014-002": {
+    "supporting_docs": "GTTT:4|THKL:4",
+    "lan_val": "L1",
+    "issuer": "KD",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261015-001": {
+    "supporting_docs": "THKL:3|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "HIW",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261023-001": {
+    "supporting_docs": "THKL:3|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "TTM",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261024-001": {
+    "supporting_docs": "THKL:3|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "HTTL",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261028-001": {
+    "supporting_docs": "THKL:1|DGKL:1",
+    "lan_val": "L1",
+    "issuer": "KD",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261030-004": {
+    "supporting_docs": "GTTT:2|THKL:2",
+    "lan_val": "L1",
+    "issuer": "CLI",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261104-001": {
+    "supporting_docs": "THKL:3|NTCL:1",
+    "lan_val": "L1",
+    "issuer": "LKH",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261105-001": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "HA",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261109-001": {
+    "supporting_docs": "THKL:3|NTVL:1",
+    "lan_val": "L1",
+    "issuer": "GLX",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261110-007": {
+    "supporting_docs": "GTTT:4|THKL:4",
+    "lan_val": "L1",
+    "issuer": "EC",
+    "recipients": "CLI",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20260914-003": {
+    "supporting_docs": "THKL:1|DGKL:1|HSK:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261110-001": {
+    "supporting_docs": "GTTT:10|THKL:10|DGKL:10",
+    "lan_val": "L1",
+    "issuer": "KD",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  },
+  "DOC-20261114-001": {
+    "supporting_docs": "THKL:1|DGKL:1|HSK:1",
+    "lan_val": "L1",
+    "issuer": "CTC",
+    "recipients": "EC",
+    "sub_type1": "",
+    "sub_type2": ""
+  }
+}

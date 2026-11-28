@@ -700,10 +700,14 @@ export class ContractsManager {
 
         const stillMissing = docsNeedingMigration.some((d) => !docMap.get(d.id)?.supporting_docs);
         if (stillMissing) {
-          const resp = await fetch('./legacy/cpms-plus/excel/CHC1_20261118_103621.cpms');
+          const resp = await fetch('./js/core/supporting-docs-backup.json?v=1.0');
           if (resp.ok) {
-            const ab = await resp.arrayBuffer();
-            collectFromWb(window.XLSX.read(ab, { type: 'array' }));
+            const backupJson = await resp.json();
+            Object.entries(backupJson || {}).forEach(([dId, info]) => {
+              if (info && info.supporting_docs && !docMap.get(dId)?.supporting_docs) {
+                docMap.set(dId, info);
+              }
+            });
           }
         }
 
