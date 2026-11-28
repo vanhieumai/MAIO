@@ -689,9 +689,13 @@ export class ContractsManager {
         };
 
         if (this.activeFileHandle) {
-          const file = await this.activeFileHandle.getFile();
-          const ab = await file.arrayBuffer();
-          collectFromWb(window.XLSX.read(ab, { type: 'array' }));
+          try {
+            const file = await this.activeFileHandle.getFile();
+            const ab = await file.arrayBuffer();
+            collectFromWb(window.XLSX.read(ab, { type: 'array' }));
+          } catch (handleErr) {
+            console.warn('[MAIO Migration] Chưa đọc được activeFileHandle, chuyển sang dữ liệu dự phòng:', handleErr?.message);
+          }
         }
 
         const stillMissing = docsNeedingMigration.some((d) => !docMap.get(d.id)?.supporting_docs);
@@ -703,6 +707,7 @@ export class ContractsManager {
           }
         }
 
+        let migratedCount = 0;
         for (const d of docsNeedingMigration) {
           const info = docMap.get(d.id);
           if (info && info.supporting_docs) {
@@ -713,7 +718,11 @@ export class ContractsManager {
             if (!d.sub_type1) d.sub_type1 = info.sub_type1;
             if (!d.sub_type2) d.sub_type2 = info.sub_type2;
             await db.put('documents', d);
+            migratedCount++;
           }
+        }
+        if (migratedCount > 0) {
+          console.log(`[MAIO Migration] Đã khôi phục supporting_docs cho ${migratedCount} hồ sơ.`);
         }
       } catch (e) {
         console.warn('[MAIO Migration] Không thể tự động đọc dữ liệu bổ sung cho hồ sơ:', e);
