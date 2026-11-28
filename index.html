@@ -179,6 +179,7 @@
                   <option value="" disabled selected>-- Chọn dự án --</option>
                   <option value="CREATE_NEW">+ Tạo dự án mới...</option>
                   <option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>
+                  <option value="MANAGE_ONLINE">☁️ Quản lý & Liên kết dự án Online...</option>
                 </select>
                 <span id="top-project-source-badge" class="project-source-badge source-local" title="Nguồn dữ liệu dự án đang mở">
                   <i class="fa-solid fa-laptop-file"></i> Local
@@ -221,6 +222,9 @@
             <div class="cloud-banner-compact">
               <i class="fa-brands fa-google-drive cloud-drive-icon" title="Google Drive Cloud"></i>
               <div class="cloud-sync-actions">
+                <button id="btn-manage-online-projects" class="button button-outline button-sm btn-sync-icon" title="Quản lý & So sánh liên kết Dự án Online ↔ Local">
+                  <i class="fa-solid fa-code-compare" style="color: #6366f1;"></i>
+                </button>
                 <button id="btn-sync-to-drive" class="button button-primary button-sm btn-sync-icon" title="Đồng bộ dữ liệu từ máy tính lên Google Drive (Push)">
                   <i class="fa-solid fa-cloud-arrow-up"></i>
                 </button>
@@ -787,6 +791,6 @@
   <script src="gdrive-config.js?v=2.0"></script>
   
   <!-- File khởi tạo ứng dụng -->
-  <script type="module" src="js/app.js?v=15.3"></script>
+  <script type="module" src="js/app.js?v=15.4"></script>
 </body>
 </html>

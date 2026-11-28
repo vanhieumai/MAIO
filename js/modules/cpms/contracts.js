@@ -340,6 +340,10 @@ export class ContractsManager {
           await this.loadData();
           this.render();
           this.showLocalSaveStatus(`Đã liên kết file "${handle.name}". Mọi chỉnh sửa sẽ tự động lưu vào file này!`);
+          // Sau khi dẫn file Local mới, nếu đang online Google Drive -> hỏi liên kết & so sánh với dự án Online
+          if (typeof window.__MAIO_APP__?.promptLinkLocalWithOnline === 'function') {
+            window.__MAIO_APP__.promptLinkLocalWithOnline(result.projectData);
+          }
           return;
         }
       } catch (err) {
@@ -1630,6 +1634,12 @@ export class ContractsManager {
 
     // Bổ sung các dự án Online trên Google Drive chưa có bản local trên máy này
     const localIds = new Set(this.projects.map((p) => p.id));
+    const linkedOnlineIds = new Set(
+      this.projects.flatMap((p) => [
+        ...(Array.isArray(p.linked_online_file_ids) ? p.linked_online_file_ids : []),
+        p.linked_online_file_id || '',
+      ]).filter(Boolean)
+    );
     const localFileNames = new Set(
       this.projects
         .flatMap((p) => [
@@ -1644,6 +1654,8 @@ export class ContractsManager {
       const itemIdAsCpmsLower = `${String(item.projectId || '').trim().toLowerCase()}.cpms`;
       if (
         localIds.has(item.projectId) ||
+        linkedOnlineIds.has(item.fileId) ||
+        linkedOnlineIds.has(item.projectId) ||
         (itemFileLower && localFileNames.has(itemFileLower)) ||
         localFileNames.has(itemIdAsCpmsLower)
       ) {
@@ -1654,6 +1666,7 @@ export class ContractsManager {
 
     optionsHtml += `<option value="CREATE_NEW">+ Tạo dự án mới...</option>`;
     optionsHtml += `<option value="IMPORT_NEW">+ Dẫn link file CPMS từ máy tính (.cpms)...</option>`;
+    optionsHtml += `<option value="MANAGE_ONLINE">☁️ Quản lý & Liên kết dự án Online...</option>`;
     selector.innerHTML = optionsHtml;
     selector.value = this.currentProjectId;
 
@@ -1734,6 +1747,9 @@ export class ContractsManager {
       if (val === 'CREATE_NEW') {
         projectSelector.value = this.currentProjectId || '';
         this.openCreateProjectModal();
+      } else if (val === 'MANAGE_ONLINE') {
+        projectSelector.value = this.currentProjectId || '';
+        window.__MAIO_APP__?.openOnlineProjectManagerModal?.();
       } else if (val === 'IMPORT_NEW') {
         // Trả lại giá trị trước đó trên UI
         projectSelector.value = this.currentProjectId;

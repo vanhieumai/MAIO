@@ -798,6 +798,83 @@ export class GoogleDriveService {
   }
 
   /**
+   * Đưa một file trên Google Drive vào thùng rác (an toàn hơn xóa vĩnh viễn)
+   */
+  async trashFile(fileId) {
+    if (!this.accessToken || !fileId) return false;
+    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trashed: true }),
+    });
+    if (!res.ok) {
+      throw new Error(`Không thể xóa file trên Drive [${res.status}]`);
+    }
+    return true;
+  }
+
+  /**
+   * Đọc tóm tắt thông số của một dự án Online (Snapshot JSON hoặc .cpms) để so sánh với Local
+   */
+  async readOnlineProjectSummary(item) {
+    if (!item || !item.fileId) return null;
+    if (item.sourceType === 'cpms') {
+      const blob = await this.downloadBlobFile(item.fileId);
+      const fileObj = new File([blob], item.fileName || `${item.projectId}.cpms`);
+      const { CPMSImporterExporter } = await import('./cpms-importer.js?v=5.9');
+      const parsed = await CPMSImporterExporter.importCPMSFile(fileObj);
+      const contracts = parsed.contracts || [];
+      const payments = (parsed.payments || []).filter((p) => !p.is_header);
+      const docs = parsed.documents || [];
+      const sumGroup = (grp) =>
+        contracts
+          .filter((c) => c.group === grp && !c.parent_id && !c.is_cpb)
+          .reduce((s, c) => s + (Number(c.contract_val) || 0), 0);
+      return {
+        project: parsed.projectData,
+        contracts,
+        payments,
+        documents: docs,
+        contractsCount: contracts.filter((c) => !c.is_cpb).length,
+        paymentsCount: payments.length,
+        docsCount: docs.length,
+        totalValA: sumGroup('A'),
+        totalValB: sumGroup('B'),
+        modifiedTime: item.modifiedTime,
+      };
+    }
+
+    const snap = await this.readJsonFile(item.fileId);
+    const data = snap?.data || {};
+    const prjId = item.projectId || snap?.active_project || data.projects?.[0]?.id;
+    const prj = (data.projects || []).find((p) => p.id === prjId) || data.projects?.[0] || { id: prjId, name: prjId };
+    const contracts = (data.contracts || []).filter((c) => !prjId || c.project_id === prjId);
+    const payments = (data.payments || []).filter((p) => (!prjId || p.project_id === prjId) && !p.is_header);
+    const docs = (data.documents || []).filter((d) => !prjId || d.project_id === prjId);
+    const sumGroup = (grp) =>
+      contracts
+        .filter((c) => c.group === grp && !c.parent_id && !c.is_cpb)
+        .reduce((s, c) => s + (Number(c.contract_val) || 0), 0);
+
+    return {
+      snapshot: snap,
+      project: prj,
+      contracts,
+      payments,
+      documents: docs,
+      contractsCount: contracts.filter((c) => !c.is_cpb).length,
+      paymentsCount: payments.length,
+      docsCount: docs.length,
+      totalValA: sumGroup('A'),
+      totalValB: sumGroup('B'),
+      modifiedTime: item.modifiedTime || snap?.exported_at || prj?.updated_at,
+    };
+  }
+
+  /**
    * Tải đệ quy toàn bộ thư mục từ Drive về thư mục máy tính (FileSystemDirectoryHandle)
    */
   async downloadDriveFolderToLocal(driveFolderId, localDirHandle) {

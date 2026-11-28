@@ -3,10 +3,10 @@
  * Quản lý khởi tạo IndexedDB, nạp dữ liệu hạt giống CHC1, điều hướng phân hệ và kết nối đồng bộ.
  */
 
-import { gdrive } from './core/gdrive.js?v=5.4';
+import { gdrive } from './core/gdrive.js?v=5.5';
 import { db } from './core/db.js?v=5.3';
 import { maioOpen } from './core/maio-open.js?v=1.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=12.4';
+import { contractsManager } from './modules/cpms/contracts.js?v=12.5';
 
 class App {
   constructor() {
@@ -677,6 +677,11 @@ class App {
     // Khởi tạo dịch vụ Google Drive
     gdrive.init().catch((err) => {
       console.warn('Google Drive Service chưa sẵn sàng:', err);
+    });
+
+    // 0. Nút Quản lý & So sánh Dự án Online <-> Local
+    document.getElementById('btn-manage-online-projects')?.addEventListener('click', () => {
+      this.openOnlineProjectManagerModal();
     });
 
     // 1. Nút Đồng bộ lên Drive (Local -> Drive)
@@ -2091,6 +2096,340 @@ class App {
 
     if (cfgClientId) {
       cfgClientId.textContent = config.clientId || 'Chưa thiết lập trong gdrive-config.js';
+    }
+  }
+
+  /**
+   * Mở Modal Quản lý Dự án Online (Google Drive) để liên kết, so sánh hoặc dọn bản thừa
+   */
+  async openOnlineProjectManagerModal() {
+    if (gdrive.currentUser?.isOffline || (!gdrive.isSignedIn() && !(await gdrive.trySilentRefreshToken()))) {
+      window.maioAlert?.({
+        title: 'Chưa kết nối Google Drive',
+        type: 'warning',
+        message: 'Vui lòng đăng nhập Google Drive ở góc trên bên phải để xem và quản lý danh sách dự án Online.'
+      });
+      return;
+    }
+
+    const existing = document.getElementById('maio-online-manager-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'maio-online-manager-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+    document.body.appendChild(modal);
+
+    const renderList = async (forceRefresh = false) => {
+      modal.innerHTML = `
+        <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:100%;max-width:780px;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-weight:700;font-size:1.02rem;display:flex;align-items:center;gap:8px;">
+              <i class="fa-brands fa-google-drive" style="color:#2563eb;"></i>
+              <span>Quản lý Dự án Online & Liên kết Local</span>
+            </div>
+            <button type="button" id="btn-close-online-mgr" class="button button-outline button-sm"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div style="padding:28px;text-align:center;color:var(--text-muted);">
+            <i class="fa-solid fa-spinner fa-spin"></i> Đang tải danh sách dữ liệu trên Google Drive...
+          </div>
+        </div>
+      `;
+      modal.querySelector('#btn-close-online-mgr')?.addEventListener('click', () => modal.remove());
+
+      const list = forceRefresh ? await this.refreshOnlineDriveProjects() : (this.onlineDriveProjects?.length ? this.onlineDriveProjects : await this.refreshOnlineDriveProjects());
+      const curPrj = (contractsManager.projects || []).find((p) => p.id === contractsManager.currentProjectId) || contractsManager.projects?.[0] || null;
+      const linkedSet = new Set(
+        (contractsManager.projects || []).flatMap((p) => [
+          p.id,
+          ...(Array.isArray(p.linked_online_file_ids) ? p.linked_online_file_ids : []),
+          p.linked_online_file_id || ''
+        ]).filter(Boolean)
+      );
+
+      const fmtDate = (iso) => {
+        if (!iso) return '—';
+        try {
+          return new Date(iso).toLocaleString('vi-VN');
+        } catch (_) {
+          return iso;
+        }
+      };
+
+      const rowsHtml = list.length === 0
+        ? `<div style="padding:28px;text-align:center;color:var(--text-muted);">Chưa tìm thấy dự án Online nào trên Google Drive của tài khoản này.</div>`
+        : list.map((item, idx) => {
+            const isLinked = linkedSet.has(item.projectId) || linkedSet.has(item.fileId);
+            const typeBadge = item.sourceType === 'cpms'
+              ? '<span class="badge" style="background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;">File .cpms</span>'
+              : '<span class="badge" style="background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;">Snapshot JSON</span>';
+            return `
+              <div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;background:var(--bg-app);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;">
+                <div style="min-width:220px;flex:1;">
+                  <div style="font-weight:700;font-size:0.92rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                    <span>${item.fileName || item.projectId}</span>
+                    ${typeBadge}
+                    ${isLinked ? '<span class="badge badge-success">Đang liên kết Local</span>' : ''}
+                  </div>
+                  <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">
+                    Mã: <code>${item.projectId}</code> • Cập nhật trên Drive: <strong>${fmtDate(item.modifiedTime)}</strong>
+                  </div>
+                </div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  ${curPrj ? `<button type="button" class="button button-primary button-sm btn-compare-online-item" data-idx="${idx}" title="So sánh thông số và chọn liên kết / đồng bộ với dự án Local hiện tại"><i class="fa-solid fa-code-compare"></i> So sánh & Liên kết</button>` : ''}
+                  <button type="button" class="button button-outline button-sm btn-open-online-item" data-idx="${idx}" title="Tải và mở dự án Online này"><i class="fa-solid fa-cloud-arrow-down"></i> Mở</button>
+                  <button type="button" class="button button-outline button-sm btn-trash-online-item" data-idx="${idx}" style="color:var(--danger);border-color:#fca5a5;" title="Đưa bản này vào thùng rác Google Drive"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+              </div>
+            `;
+          }).join('');
+
+      modal.innerHTML = `
+        <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:100%;max-width:780px;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;">
+            <div style="font-weight:700;font-size:1.02rem;display:flex;align-items:center;gap:8px;">
+              <i class="fa-brands fa-google-drive" style="color:#2563eb;"></i>
+              <span>Quản lý Dự án Online (${list.length})</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button type="button" id="btn-refresh-online-mgr" class="button button-outline button-sm"><i class="fa-solid fa-rotate-right"></i> Quét lại Drive</button>
+              <button type="button" id="btn-close-online-mgr" class="button button-outline button-sm"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+          </div>
+          <div style="padding:14px 18px;overflow-y:auto;flex:1;">
+            ${curPrj ? `<div style="margin-bottom:12px;padding:10px 12px;border-radius:8px;background:var(--bg-card-subtle);font-size:0.84rem;">Dự án Local đang mở: <strong>${curPrj.name || curPrj.id}</strong> (<code>${curPrj.code || curPrj.id}</code> · File: <code>${contractsManager.activeFileHandle?.name || curPrj.source_filename || '—'}</code>)</div>` : ''}
+            ${rowsHtml}
+          </div>
+          <div style="padding:12px 18px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;background:var(--bg-app);">
+            <button type="button" id="btn-done-online-mgr" class="button button-outline button-sm">Đóng</button>
+          </div>
+        </div>
+      `;
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+      });
+      modal.querySelector('#btn-close-online-mgr')?.addEventListener('click', () => modal.remove());
+      modal.querySelector('#btn-done-online-mgr')?.addEventListener('click', () => modal.remove());
+      modal.querySelector('#btn-refresh-online-mgr')?.addEventListener('click', () => renderList(true));
+
+      modal.querySelectorAll('.btn-compare-online-item').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const item = list[Number(btn.dataset.idx)];
+          if (item && curPrj) {
+            modal.remove();
+            await this.openCompareSyncProjectModal(curPrj, item);
+          }
+        });
+      });
+
+      modal.querySelectorAll('.btn-open-online-item').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const item = list[Number(btn.dataset.idx)];
+          if (item) {
+            modal.remove();
+            await this.openOnlineDriveProject(item.fileId, item.projectId);
+          }
+        });
+      });
+
+      modal.querySelectorAll('.btn-trash-online-item').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const item = list[Number(btn.dataset.idx)];
+          if (!item) return;
+          const ok = await (window.maioConfirm
+            ? window.maioConfirm({
+                title: 'Xóa bản dữ liệu Online trên Drive',
+                message: `Bạn muốn chuyển file "${item.fileName || item.projectId}" vào Thùng rác Google Drive?`,
+                confirmText: 'Xóa khỏi Drive',
+                cancelText: 'Hủy',
+                confirmType: 'danger',
+              })
+            : Promise.resolve(confirm(`Chuyển "${item.fileName || item.projectId}" vào Thùng rác Google Drive?`)));
+          if (!ok) return;
+          try {
+            await gdrive.trashFile(item.fileId);
+            await this.refreshOnlineDriveProjects();
+            contractsManager.updateProjectSelectorUI();
+            renderList(true);
+          } catch (err) {
+            window.maioAlert?.(`Không thể xóa file trên Drive: ${err.message}`);
+          }
+        });
+      });
+    };
+
+    renderList(true);
+  }
+
+  /**
+   * Hỏi người dùng có muốn so sánh & liên kết dự án Local vừa chọn với dự án Online không
+   */
+  async promptLinkLocalWithOnline(localPrj) {
+    if (!localPrj || gdrive.currentUser?.isOffline || !gdrive.isSignedIn()) return;
+    const onlineList = this.onlineDriveProjects?.length ? this.onlineDriveProjects : await this.refreshOnlineDriveProjects();
+    if (!onlineList || onlineList.length === 0) return;
+
+    const matched =
+      onlineList.find((o) => o.projectId === localPrj.id || o.projectId === localPrj.code) ||
+      onlineList[0];
+    if (!matched) return;
+
+    await this.openCompareSyncProjectModal(localPrj, matched);
+  }
+
+  /**
+   * Modal So sánh thông số giữa Dự án Local và Dự án Online để chọn liên kết & cập nhật
+   */
+  async openCompareSyncProjectModal(localPrj, onlineItem) {
+    if (!localPrj || !onlineItem) return;
+    const existing = document.getElementById('maio-compare-sync-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'maio-compare-sync-modal';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);backdrop-filter:blur(3px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+    modal.innerHTML = `
+      <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:100%;max-width:760px;padding:28px;text-align:center;">
+        <i class="fa-solid fa-spinner fa-spin" style="font-size:1.5rem;color:var(--primary);"></i>
+        <div style="margin-top:10px;">Đang đọc thông số dự án Online từ Google Drive để so sánh...</div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    try {
+      const [allC, allP, allD, onlineSummary] = await Promise.all([
+        db.getAll('contracts'),
+        db.getAll('payments'),
+        db.getAll('documents'),
+        gdrive.readOnlineProjectSummary(onlineItem),
+      ]);
+
+      const localC = allC.filter((c) => c.project_id === localPrj.id);
+      const localP = allP.filter((p) => p.project_id === localPrj.id && !p.is_header);
+      const localD = allD.filter((d) => d.project_id === localPrj.id);
+      const sumGrp = (arr, grp) =>
+        arr.filter((c) => c.group === grp && !c.parent_id && !c.is_cpb).reduce((s, c) => s + (Number(c.contract_val) || 0), 0);
+
+      const fmtMoney = (v) => `${Number(v || 0).toLocaleString('vi-VN')} đ`;
+      const fmtTime = (iso) => {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleString('vi-VN'); } catch (_) { return iso; }
+      };
+
+      const localTime = localPrj.updated_at || localPrj.source_file_updated || localPrj.created_at;
+      const onlineTime = onlineSummary?.modifiedTime;
+
+      modal.innerHTML = `
+        <div style="background:var(--bg-card);color:var(--text-main);border:1px solid var(--border);border-radius:12px;width:100%;max-width:780px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(0,0,0,0.25);overflow:hidden;">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-weight:700;font-size:1.02rem;display:flex;align-items:center;gap:8px;">
+              <i class="fa-solid fa-code-compare" style="color:#6366f1;"></i>
+              <span>So sánh & Liên kết Dự án Local ↔ Online</span>
+            </div>
+            <button type="button" id="btn-close-compare" class="button button-outline button-sm"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div style="padding:16px 18px;overflow-y:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.86rem;">
+              <thead>
+                <tr style="background:var(--bg-app);">
+                  <th style="padding:9px 10px;text-align:left;border:1px solid var(--border);">Thông số đối chiếu</th>
+                  <th style="padding:9px 10px;text-align:left;border:1px solid var(--border);color:#0f766e;"><i class="fa-solid fa-laptop-file"></i> Dữ liệu Local</th>
+                  <th style="padding:9px 10px;text-align:left;border:1px solid var(--border);color:#1d4ed8;"><i class="fa-brands fa-google-drive"></i> Dữ liệu Online (Drive)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:600;">Tên / Nguồn dữ liệu</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);">${localPrj.name || localPrj.id}<br><small style="color:var(--text-muted);">${contractsManager.activeFileHandle?.name || localPrj.source_filename || localPrj.id}</small></td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);">${onlineSummary?.project?.name || onlineItem.projectId}<br><small style="color:var(--text-muted);">${onlineItem.fileName}</small></td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:600;">Thời gian cập nhật</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);">${fmtTime(localTime)}</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);">${fmtTime(onlineTime)}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:600;">Số Hợp đồng & Phụ lục</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;">${localC.filter((c) => !c.is_cpb).length}</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;">${onlineSummary?.contractsCount ?? 0}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:600;">Số Đợt thanh toán (ĐN)</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;">${localP.length}</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;">${onlineSummary?.paymentsCount ?? 0}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:600;">Số Hồ sơ & Công văn</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;">${localD.length}</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:700;">${onlineSummary?.docsCount ?? 0}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 10px;border:1px solid var(--border);font-weight:600;">Tổng giá trị HĐ (Nhóm A / B)</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);">A: ${fmtMoney(sumGrp(localC, 'A'))}<br>B: ${fmtMoney(sumGrp(localC, 'B'))}</td>
+                  <td style="padding:8px 10px;border:1px solid var(--border);">A: ${fmtMoney(onlineSummary?.totalValA)}<br>B: ${fmtMoney(onlineSummary?.totalValB)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:14px 18px;border-top:1px solid var(--border);background:var(--bg-app);display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;">
+            <button type="button" id="btn-cmp-unlink" class="button button-outline button-sm">Không liên kết</button>
+            <button type="button" id="btn-cmp-link-only" class="button button-outline button-sm">Chỉ liên kết (Không ghi đè)</button>
+            <button type="button" id="btn-cmp-pull" class="button button-outline button-sm" style="border-color:#2563eb;color:#1d4ed8;"><i class="fa-solid fa-cloud-arrow-down"></i> Lấy Online cập nhật Local</button>
+            <button type="button" id="btn-cmp-push" class="button button-primary button-sm"><i class="fa-solid fa-cloud-arrow-up"></i> Đẩy Local cập nhật Online</button>
+          </div>
+        </div>
+      `;
+
+      const linkMetadataToLocal = async () => {
+        const allPrjs = await db.getAll('projects');
+        const p = allPrjs.find((x) => x.id === localPrj.id);
+        if (p) {
+          p.drive_synced = true;
+          p.linked_online_file_id = onlineItem.fileId;
+          const prevList = Array.isArray(p.linked_online_file_ids) ? p.linked_online_file_ids : [];
+          p.linked_online_file_ids = Array.from(new Set([...prevList, onlineItem.fileId, onlineItem.projectId]));
+          await db.put('projects', p);
+        }
+      };
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+      modal.querySelector('#btn-close-compare')?.addEventListener('click', () => modal.remove());
+      modal.querySelector('#btn-cmp-unlink')?.addEventListener('click', () => modal.remove());
+
+      modal.querySelector('#btn-cmp-link-only')?.addEventListener('click', async () => {
+        await linkMetadataToLocal();
+        await contractsManager.loadData();
+        contractsManager.render();
+        this.updateProjectSourceBadge();
+        modal.remove();
+        contractsManager.showToast('Đã liên kết dự án Local ↔ Online!', 'success');
+      });
+
+      modal.querySelector('#btn-cmp-push')?.addEventListener('click', async () => {
+        await linkMetadataToLocal();
+        await contractsManager.loadData();
+        modal.remove();
+        await contractsManager.saveProjectCPMSOnline();
+        this.updateProjectSourceBadge();
+      });
+
+      modal.querySelector('#btn-cmp-pull')?.addEventListener('click', async () => {
+        modal.remove();
+        await this.openOnlineDriveProject(onlineItem.fileId, onlineItem.projectId);
+        await linkMetadataToLocal();
+        if (contractsManager.activeFileHandle) {
+          await contractsManager.syncToLocalFile(true);
+        }
+        await contractsManager.loadData();
+        contractsManager.render();
+        this.updateProjectSourceBadge();
+      });
+    } catch (err) {
+      modal.remove();
+      window.maioAlert?.(`Không thể đọc dữ liệu so sánh từ Drive: ${err.message}`);
     }
   }
 }
