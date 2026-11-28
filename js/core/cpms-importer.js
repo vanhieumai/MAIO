@@ -239,6 +239,9 @@ export class CPMSImporterExporter {
     let projectCode = '';
     let projectName = '';
     let clientName = '';
+    let clientCode = '';
+    let mainconCode = '';
+    let supconCode = '';
     let location = '';
     let contractor = '';
 
@@ -294,7 +297,16 @@ export class CPMSImporterExporter {
         if (!projectName && (key.includes('projectname') || key.includes('tên dự án') || key === 'proj_name' || key.includes('tên công trình') || key === 'project_name')) {
           projectName = val;
         }
-        if (!clientName && (key.includes('client') || key.includes('chủ đầu tư') || key.includes('bên a'))) {
+        if (!clientCode && key === 'client') {
+          clientCode = val.toUpperCase();
+        }
+        if (!mainconCode && key === 'maincon') {
+          mainconCode = val.toUpperCase();
+        }
+        if (!supconCode && key === 'supcon') {
+          supconCode = val.toUpperCase();
+        }
+        if (!clientName && key !== 'client' && (key.includes('client') || key.includes('chủ đầu tư') || key.includes('bên a'))) {
           clientName = val;
         }
         if (!location && (key.includes('location') || key.includes('địa điểm') || key.includes('địa chỉ') || key.includes('dia diem'))) {
@@ -415,10 +427,15 @@ export class CPMSImporterExporter {
           });
         }
 
+        const resolvedGroup = hierarchy.group || currentGroup;
+        if (resolvedGroup === 'B' && (!codeA || (clientCode && codeA.toUpperCase() === clientCode))) {
+          codeA = mainconCode || 'EC';
+        }
+
         contracts.push({
           id: c1,
           project_id: projectId,
-          group: hierarchy.group || currentGroup,
+          group: resolvedGroup,
           parent_id: hierarchy.parentId,
           level: hierarchy.level,
           contract_no: String(r[1] || c1),
@@ -611,6 +628,9 @@ export class CPMSImporterExporter {
     const projectData = {
       id: resolvedId,
       code: resolvedCode,
+      client_code: clientCode || 'CLI',
+      maincon_code: mainconCode || 'EC',
+      supcon_code: supconCode || 'ART',
       name: projectName,
       client: clientName,
       location: location,

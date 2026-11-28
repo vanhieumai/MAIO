@@ -12,7 +12,7 @@
 
 import { db } from '../../core/db.js?v=5.3';
 import { maioOpen } from '../../core/maio-open.js?v=1.1';
-import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.8';
+import { CPMSImporterExporter } from '../../core/cpms-importer.js?v=5.9';
 
 export class ContractsManager {
   constructor() {
@@ -7159,6 +7159,31 @@ export class ContractsManager {
   // ==========================================
   // FORM THÊM / CHỈNH SỬA HỒ SƠ (CHUẨN frmDocumentEdit CPMS PLUS)
   // ==========================================
+  getContractPartyCodes(contract) {
+    const curPrj = (this.projects || []).find((p) => p.id === (contract?.project_id || this.currentProjectId));
+    const rawMaincon = String(curPrj?.maincon_code || '').trim().toUpperCase();
+    const contractorText = String(curPrj?.contractor || '').trim().toUpperCase();
+    const mainconCode = rawMaincon || (/^[A-Z0-9_-]{2,12}$/.test(contractorText) ? contractorText : 'EC');
+    const clientCode = String(curPrj?.client_code || 'CLI').trim().toUpperCase();
+    const group = String(contract?.group || 'B').toUpperCase();
+    const rawA = String(contract?.code_a || '').trim().toUpperCase();
+    const rawB = String(contract?.code_b || contract?.company_code || '').trim().toUpperCase();
+
+    if (group === 'A') {
+      return {
+        codeA: rawA || clientCode || 'CLI',
+        codeB: rawB || mainconCode || 'EC',
+      };
+    }
+
+    // Hợp đồng Nhóm B: Bên A là Tổng thầu (EC / MAINCON), trừ khi hợp đồng có code_a riêng khác mã Chủ đầu tư
+    const resolvedA = (rawA && rawA !== clientCode) ? rawA : (mainconCode || rawA || 'EC');
+    return {
+      codeA: resolvedA,
+      codeB: rawB,
+    };
+  }
+
   openDocumentFormModal(targetContract, editDoc = null, options = {}) {
     const isEdit = !!editDoc;
     const projectContracts = (this.contracts || []).filter(
@@ -7176,12 +7201,14 @@ export class ContractsManager {
       ? editDoc.id
       : `DOC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(docs.length + 1).padStart(3, '0')}`;
 
+    const partyCodes = this.getContractPartyCodes(activeContract);
+
     // Thu thập danh sách mã đối tác trong dự án để gợi ý Issuer / Recipient
     const companyCodes = Array.from(new Set([
-      activeContract.code_a,
-      activeContract.code_b,
+      partyCodes.codeA,
+      partyCodes.codeB,
       activeContract.code_b2,
-      'CLI', 'VEC', 'VNCN', 'CTC', 'KD', 'NSH', 'TID', 'HHG', 'HD', 'EC-KD', 'PMU'
+      'EC', 'CLI', 'VEC', 'VNCN', 'CTC', 'KD', 'NSH', 'TID', 'HHG', 'HD', 'EC-KD', 'PMU'
     ].filter(Boolean)));
 
     // Parse supporting docs nếu là chế độ chỉnh sửa (dạng GTTT:10|THKL:10|NTVL:1|HSK:1|NOTE:Bộ CO CQ gốc x1)
@@ -7368,7 +7395,7 @@ export class ContractsManager {
                 <div style="display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: flex-end; margin-bottom: 14px;">
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Issuer (Bên gửi / Ban hành)</label>
-                    <input type="text" class="form-control" name="issuer" id="input-doc-issuer" list="list-doc-issuers" value="${editDoc?.issuer || targetContract.code_b || ''}" placeholder="Vd: VNCN, CTC..." style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
+                    <input type="text" class="form-control" name="issuer" id="input-doc-issuer" list="list-doc-issuers" value="${editDoc?.issuer || partyCodes.codeB || ''}" placeholder="Vd: VNCN, CTC..." style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
                     <datalist id="list-doc-issuers">
                       ${companyCodes.map(c => `<option value="${c}"></option>`).join('')}
                     </datalist>
@@ -7382,7 +7409,7 @@ export class ContractsManager {
 
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label">Recipient (Bên nhận)</label>
-                    <input type="text" class="form-control" name="recipients" id="input-doc-recipients" list="list-doc-recipients" value="${editDoc?.recipients || targetContract.code_a || ''}" placeholder="Vd: VEC, CLI..." style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
+                    <input type="text" class="form-control" name="recipients" id="input-doc-recipients" list="list-doc-recipients" value="${editDoc?.recipients || partyCodes.codeA || ''}" placeholder="Vd: EC, VEC, CLI..." style="text-transform: uppercase; font-family: monospace; font-weight: 600;">
                     <datalist id="list-doc-recipients">
                       ${companyCodes.map(c => `<option value="${c}"></option>`).join('')}
                     </datalist>
@@ -8127,13 +8154,14 @@ export class ContractsManager {
         const idInput = modal.querySelector('input[name="id"]');
         if (idInput) idInput.value = newDocId;
 
+        const newPartyCodes = this.getContractPartyCodes(c);
         const issuerInput = modal.querySelector('input[name="issuer"]');
         const recipInput = modal.querySelector('input[name="recipients"]');
         if (issuerInput && !issuerInput.dataset.userEdited) {
-          issuerInput.value = (c.code_b || c.code_a || '').toUpperCase();
+          issuerInput.value = newPartyCodes.codeB || '';
         }
         if (recipInput && !recipInput.dataset.userEdited) {
-          recipInput.value = (c.code_a || 'CLI').toUpperCase();
+          recipInput.value = newPartyCodes.codeA || 'EC';
         }
       };
 
