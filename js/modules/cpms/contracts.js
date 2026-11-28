@@ -663,7 +663,7 @@ export class ContractsManager {
     );
 
     // Tự động kiểm tra và di chuyển/bổ sung dữ liệu supporting_docs cho các hồ sơ chưa có
-    const docsNeedingMigration = this.documents.filter((d) => !d.supporting_docs);
+    const docsNeedingMigration = this.documents.filter((d) => !String(d.supporting_docs || '').trim());
     if (docsNeedingMigration.length > 0 && window.XLSX) {
       try {
         const docMap = new Map();
@@ -7924,14 +7924,17 @@ export class ContractsManager {
 
         let dCat = String(d.category || '').trim().toUpperCase();
         if (dCat === 'CONTRACT') dCat = 'CON';
+        const dNo = String(d.doc_no || '').trim();
         if (dCat === 'IPC' || docTypeCode === 'IPC') {
           if (dCat !== docTypeCode) return;
         } else if (dCat !== docTypeCode) {
           const dOtherType = String(d.other_doctype || d.sub_type1 || '').trim().toUpperCase();
-          if (dCat !== 'OTHER' || (dOtherType && dOtherType !== docTypeCode)) return;
+          const docNoHasType = dNo.toUpperCase().includes(`.${docTypeCode}.`) || dNo.toUpperCase().includes(`.${docTypeCode}-`);
+          if (dOtherType !== docTypeCode && !docNoHasType) {
+            if (dCat !== 'OTHER' || dOtherType) return;
+          }
         }
 
-        const dNo = String(d.doc_no || '').trim();
         if (!dNo) return;
         const parts = dNo.split('.');
         for (const p of parts) {
@@ -8063,6 +8066,11 @@ export class ContractsManager {
       }
     }
 
+    // Khi tạo mới hồ sơ: tự động nhảy số thứ tự tiếp theo ngay khi mở popup
+    if (!isEdit) {
+      tryGenerateDocNumber();
+    }
+
     // Xử lý lưu hồ sơ
     modal.querySelector('#form-doc-edit').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -8186,6 +8194,9 @@ export class ContractsManager {
         }
         if (recipInput && !recipInput.dataset.userEdited) {
           recipInput.value = newPartyCodes.codeA || 'EC';
+        }
+        if (!isEdit) {
+          tryGenerateDocNumber();
         }
       };
 
