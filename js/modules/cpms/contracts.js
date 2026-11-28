@@ -127,29 +127,32 @@ export class ContractsManager {
 
     let cached = this._driveFolderCache.get(curPrjId);
     if (!cached) {
-      const quanLyDuAnId = await gdriveSvc.ensureFolderPath(['01_QuanLy_DuAn']);
-      const existingFolders = await gdriveSvc.findFoldersInParent(quanLyDuAnId);
-      const prjNameLower = String(curPrj?.name || '').trim().toLowerCase();
-      const nameTokens = prjNameLower
-        .replace(/dự án|nhà ở|chung cư|cao tầng|khu đô thị/gi, '')
-        .trim()
-        .split(/\s+/)
-        .filter((w) => w.length >= 3);
+      let projectFolderId = curPrj?.drive_folder_id || '';
+      if (!projectFolderId) {
+        const quanLyDuAnId = await gdriveSvc.ensureFolderPath(['01_QuanLy_DuAn']);
+        const existingFolders = await gdriveSvc.findFoldersInParent(quanLyDuAnId);
+        const prjNameLower = String(curPrj?.name || '').trim().toLowerCase();
+        const nameTokens = prjNameLower
+          .replace(/dự án|nhà ở|chung cư|cao tầng|khu đô thị/gi, '')
+          .trim()
+          .split(/\s+/)
+          .filter((w) => w.length >= 3);
 
-      let matched = existingFolders.find((f) => {
-        const fname = String(f.name || '').toLowerCase();
-        if (fname === defaultFolderName.toLowerCase() || fname.includes(safePrjId.toLowerCase())) return true;
-        if (prjNameLower && fname.includes(prjNameLower)) return true;
-        if (nameTokens.length >= 2 && nameTokens.every((t) => fname.includes(t))) return true;
-        return false;
-      });
-      if (!matched && existingFolders.length === 1 && prjNameLower.includes('westlake') && existingFolders[0].name === 'DuAn_CHC1') {
-        matched = existingFolders[0];
+        let matched = existingFolders.find((f) => {
+          const fname = String(f.name || '').toLowerCase();
+          if (fname === defaultFolderName.toLowerCase() || fname.includes(safePrjId.toLowerCase())) return true;
+          if (prjNameLower && fname.includes(prjNameLower)) return true;
+          if (nameTokens.length >= 2 && nameTokens.every((t) => fname.includes(t))) return true;
+          return false;
+        });
+        if (!matched && existingFolders.length === 1 && prjNameLower.includes('westlake') && existingFolders[0].name === 'DuAn_CHC1') {
+          matched = existingFolders[0];
+        }
+
+        projectFolderId = matched
+          ? matched.id
+          : await gdriveSvc.createFolder(defaultFolderName, quanLyDuAnId);
       }
-
-      const projectFolderId = matched
-        ? matched.id
-        : await gdriveSvc.createFolder(defaultFolderName, quanLyDuAnId);
       const cpmsFolderId = await gdriveSvc.ensureFolderPath(['CPMS_Data'], projectFolderId);
 
       cached = { projectFolderId, cpmsFolderId };
@@ -166,6 +169,17 @@ export class ContractsManager {
     const cpmsFileName = this.activeFileHandle?.name || curPrj?.source_filename || `MAIO_Data_${safePrjId}.cpms`;
     await gdriveSvc.uploadBinaryFile(cpmsFileName, cpmsBuffer, 'application/octet-stream', cached.cpmsFolderId);
 
+    if (curPrj) {
+      curPrj.drive_synced = true;
+      curPrj.drive_folder_id = cached.projectFolderId;
+      await db.put('projects', curPrj);
+    }
+
+    if (typeof window.__MAIO_APP__?.refreshOnlineDriveProjects === 'function') {
+      await window.__MAIO_APP__.refreshOnlineDriveProjects();
+      this.updateProjectSelectorUI();
+    }
+
     this.showLocalSaveStatus(`Đã tự động lưu thay đổi lên Google Drive (${cpmsFileName})!`);
     return true;
   }
@@ -175,6 +189,9 @@ export class ContractsManager {
    */
   async syncToLocalFile(isManual = false) {
     const gdriveSvc = window.__MAIO_GDRIVE_SERVICE__;
+    if (gdriveSvc && !gdriveSvc.isSignedIn() && gdriveSvc.currentUser && !gdriveSvc.currentUser.isOffline && typeof gdriveSvc.trySilentRefreshToken === 'function') {
+      await gdriveSvc.trySilentRefreshToken();
+    }
     const isDriveOnline = Boolean(gdriveSvc && gdriveSvc.isSignedIn());
 
     if (isDriveOnline) {
@@ -2765,6 +2782,12 @@ export class ContractsManager {
       const rawNewId = String(fd.get('project_id') || oldId).trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
       const newId = rawNewId || oldId;
 
+      const wasOnlineLinked = Boolean(
+        project.drive_synced ||
+        project.data_origin === 'online' ||
+        (window.__MAIO_APP__?.onlineDriveProjects || []).some((o) => o.projectId === oldId)
+      );
+
       const updatedPrj = {
         ...project,
         id: newId,
@@ -2773,6 +2796,7 @@ export class ContractsManager {
         client: fd.get('client').trim(),
         location: fd.get('location').trim(),
         contractor: fd.get('contractor').trim(),
+        ...(wasOnlineLinked ? { drive_synced: true } : {}),
         updated_at: new Date().toISOString(),
       };
 
@@ -2817,14 +2841,18 @@ export class ContractsManager {
       }
 
       await db.put('projects', updatedPrj);
+      if (newId !== oldId && this._driveFolderCache?.has(oldId)) {
+        this._driveFolderCache.set(newId, this._driveFolderCache.get(oldId));
+        this._driveFolderCache.delete(oldId);
+      }
       await this.loadData();
       closeModal();
       this.render();
       if (typeof window.__MAIO_APP__?.updateDashboardStats === 'function') {
         await window.__MAIO_APP__.updateDashboardStats();
       }
-      await this.syncToLocalFile();
-      this.showToast('Đã cập nhật thông tin dự án và lưu đồng bộ!', 'success');
+      await this.syncToLocalFile(true);
+      this.showToast('Đã cập nhật thông tin dự án và đồng bộ!', 'success');
     };
   }
 
