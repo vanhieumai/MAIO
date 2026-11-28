@@ -6,7 +6,7 @@
 import { gdrive } from './core/gdrive.js?v=5.4';
 import { db } from './core/db.js?v=5.3';
 import { maioOpen } from './core/maio-open.js?v=1.1';
-import { contractsManager } from './modules/cpms/contracts.js?v=11.4';
+import { contractsManager } from './modules/cpms/contracts.js?v=11.5';
 
 class App {
   constructor() {
@@ -1853,18 +1853,50 @@ class App {
    * Lấy danh sách dự án Online trên Google Drive để hiển thị chung trong danh sách dự án
    */
   async refreshOnlineDriveProjects() {
+    const email = gdrive.currentUser?.email || '';
+    const cacheKey = email ? `maio_online_projects_cache_${email}` : '';
+
+    if (!gdrive.currentUser || gdrive.currentUser.isOffline) {
+      this.onlineDriveProjects = [];
+      return [];
+    }
+
     if (!gdrive.isSignedIn()) {
       const refreshed = await gdrive.trySilentRefreshToken();
       if (!refreshed || !gdrive.isSignedIn()) {
+        // Giữ lại danh sách dự án Online đã biết của tài khoản Google này khi token vừa hết hạn sau reload
+        if (cacheKey) {
+          try {
+            const cached = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+            if (Array.isArray(cached) && cached.length > 0) {
+              this.onlineDriveProjects = cached;
+              return this.onlineDriveProjects;
+            }
+          } catch (_) {}
+        }
         this.onlineDriveProjects = [];
         return [];
       }
     }
     try {
       this.onlineDriveProjects = await gdrive.listOnlineProjects();
+      if (cacheKey && Array.isArray(this.onlineDriveProjects)) {
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(this.onlineDriveProjects));
+        } catch (_) {}
+      }
       return this.onlineDriveProjects;
     } catch (e) {
       console.warn('Lỗi lấy danh sách dự án Online trên Drive:', e);
+      if (cacheKey) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(cacheKey) || '[]');
+          if (Array.isArray(cached)) {
+            this.onlineDriveProjects = cached;
+            return this.onlineDriveProjects;
+          }
+        } catch (_) {}
+      }
       return [];
     }
   }

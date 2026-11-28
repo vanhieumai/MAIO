@@ -330,7 +330,10 @@ export class ContractsManager {
           this._lastKnownFileModified = file.lastModified || Date.now();
           this.startLocalFileWatcher();
           const result = await CPMSImporterExporter.importCPMSFile(file);
+          const existingPrj = (this.projects || []).find((p) => p.id === result.projectData.id);
           result.projectData.data_origin = 'local';
+          if (existingPrj?.drive_synced) result.projectData.drive_synced = true;
+          if (existingPrj?.drive_folder_id) result.projectData.drive_folder_id = existingPrj.drive_folder_id;
           await db.put('projects', result.projectData);
           await db.saveProjectFileHandle(result.projectData.id, handle);
           this.currentProjectId = result.projectData.id;
